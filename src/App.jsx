@@ -17,25 +17,20 @@ import Cart from "./pages/Cart";
 import Favorites from "./pages/Favorites";
 import Profile from "./pages/Profile";
 import Footer from "./components/Footer";
+
 import AdminApp from "./admin/AdminApp";
+
 import Checkout from "./pages/Checkout";
 import { AuthProvider } from "./context/AuthContext";
 
 import Customizer from "./pages/Customizer";
 
-
-
-
 function App() {
-
   return (
-
     <AuthProvider>
-
       <BrowserRouter>
 
         <Routes>
-
 
           {/* ================= HOME ================= */}
 
@@ -45,31 +40,24 @@ function App() {
               <>
                 <Navbar />
                 <Home />
-                 <Footer />
+                <Footer />
               </>
             }
           />
-
 
           {/* ================= LOGIN ================= */}
 
           <Route
             path="/login"
-            element={
-              <Login />
-            }
+            element={<Login />}
           />
-
 
           {/* ================= SIGNUP ================= */}
 
           <Route
             path="/signup"
-            element={
-              <Signup />
-            }
+            element={<Signup />}
           />
-
 
           {/* ================= PROFILE ================= */}
 
@@ -83,7 +71,6 @@ function App() {
             }
           />
 
-
           {/* ================= CATEGORY ================= */}
 
           <Route
@@ -95,7 +82,6 @@ function App() {
               </>
             }
           />
-
 
           {/* ================= PRODUCT DETAILS ================= */}
 
@@ -109,7 +95,6 @@ function App() {
             }
           />
 
-
           {/* ================= CART ================= */}
 
           <Route
@@ -121,7 +106,6 @@ function App() {
               </>
             }
           />
-
 
           {/* ================= FAVORITES ================= */}
 
@@ -135,32 +119,31 @@ function App() {
             }
           />
 
-
           {/* ================= ADMIN ================= */}
 
           <Route
             path="/admin/*"
-            element={
-              <AdminApp />
-            }
+            element={<AdminApp />}
           />
 
-
+          {/* ================= CHECKOUT ================= */}
 
           <Route
-  path="/checkout"
-  element={<Checkout />}
-/>
+            path="/checkout"
+            element={<Checkout />}
+          />
 
+          {/* ================= CUSTOMIZER ================= */}
 
+          <Route
+            path="/customize"
+            element={<Customizer />}
+          />
 
-<Route path="/customize" element={<Customizer />} />
         </Routes>
 
       </BrowserRouter>
-
     </AuthProvider>
-
   );
 }
 

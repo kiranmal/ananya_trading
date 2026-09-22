@@ -1,12 +1,11 @@
 import React from "react";
-import {
-  Routes,
-  Route,
-} from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 
+// Admin Layout & Login
 import AdminLogin from "./pages/AdminLogin";
 import AdminLayout from "./components/AdminLayout";
 
+// Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminProducts from "./pages/AdminProducts";
 import AdminCategories from "./pages/AdminCategories";
@@ -14,118 +13,146 @@ import AdminPayments from "./pages/AdminPayments";
 import AdminInventory from "./pages/AdminInventory";
 import AdminUsers from "./pages/AdminUsers";
 import AdminOrders from "./pages/AdminOrders";
+import AdminDelivery from "./pages/AdminDelivery";
 
+// Product Pages
 import AddProduct from "./pages/AddProduct";
-
+import EditProduct from "./pages/EditProduct";
 
 export default function AdminApp() {
-
   return (
-
     <Routes>
 
-      {/* =========================================
+      {/* =====================================================
           ADMIN LOGIN
-      ========================================= */}
+      ===================================================== */}
 
       <Route
         path="login"
-        element={
-          <AdminLogin />
-        }
+        element={<AdminLogin />}
       />
 
 
-      {/* =========================================
+      {/* =====================================================
           ADMIN PANEL
-      ========================================= */}
+          All pages below use AdminLayout
+      ===================================================== */}
 
       <Route
-        element={
-          <AdminLayout />
-        }
+        element={<AdminLayout />}
       >
 
-        {/* ================= DASHBOARD ================= */}
+        {/* =================================================
+            DASHBOARD
+            URL: /admin
+        ================================================= */}
 
         <Route
           index
-          element={
-            <AdminDashboard />
-          }
+          element={<AdminDashboard />}
         />
 
 
-        {/* ================= PRODUCTS ================= */}
+        {/* =================================================
+            PRODUCTS
+            URL: /admin/products
+        ================================================= */}
 
         <Route
           path="products"
-          element={
-            <AdminProducts />
-          }
+          element={<AdminProducts />}
         />
 
+
+        {/* =================================================
+            ADD PRODUCT
+            URL: /admin/products/add
+        ================================================= */}
 
         <Route
           path="products/add"
-          element={
-            <AddProduct />
-          }
+          element={<AddProduct />}
         />
 
 
-        {/* ================= CATEGORIES ================= */}
+        {/* =================================================
+            EDIT PRODUCT
+            URL: /admin/products/edit/:id
+        ================================================= */}
+
+        <Route
+          path="products/edit/:id"
+          element={<EditProduct />}
+        />
+
+
+        {/* =================================================
+            CATEGORIES
+            URL: /admin/categories
+        ================================================= */}
 
         <Route
           path="categories"
-          element={
-            <AdminCategories />
-          }
+          element={<AdminCategories />}
         />
 
 
-        {/* ================= ORDERS ================= */}
+        {/* =================================================
+            ORDERS
+            URL: /admin/orders
+        ================================================= */}
 
         <Route
           path="orders"
-          element={
-            <AdminOrders />
-          }
+          element={<AdminOrders />}
         />
 
 
-        {/* ================= PAYMENTS ================= */}
+        {/* =================================================
+            PAYMENTS
+            URL: /admin/payments
+        ================================================= */}
 
         <Route
           path="payments"
-          element={
-            <AdminPayments />
-          }
+          element={<AdminPayments />}
         />
 
 
-        {/* ================= INVENTORY ================= */}
+        {/* =================================================
+            INVENTORY
+            URL: /admin/inventory
+        ================================================= */}
 
         <Route
           path="inventory"
-          element={
-            <AdminInventory />
-          }
+          element={<AdminInventory />}
         />
 
 
-        {/* ================= USERS ================= */}
+        {/* =================================================
+            USERS
+            URL: /admin/users
+        ================================================= */}
 
         <Route
           path="users"
-          element={
-            <AdminUsers />
-          }
+          element={<AdminUsers />}
+        />
+
+
+        {/* =================================================
+            DELIVERY MANAGEMENT
+            URL: /admin/delivery
+        ================================================= */}
+
+        <Route
+          path="delivery"
+          element={<AdminDelivery />}
         />
 
       </Route>
 
     </Routes>
-
   );
 }

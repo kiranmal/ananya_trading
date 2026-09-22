@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   PackagePlus,
@@ -10,22 +10,218 @@ import {
   CheckCircle2,
   ArrowLeft,
   Sparkles,
+  Upload,
+  Trash2,
 } from "lucide-react";
 
 import "./AddProduct.css";
 
+const categories = [
+  {
+    name: "Visiting Cards",
+    items: [
+      "Premium Business Cards",
+      "Standard Cards",
+      "Matte Cards",
+      "Glossy Cards",
+    ],
+  },
+  {
+    name: "Stationery & Office",
+    items: [
+      "Letterheads",
+      "Notebooks",
+      "Envelopes",
+      "Office Files",
+      "Stamps",
+    ],
+  },
+  {
+    name: "Marketing Materials",
+    items: [
+      "Flyers",
+      "Brochures",
+      "Posters",
+      "Leaflets",
+      "Calendars",
+    ],
+  },
+  {
+    name: "Stickers & Labels",
+    items: [
+      "Product Labels",
+      "Vinyl Stickers",
+      "Round Stickers",
+      "Packaging Labels",
+    ],
+  },
+  {
+    name: "Packaging",
+    items: [
+      "Paper Bags",
+      "Boxes",
+      "Food Packaging",
+      "Product Packaging",
+    ],
+  },
+  {
+    name: "Clothing & Bags",
+    items: [
+      "T-Shirts",
+      "Caps",
+      "Tote Bags",
+      "Corporate Bags",
+    ],
+  },
+  {
+    name: "Mugs & Gifts",
+    items: [
+      "Coffee Mugs",
+      "Photo Mugs",
+      "Keychains",
+      "Corporate Gifts",
+    ],
+  },
+  {
+    name: "Pens & Drinkware",
+    items: [
+      "Ball Pens",
+      "Premium Pens",
+      "Water Bottles",
+      "Travel Mugs",
+    ],
+  },
+  {
+    name: "Custom Polo T-Shirts",
+    items: [
+      "Corporate Polo",
+      "Printed Polo",
+      "Custom T-Shirts",
+    ],
+  },
+];
+
 export default function AddProduct() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Visiting Cards");
+  const [category, setCategory] = useState(
+    "Visiting Cards"
+  );
+  const [subcategory, setSubcategory] = useState(
+    "Premium Business Cards"
+  );
+
   const [price, setPrice] = useState("");
   const [oldPrice, setOldPrice] = useState("");
+
   const [image, setImage] = useState("");
+  const [imageName, setImageName] = useState("");
+
   const [description, setDescription] = useState("");
 
   const [imageError, setImageError] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  /* =====================================================
+     CURRENT CATEGORY ITEMS
+  ===================================================== */
+
+  const selectedCategory = categories.find(
+    (item) => item.name === category
+  );
+
+  const subcategories =
+    selectedCategory?.items || [];
+
+  /* =====================================================
+     CATEGORY CHANGE
+  ===================================================== */
+
+  const handleCategoryChange = (e) => {
+    const value = e.target.value;
+
+    setCategory(value);
+
+    const newCategory = categories.find(
+      (item) => item.name === value
+    );
+
+    setSubcategory(
+      newCategory?.items?.[0] || ""
+    );
+  };
+
+  /* =====================================================
+     IMAGE UPLOAD
+  ===================================================== */
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size should be less than 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setImage(reader.result);
+      setImageName(file.name);
+      setImageError(false);
+    };
+
+    reader.onerror = () => {
+      alert("Unable to read image.");
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  /* =====================================================
+     REMOVE IMAGE
+  ===================================================== */
+
+  const removeImage = () => {
+    setImage("");
+    setImageName("");
+    setImageError(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  /* =====================================================
+     DISCOUNT
+  ===================================================== */
+
+  const calculateDiscount = () => {
+    if (
+      !price ||
+      !oldPrice ||
+      Number(oldPrice) <= Number(price)
+    ) {
+      return null;
+    }
+
+    return Math.round(
+      ((Number(oldPrice) - Number(price)) /
+        Number(oldPrice)) *
+        100
+    );
+  };
+
+  const discount = calculateDiscount();
 
   /* =====================================================
      ADD PRODUCT
@@ -44,15 +240,18 @@ export default function AddProduct() {
       return;
     }
 
-    if (!image.trim()) {
-      alert("Please enter product image URL.");
+    if (!image) {
+      alert("Please upload a product image.");
       return;
     }
 
     const priceNumber = Number(price);
-    const oldPriceNumber = Number(oldPrice || price);
 
-    const discount =
+    const oldPriceNumber = Number(
+      oldPrice || price
+    );
+
+    const productDiscount =
       oldPriceNumber > priceNumber
         ? `${Math.round(
             ((oldPriceNumber - priceNumber) /
@@ -68,11 +267,13 @@ export default function AddProduct() {
 
       category,
 
+      subcategory,
+
       price: priceNumber,
 
       oldPrice: oldPriceNumber,
 
-      discount,
+      discount: productDiscount,
 
       rating: 5,
 
@@ -80,9 +281,11 @@ export default function AddProduct() {
 
       badge: "NEW",
 
-      image: image.trim(),
+      image,
 
-      images: [image.trim()],
+      images: [image],
+
+      imageName,
 
       description:
         description.trim() ||
@@ -115,14 +318,20 @@ export default function AddProduct() {
 
     try {
       existingProducts = JSON.parse(
-        localStorage.getItem("ananyaProducts") || "[]"
+        localStorage.getItem(
+          "ananyaProducts"
+        ) || "[]"
       );
 
       if (!Array.isArray(existingProducts)) {
         existingProducts = [];
       }
     } catch (error) {
-      console.error("Product storage error:", error);
+      console.error(
+        "Product storage error:",
+        error
+      );
+
       existingProducts = [];
     }
 
@@ -135,21 +344,39 @@ export default function AddProduct() {
       newProduct,
     ];
 
-    localStorage.setItem(
-      "ananyaProducts",
-      JSON.stringify(updatedProducts)
-    );
+    try {
+      localStorage.setItem(
+        "ananyaProducts",
+        JSON.stringify(updatedProducts)
+      );
+    } catch (error) {
+      console.error(
+        "Unable to save product:",
+        error
+      );
+
+      alert(
+        "Image is too large for browser storage. Please use a smaller image."
+      );
+
+      return;
+    }
 
     /* =====================================================
        NOTIFY OTHER COMPONENTS
     ===================================================== */
 
     window.dispatchEvent(
+      new Event("ananyaProductsUpdated")
+    );
+
+    // Backward compatibility
+    window.dispatchEvent(
       new Event("productsUpdated")
     );
 
     /* =====================================================
-       SUCCESS MESSAGE
+       SUCCESS
     ===================================================== */
 
     setSuccess(true);
@@ -159,50 +386,19 @@ export default function AddProduct() {
     }, 1000);
   };
 
-  /* =====================================================
-     RESET IMAGE
-  ===================================================== */
-
-  const removeImage = () => {
-    setImage("");
-    setImageError(false);
-  };
-
-  /* =====================================================
-     PRICE FORMAT
-  ===================================================== */
-
-  const calculateDiscount = () => {
-    if (
-      !price ||
-      !oldPrice ||
-      Number(oldPrice) <= Number(price)
-    ) {
-      return null;
-    }
-
-    return Math.round(
-      ((Number(oldPrice) - Number(price)) /
-        Number(oldPrice)) *
-        100
-    );
-  };
-
-  const discount = calculateDiscount();
-
   return (
     <div className="add-product-page">
 
-      {/* =====================================================
-          SUCCESS MESSAGE
-      ===================================================== */}
+      {/* SUCCESS */}
 
       {success && (
         <div className="success-toast">
           <CheckCircle2 size={20} />
 
           <div>
-            <strong>Product Added Successfully</strong>
+            <strong>
+              Product Added Successfully
+            </strong>
 
             <span>
               Redirecting to products...
@@ -211,12 +407,9 @@ export default function AddProduct() {
         </div>
       )}
 
-      {/* =====================================================
-          PAGE HEADER
-      ===================================================== */}
+      {/* HEADER */}
 
       <div className="add-product-header">
-
         <div className="header-left">
 
           <button
@@ -230,44 +423,34 @@ export default function AddProduct() {
           </button>
 
           <div>
-
             <div className="header-label">
               <Sparkles size={15} />
               PRODUCT MANAGEMENT
             </div>
 
-            <h1>
-              Add New Product
-            </h1>
+            <h1>Add New Product</h1>
 
             <p>
               Create and publish a new product
               to your Ananya Trading store.
             </p>
-
           </div>
 
         </div>
-
       </div>
 
-      {/* =====================================================
-          MAIN CONTENT
-      ===================================================== */}
+      {/* MAIN */}
 
       <form
         className="add-product-layout"
         onSubmit={handleSubmit}
       >
 
-        {/* =====================================================
-            LEFT FORM
-        ===================================================== */}
+        {/* LEFT */}
 
         <div className="product-form-card">
 
           <div className="form-card-header">
-
             <div className="form-card-icon">
               <PackagePlus size={21} />
             </div>
@@ -281,22 +464,17 @@ export default function AddProduct() {
                 Enter the basic details of your product.
               </p>
             </div>
-
           </div>
 
-          {/* =================================================
-              PRODUCT NAME
-          ================================================= */}
+          {/* PRODUCT NAME */}
 
           <div className="form-group">
-
             <label>
               Product Name
               <span>*</span>
             </label>
 
             <div className="input-wrapper">
-
               <Tag size={18} />
 
               <input
@@ -307,94 +485,88 @@ export default function AddProduct() {
                   setName(e.target.value)
                 }
               />
-
             </div>
-
           </div>
 
-          {/* =================================================
-              CATEGORY
-          ================================================= */}
-
-          <div className="form-group">
-
-            <label>
-              Category
-              <span>*</span>
-            </label>
-
-            <div className="input-wrapper">
-
-              <PackagePlus size={18} />
-
-              <select
-                value={category}
-                onChange={(e) =>
-                  setCategory(e.target.value)
-                }
-              >
-
-                <option>
-                  Visiting Cards
-                </option>
-
-                <option>
-                  Business Cards
-                </option>
-
-                <option>
-                  Premium Cards
-                </option>
-
-                <option>
-                  Luxury Cards
-                </option>
-
-                <option>
-                  Brochures
-                </option>
-
-                <option>
-                  Flyers
-                </option>
-
-                <option>
-                  Posters
-                </option>
-
-                <option>
-                  Banners
-                </option>
-
-                <option>
-                  Stickers
-                </option>
-
-                <option>
-                  Packaging
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-
-          {/* =================================================
-              PRICE
-          ================================================= */}
+          {/* CATEGORY */}
 
           <div className="form-row">
 
             <div className="form-group">
+              <label>
+                Category
+                <span>*</span>
+              </label>
 
+              <div className="input-wrapper">
+                <PackagePlus size={18} />
+
+                <select
+                  value={category}
+                  onChange={
+                    handleCategoryChange
+                  }
+                >
+                  {categories.map(
+                    (item) => (
+                      <option
+                        key={item.name}
+                        value={item.name}
+                      >
+                        {item.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* SUBCATEGORY */}
+
+            <div className="form-group">
+              <label>
+                Product Type
+                <span>*</span>
+              </label>
+
+              <div className="input-wrapper">
+                <Tag size={18} />
+
+                <select
+                  value={subcategory}
+                  onChange={(e) =>
+                    setSubcategory(
+                      e.target.value
+                    )
+                  }
+                >
+                  {subcategories.map(
+                    (item) => (
+                      <option
+                        key={item}
+                        value={item}
+                      >
+                        {item}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            </div>
+
+          </div>
+
+          {/* PRICE */}
+
+          <div className="form-row">
+
+            <div className="form-group">
               <label>
                 Selling Price
                 <span>*</span>
               </label>
 
               <div className="input-wrapper">
-
                 <IndianRupee size={18} />
 
                 <input
@@ -406,19 +578,15 @@ export default function AddProduct() {
                     setPrice(e.target.value)
                   }
                 />
-
               </div>
-
             </div>
 
             <div className="form-group">
-
               <label>
                 Original Price
               </label>
 
               <div className="input-wrapper">
-
                 <IndianRupee size={18} />
 
                 <input
@@ -427,19 +595,17 @@ export default function AddProduct() {
                   placeholder="699"
                   value={oldPrice}
                   onChange={(e) =>
-                    setOldPrice(e.target.value)
+                    setOldPrice(
+                      e.target.value
+                    )
                   }
                 />
-
               </div>
-
             </div>
 
           </div>
 
-          {/* =================================================
-              DISCOUNT
-          ================================================= */}
+          {/* DISCOUNT */}
 
           {discount && (
             <div className="discount-preview">
@@ -449,7 +615,6 @@ export default function AddProduct() {
               </div>
 
               <div>
-
                 <strong>
                   {discount}% OFF
                 </strong>
@@ -458,63 +623,138 @@ export default function AddProduct() {
                   Customers will see this discount
                   on your product.
                 </span>
-
               </div>
 
             </div>
           )}
 
-          {/* =================================================
-              IMAGE URL
-          ================================================= */}
+          {/* IMAGE UPLOAD */}
 
           <div className="form-group">
 
             <label>
-              Product Image URL
+              Product Image
               <span>*</span>
             </label>
 
-            <div className="input-wrapper">
+            <div
+              className={`image-upload-box ${
+                image
+                  ? "has-image"
+                  : ""
+              }`}
+            >
 
-              <ImageIcon size={18} />
+              {image &&
+              !imageError ? (
+                <div className="uploaded-image-preview">
 
-              <input
-                type="url"
-                placeholder="https://example.com/product.jpg"
-                value={image}
-                onChange={(e) => {
-                  setImage(e.target.value);
-                  setImageError(false);
-                }}
-              />
+                  <img
+                    src={image}
+                    alt="Product Preview"
+                    onError={() =>
+                      setImageError(
+                        true
+                      )
+                    }
+                  />
 
-              {image && (
+                  <div className="image-overlay">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        fileInputRef.current?.click()
+                      }
+                    >
+                      <Upload
+                        size={16}
+                      />
+                      Change Image
+                    </button>
+
+                    <button
+                      type="button"
+                      className="remove-image-btn"
+                      onClick={
+                        removeImage
+                      }
+                    >
+                      <Trash2
+                        size={16}
+                      />
+                      Remove
+                    </button>
+                  </div>
+
+                </div>
+              ) : (
                 <button
                   type="button"
-                  className="clear-input"
-                  onClick={removeImage}
+                  className="image-upload-trigger"
+                  onClick={() =>
+                    fileInputRef.current?.click()
+                  }
                 >
-                  <X size={16} />
+                  <div className="upload-icon">
+                    <Upload size={28} />
+                  </div>
+
+                  <strong>
+                    Upload Product Image
+                  </strong>
+
+                  <span>
+                    Click to browse from your computer
+                  </span>
+
+                  <small>
+                    JPG, JPEG, PNG, WEBP • Max 5MB
+                  </small>
                 </button>
               )}
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/jpg"
+                onChange={
+                  handleImageUpload
+                }
+                hidden
+              />
+
             </div>
 
+            {imageName && (
+              <div className="selected-image-info">
+                <ImageIcon size={15} />
+
+                <span>
+                  {imageName}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={
+                    removeImage
+                  }
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+
             <small className="field-help">
-              Use a publicly accessible image URL.
+              Upload a clear, high-quality product image.
             </small>
 
           </div>
 
-          {/* =================================================
-              DESCRIPTION
-          ================================================= */}
+          {/* DESCRIPTION */}
 
           <div className="form-group">
 
             <div className="label-row">
-
               <label>
                 Product Description
               </label>
@@ -522,11 +762,9 @@ export default function AddProduct() {
               <span className="character-count">
                 {description.length}/500
               </span>
-
             </div>
 
             <div className="textarea-wrapper">
-
               <FileText size={18} />
 
               <textarea
@@ -535,17 +773,16 @@ export default function AddProduct() {
                 placeholder="Enter product description..."
                 value={description}
                 onChange={(e) =>
-                  setDescription(e.target.value)
+                  setDescription(
+                    e.target.value
+                  )
                 }
               />
-
             </div>
 
           </div>
 
-          {/* =================================================
-              ACTIONS
-          ================================================= */}
+          {/* ACTIONS */}
 
           <div className="form-actions">
 
@@ -553,7 +790,9 @@ export default function AddProduct() {
               type="button"
               className="cancel-btn"
               onClick={() =>
-                navigate("/admin/products")
+                navigate(
+                  "/admin/products"
+                )
               }
             >
               Cancel
@@ -575,16 +814,13 @@ export default function AddProduct() {
 
         </div>
 
-        {/* =====================================================
-            RIGHT PREVIEW
-        ===================================================== */}
+        {/* RIGHT PREVIEW */}
 
         <aside className="product-preview-card">
 
           <div className="preview-header">
 
             <div>
-
               <span>
                 LIVE PREVIEW
               </span>
@@ -592,7 +828,6 @@ export default function AddProduct() {
               <h2>
                 Product Card
               </h2>
-
             </div>
 
             <div className="preview-status">
@@ -602,32 +837,50 @@ export default function AddProduct() {
 
           </div>
 
-          {/* =================================================
-              IMAGE
-          ================================================= */}
+          {/* BEAUTIFUL PRODUCT IMAGE */}
 
           <div className="preview-image">
 
-            {image && !imageError ? (
-              <img
-                src={image}
-                alt="Product Preview"
-                onError={() =>
-                  setImageError(true)
-                }
-              />
+            {image &&
+            !imageError ? (
+              <div className="preview-image-inner">
+
+                <img
+                  src={image}
+                  alt={
+                    name ||
+                    "Product Preview"
+                  }
+                />
+
+                <div className="preview-image-shine" />
+
+              </div>
             ) : (
               <div className="image-placeholder">
 
-                <ImageIcon size={42} />
+                <div className="placeholder-icon">
+                  <ImageIcon size={42} />
+                </div>
 
                 <strong>
                   Product Image
                 </strong>
 
                 <span>
-                  Add an image URL to preview
+                  Upload an image to see
+                  your product here
                 </span>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    fileInputRef.current?.click()
+                  }
+                >
+                  <Upload size={15} />
+                  Upload Image
+                </button>
 
               </div>
             )}
@@ -644,14 +897,13 @@ export default function AddProduct() {
 
           </div>
 
-          {/* =================================================
-              PREVIEW DETAILS
-          ================================================= */}
+          {/* DETAILS */}
 
           <div className="preview-details">
 
             <span className="preview-category">
-              {category}
+              {subcategory ||
+                category}
             </span>
 
             <h3>
@@ -678,7 +930,9 @@ export default function AddProduct() {
 
               <strong>
                 ₹
-                {Number(price || 0).toLocaleString(
+                {Number(
+                  price || 0
+                ).toLocaleString(
                   "en-IN"
                 )}
               </strong>
@@ -700,9 +954,7 @@ export default function AddProduct() {
 
           </div>
 
-          {/* =================================================
-              PREVIEW INFO
-          ================================================= */}
+          {/* INFO */}
 
           <div className="preview-info">
 
@@ -726,7 +978,6 @@ export default function AddProduct() {
         </aside>
 
       </form>
-
     </div>
   );
 }

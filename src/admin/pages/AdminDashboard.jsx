@@ -11,28 +11,24 @@ const recentOrders = [
     amount: "₹8,499",
     status: "Delivered",
   },
-
   {
     id: "#ORD-1002",
     customer: "Priya Singh",
     amount: "₹4,299",
     status: "Processing",
   },
-
   {
     id: "#ORD-1003",
     customer: "Aman Verma",
     amount: "₹12,990",
     status: "Shipped",
   },
-
   {
     id: "#ORD-1004",
     customer: "Neha Gupta",
     amount: "₹2,499",
     status: "Pending",
   },
-
   {
     id: "#ORD-1005",
     customer: "Rohit Kumar",
@@ -44,21 +40,27 @@ const recentOrders = [
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
-  /* =====================================================
-     ADD PRODUCT
-  ===================================================== */
+  // =====================================================
+  // ADD PRODUCT
+  // =====================================================
 
   const handleAddProduct = () => {
     navigate("/admin/products/add");
   };
 
-  /* =====================================================
-     VIEW ALL ORDERS
-  ===================================================== */
+  // =====================================================
+  // DELIVERY MANAGEMENT
+  // =====================================================
 
-  const handleViewOrders = (event) => {
-    event.preventDefault();
+  const handleDeliveryManagement = () => {
+    navigate("/admin/delivery");
+  };
 
+  // =====================================================
+  // VIEW ALL ORDERS
+  // =====================================================
+
+  const handleViewOrders = () => {
     navigate("/admin/orders");
   };
 
@@ -72,23 +74,36 @@ export default function AdminDashboard() {
       <div className="page-heading">
 
         <div>
-          <h2>
-            Good afternoon, Admin 👋
-          </h2>
+          <h2>Good afternoon, Admin 👋</h2>
 
           <p>
-            Here is what's happening with
-            your store today.
+            Here is what's happening with your store today.
           </p>
         </div>
 
-        <button
-          type="button"
-          className="primary-btn"
-          onClick={handleAddProduct}
-        >
-          ＋ Add Product
-        </button>
+        <div className="dashboard-actions">
+
+          {/* DELIVERY BUTTON */}
+
+          <button
+            type="button"
+            className="delivery-top-btn"
+            onClick={handleDeliveryManagement}
+          >
+            📍 Delivery Settings
+          </button>
+
+          {/* ADD PRODUCT BUTTON */}
+
+          <button
+            type="button"
+            className="primary-btn"
+            onClick={handleAddProduct}
+          >
+            ＋ Add Product
+          </button>
+
+        </div>
 
       </div>
 
@@ -128,6 +143,48 @@ export default function AdminDashboard() {
         />
 
       </div>
+
+
+      {/* =====================================================
+          DELIVERY MANAGEMENT
+      ===================================================== */}
+
+      <section className="delivery-dashboard-card">
+
+        <div className="delivery-dashboard-content">
+
+          <div className="delivery-dashboard-icon">
+            🚚
+          </div>
+
+          <div className="delivery-dashboard-text">
+
+            <span className="delivery-dashboard-label">
+              DELIVERY MANAGEMENT
+            </span>
+
+            <h3>
+              Manage Delivery Locations
+            </h3>
+
+            <p>
+              Add, edit or remove cities, areas and
+              pincodes where you want to provide delivery.
+            </p>
+
+          </div>
+
+        </div>
+
+        <button
+          type="button"
+          className="delivery-dashboard-btn"
+          onClick={handleDeliveryManagement}
+        >
+          Manage Delivery →
+        </button>
+
+      </section>
 
 
       {/* =====================================================
@@ -264,45 +321,26 @@ export default function AdminDashboard() {
 
             <span>
               <i className="dot delivered"></i>
-
               Delivered
-
-              <b>
-                68%
-              </b>
+              <b>68%</b>
             </span>
-
 
             <span>
               <i className="dot processing"></i>
-
               Processing
-
-              <b>
-                17%
-              </b>
+              <b>17%</b>
             </span>
-
 
             <span>
               <i className="dot pending"></i>
-
               Pending
-
-              <b>
-                10%
-              </b>
+              <b>10%</b>
             </span>
-
 
             <span>
               <i className="dot cancelled"></i>
-
               Cancelled
-
-              <b>
-                5%
-              </b>
+              <b>5%</b>
             </span>
 
           </div>
@@ -331,7 +369,6 @@ export default function AdminDashboard() {
             </p>
 
           </div>
-
 
           <button
             type="button"
@@ -382,23 +419,18 @@ export default function AdminDashboard() {
                 >
 
                   <td>
-
                     <strong>
                       {order.id}
                     </strong>
-
                   </td>
-
 
                   <td>
                     {order.customer}
                   </td>
 
-
                   <td>
                     {order.amount}
                   </td>
-
 
                   <td>
 
