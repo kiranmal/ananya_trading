@@ -8,6 +8,7 @@ import {
 
 import "./Home.css";
 import defaultProducts from "../data/products";
+import CustomizeProducts from "../components/CustomizeProducts";
 
 function Home() {
   const navigate = useNavigate();
@@ -628,6 +629,8 @@ function Home() {
       {/* =================================================
           PRODUCTS
       ================================================= */}
+
+      <CustomizeProducts />
 
       <section
         className="products-section"

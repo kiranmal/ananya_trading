@@ -21,6 +21,7 @@ import AdminApp from "./admin/AdminApp";
 import Checkout from "./pages/Checkout";
 import { AuthProvider } from "./context/AuthContext";
 
+import Customizer from "./pages/Customizer";
 
 
 
@@ -152,6 +153,8 @@ function App() {
 />
 
 
+
+<Route path="/customize" element={<Customizer />} />
         </Routes>
 
       </BrowserRouter>

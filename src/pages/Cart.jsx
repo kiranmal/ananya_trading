@@ -7,38 +7,593 @@ import {
   ArrowRight,
   Plus,
   Minus,
+  Palette,
+  Type,
+  Image as ImageIcon,
+  X,
+  Maximize2,
 } from "lucide-react";
 
 import "./Cart.css";
 
 
+// ============================================================
+// PRODUCT PREVIEW COMPONENT
+// ============================================================
+
+function CartProductPreview({
+  item,
+  onPreview,
+}) {
+
+  const image =
+    item.image ||
+    item.images?.[0] ||
+    "";
+
+  const isCustomized =
+    item.isCustomized ||
+    item.logo ||
+    item.text;
+
+
+  const logoX =
+    Number(item.logoPosition?.x) || 50;
+
+  const logoY =
+    Number(item.logoPosition?.y) || 31;
+
+
+  const textX =
+    Number(item.textPosition?.x) || 50;
+
+  const textY =
+    Number(item.textPosition?.y) || 55;
+
+
+  const logoSize =
+    Number(item.logoSize) || 115;
+
+
+  const textFontSize =
+    Number(item.fontSize) || 25;
+
+
+  return (
+    <div
+      className="cart-design-preview"
+      onClick={() =>
+        onPreview(item)
+      }
+    >
+
+      {/* PRODUCT IMAGE */}
+
+      {image ? (
+
+        <img
+          src={image}
+          alt={
+            item.name ||
+            "Product"
+          }
+          className="cart-product-image"
+        />
+
+      ) : (
+
+        <div
+          className="cart-product-fallback"
+          style={{
+            background:
+              item.color ||
+              "#ffffff",
+          }}
+        />
+
+      )}
+
+
+      {/* CUSTOMIZATION */}
+
+      {isCustomized && (
+
+        <div className="cart-customization-layer">
+
+          {/* LOGO */}
+
+          {item.logo &&
+            item.side !== "back" && (
+
+              <div
+                className="cart-logo-overlay"
+                style={{
+                  left:
+                    `${logoX}%`,
+
+                  top:
+                    `${logoY}%`,
+
+                  width:
+                    `${logoSize}px`,
+                }}
+              >
+
+                <img
+                  src={item.logo}
+                  alt="Custom Logo"
+                />
+
+              </div>
+
+            )}
+
+
+          {/* TEXT */}
+
+          {item.text &&
+            item.side !== "back" && (
+
+              <div
+                className="cart-text-overlay"
+                style={{
+                  left:
+                    `${textX}%`,
+
+                  top:
+                    `${textY}%`,
+
+                  color:
+                    item.textColor ||
+                    "#102a4c",
+
+                  fontSize:
+                    `${textFontSize}px`,
+
+                  fontFamily:
+                    item.fontFamily ||
+                    "Poppins",
+
+                  fontWeight:
+                    item.bold
+                      ? 700
+                      : 400,
+
+                  fontStyle:
+                    item.italic
+                      ? "italic"
+                      : "normal",
+
+                  textDecoration:
+                    item.underline
+                      ? "underline"
+                      : "none",
+                }}
+              >
+
+                {item.text}
+
+              </div>
+
+            )}
+
+        </div>
+
+      )}
+
+
+      {/* ZOOM ICON */}
+
+      <div className="cart-image-zoom">
+
+        <Maximize2 size={17} />
+
+      </div>
+
+
+      {/* CUSTOMIZED BADGE */}
+
+      {isCustomized && (
+
+        <div className="customized-badge">
+
+          <Palette size={11} />
+
+          Customized
+
+        </div>
+
+      )}
+
+    </div>
+  );
+}
+
+
+// ============================================================
+// LARGE PREVIEW MODAL
+// ============================================================
+
+function ProductPreviewModal({
+  item,
+  onClose,
+}) {
+
+  if (!item) {
+    return null;
+  }
+
+
+  const image =
+    item.image ||
+    item.images?.[0] ||
+    "";
+
+
+  const logoX =
+    Number(item.logoPosition?.x) || 50;
+
+  const logoY =
+    Number(item.logoPosition?.y) || 31;
+
+
+  const textX =
+    Number(item.textPosition?.x) || 50;
+
+  const textY =
+    Number(item.textPosition?.y) || 55;
+
+
+  const logoSize =
+    Number(item.logoSize) || 115;
+
+
+  const textFontSize =
+    Number(item.fontSize) || 25;
+
+
+  return (
+
+    <div
+      className="product-preview-overlay"
+      onClick={onClose}
+    >
+
+      {/* ==================================================
+          MODAL
+      ================================================== */}
+
+      <div
+        className="product-preview-modal"
+        onClick={(event) =>
+          event.stopPropagation()
+        }
+      >
+
+        {/* CLOSE BUTTON */}
+
+        <button
+          type="button"
+          className="preview-close-btn"
+          onClick={onClose}
+          aria-label="Close preview"
+        >
+
+          <X size={24} />
+
+        </button>
+
+
+        {/* HEADER */}
+
+        <div className="preview-modal-header">
+
+          <div>
+
+            <span>
+              PRODUCT PREVIEW
+            </span>
+
+            <h2>
+              {item.name ||
+                "Product"}
+            </h2>
+
+          </div>
+
+        </div>
+
+
+        {/* ==================================================
+            LARGE PRODUCT
+        ================================================== */}
+
+        <div className="large-product-preview">
+
+          {image ? (
+
+            <img
+              src={image}
+              alt={
+                item.name ||
+                "Product"
+              }
+              className="large-product-image"
+            />
+
+          ) : (
+
+            <div
+              className="large-product-fallback"
+              style={{
+                background:
+                  item.color ||
+                  "#ffffff",
+              }}
+            />
+
+          )}
+
+
+          {/* CUSTOMIZATION */}
+
+          <div className="large-customization-layer">
+
+            {/* LOGO */}
+
+            {item.logo &&
+              item.side !== "back" && (
+
+                <div
+                  className="large-logo-overlay"
+                  style={{
+                    left:
+                      `${logoX}%`,
+
+                    top:
+                      `${logoY}%`,
+
+                    width:
+                      `${logoSize}px`,
+                  }}
+                >
+
+                  <img
+                    src={item.logo}
+                    alt="Custom Logo"
+                  />
+
+                </div>
+
+              )}
+
+
+            {/* TEXT */}
+
+            {item.text &&
+              item.side !== "back" && (
+
+                <div
+                  className="large-text-overlay"
+                  style={{
+                    left:
+                      `${textX}%`,
+
+                    top:
+                      `${textY}%`,
+
+                    color:
+                      item.textColor ||
+                      "#102a4c",
+
+                    fontSize:
+                      `${textFontSize}px`,
+
+                    fontFamily:
+                      item.fontFamily ||
+                      "Poppins",
+
+                    fontWeight:
+                      item.bold
+                        ? 700
+                        : 400,
+
+                    fontStyle:
+                      item.italic
+                        ? "italic"
+                        : "normal",
+
+                    textDecoration:
+                      item.underline
+                        ? "underline"
+                        : "none",
+                  }}
+                >
+
+                  {item.text}
+
+                </div>
+
+              )}
+
+          </div>
+
+        </div>
+
+
+        {/* ==================================================
+            PRODUCT DETAILS
+        ================================================== */}
+
+        <div className="preview-product-details">
+
+          <div>
+
+            <span>
+              Product
+            </span>
+
+            <strong>
+              {item.name ||
+                "Product"}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Size
+            </span>
+
+            <strong>
+              {item.size ||
+                "Standard"}
+            </strong>
+
+          </div>
+
+
+          {item.color && (
+
+            <div>
+
+              <span>
+                Color
+              </span>
+
+              <strong
+                className="preview-color"
+              >
+
+                <i
+                  style={{
+                    background:
+                      item.color,
+                  }}
+                />
+
+                {item.color}
+
+              </strong>
+
+            </div>
+
+          )}
+
+
+          {item.logo && (
+
+            <div>
+
+              <span>
+                Logo
+              </span>
+
+              <strong>
+                Added
+              </strong>
+
+            </div>
+
+          )}
+
+
+          {item.text && (
+
+            <div>
+
+              <span>
+                Text
+              </span>
+
+              <strong>
+                {item.text}
+              </strong>
+
+            </div>
+
+          )}
+
+        </div>
+
+
+        {/* CLOSE */}
+
+        <button
+          type="button"
+          className="preview-bottom-btn"
+          onClick={onClose}
+        >
+
+          Close Preview
+
+        </button>
+
+      </div>
+
+    </div>
+
+  );
+}
+
+
+// ============================================================
+// CART
+// ============================================================
+
 function Cart() {
 
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
-  const [cart, setCart] = useState([]);
+
+  const [cart, setCart] =
+    useState([]);
 
 
-  /* =====================================================
-     LOAD CART
-  ===================================================== */
+  // ==========================================================
+  // PREVIEW STATE
+  // ==========================================================
+
+  const [
+    previewProduct,
+    setPreviewProduct,
+  ] = useState(null);
+
+
+  // ==========================================================
+  // LOAD CART
+  // ==========================================================
 
   const loadCart = () => {
 
     try {
 
       const savedCart =
-        localStorage.getItem("ananyaCart");
+        localStorage.getItem(
+          "ananyaCart"
+        );
+
 
       const parsedCart =
         savedCart
-          ? JSON.parse(savedCart)
+          ? JSON.parse(
+              savedCart
+            )
           : [];
 
 
-      if (Array.isArray(parsedCart)) {
+      if (
+        Array.isArray(
+          parsedCart
+        )
+      ) {
 
-        setCart(parsedCart);
+        setCart(
+          parsedCart
+        );
 
       } else {
 
@@ -60,20 +615,21 @@ function Cart() {
   };
 
 
-  /* =====================================================
-     INITIAL LOAD
-  ===================================================== */
+  // ==========================================================
+  // INITIAL LOAD
+  // ==========================================================
 
   useEffect(() => {
 
     loadCart();
 
 
-    const handleCartUpdate = () => {
+    const handleCartUpdate =
+      () => {
 
-      loadCart();
+        loadCart();
 
-    };
+      };
 
 
     window.addEventListener(
@@ -118,197 +674,262 @@ function Cart() {
   }, []);
 
 
-  /* =====================================================
-     SAVE CART
-  ===================================================== */
+  // ==========================================================
+  // CLOSE PREVIEW WITH ESC
+  // ==========================================================
 
-  const saveCart = (updatedCart) => {
+  useEffect(() => {
 
-    setCart(updatedCart);
+    const handleKeyDown =
+      (event) => {
+
+        if (
+          event.key === "Escape"
+        ) {
+
+          setPreviewProduct(
+            null
+          );
+
+        }
+
+      };
 
 
-    localStorage.setItem(
-      "ananyaCart",
-      JSON.stringify(updatedCart)
+    window.addEventListener(
+      "keydown",
+      handleKeyDown
     );
 
 
-    window.dispatchEvent(
-      new Event("ananyaCartUpdated")
-    );
+    return () => {
+
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+
+    };
+
+  }, []);
 
 
-    window.dispatchEvent(
-      new Event("cartUpdated")
-    );
+  // ==========================================================
+  // SAVE CART
+  // ==========================================================
 
-  };
+  const saveCart =
+    (updatedCart) => {
 
-
-  /* =====================================================
-     INCREASE QUANTITY
-     
-     100 → 200 → 300
-  ===================================================== */
-
-  const increaseQuantity = (index) => {
-
-    const updatedCart = [...cart];
-
-    const item = updatedCart[index];
+      setCart(
+        updatedCart
+      );
 
 
-    const currentQuantity =
-      Number(item.quantity) || 100;
+      localStorage.setItem(
+        "ananyaCart",
+        JSON.stringify(
+          updatedCart
+        )
+      );
 
 
-    const newQuantity =
-      currentQuantity + 100;
+      window.dispatchEvent(
+        new Event(
+          "ananyaCartUpdated"
+        )
+      );
 
 
-    updatedCart[index] = {
-
-      ...item,
-
-      quantity: newQuantity,
+      window.dispatchEvent(
+        new Event(
+          "cartUpdated"
+        )
+      );
 
     };
 
 
-    saveCart(updatedCart);
+  // ==========================================================
+  // INCREASE
+  // ==========================================================
 
-  };
+  const increaseQuantity =
+    (index) => {
 
-
-  /* =====================================================
-     DECREASE QUANTITY
-     
-     Minimum = 100
-  ===================================================== */
-
-  const decreaseQuantity = (index) => {
-
-    const updatedCart = [...cart];
-
-    const item = updatedCart[index];
+      const updatedCart =
+        [...cart];
 
 
-    const currentQuantity =
-      Number(item.quantity) || 100;
+      const item =
+        updatedCart[index];
 
 
-    const newQuantity =
-      Math.max(
-        100,
-        currentQuantity - 100
+      const currentQuantity =
+        Number(
+          item.quantity
+        ) || 100;
+
+
+      updatedCart[index] = {
+
+        ...item,
+
+        quantity:
+          currentQuantity +
+          100,
+
+      };
+
+
+      saveCart(
+        updatedCart
       );
-
-
-    updatedCart[index] = {
-
-      ...item,
-
-      quantity: newQuantity,
 
     };
 
 
-    saveCart(updatedCart);
+  // ==========================================================
+  // DECREASE
+  // ==========================================================
 
-  };
+  const decreaseQuantity =
+    (index) => {
+
+      const updatedCart =
+        [...cart];
 
 
-  /* =====================================================
-     REMOVE SINGLE PRODUCT
-  ===================================================== */
+      const item =
+        updatedCart[index];
 
-  const removeItem = (index) => {
 
-    const updatedCart =
-      cart.filter(
-        (_, itemIndex) =>
-          itemIndex !== index
+      const currentQuantity =
+        Number(
+          item.quantity
+        ) || 100;
+
+
+      updatedCart[index] = {
+
+        ...item,
+
+        quantity:
+          Math.max(
+            100,
+            currentQuantity -
+              100
+          ),
+
+      };
+
+
+      saveCart(
+        updatedCart
+      );
+
+    };
+
+
+  // ==========================================================
+  // REMOVE
+  // ==========================================================
+
+  const removeItem =
+    (index) => {
+
+      const updatedCart =
+        cart.filter(
+          (_, itemIndex) =>
+            itemIndex !== index
+        );
+
+
+      saveCart(
+        updatedCart
+      );
+
+    };
+
+
+  // ==========================================================
+  // CLEAR
+  // ==========================================================
+
+  const clearCart =
+    () => {
+
+      localStorage.removeItem(
+        "ananyaCart"
       );
 
 
-    saveCart(updatedCart);
-
-  };
+      setCart([]);
 
 
-  /* =====================================================
-     CLEAR CART
-  ===================================================== */
-
-  const clearCart = () => {
-
-    localStorage.removeItem(
-      "ananyaCart"
-    );
+      window.dispatchEvent(
+        new Event(
+          "ananyaCartUpdated"
+        )
+      );
 
 
-    setCart([]);
+      window.dispatchEvent(
+        new Event(
+          "cartUpdated"
+        )
+      );
+
+    };
 
 
-    window.dispatchEvent(
-      new Event("ananyaCartUpdated")
-    );
-
-
-    window.dispatchEvent(
-      new Event("cartUpdated")
-    );
-
-  };
-
-
-  /* =====================================================
-     TOTAL PRODUCTS
-  ===================================================== */
+  // ==========================================================
+  // TOTALS
+  // ==========================================================
 
   const totalProducts =
     cart.length;
 
 
-  /* =====================================================
-     TOTAL QUANTITY
-  ===================================================== */
-
   const totalQuantity =
     cart.reduce(
-      (total, item) => {
-
-        return (
-          total +
-          (Number(item.quantity) || 0)
-        );
-
-      },
+      (
+        total,
+        item
+      ) =>
+        total +
+        (
+          Number(
+            item.quantity
+          ) || 0
+        ),
       0
     );
 
-
-  /* =====================================================
-     TOTAL PRICE
-     
-     price × quantity
-  ===================================================== */
 
   const totalPrice =
     cart.reduce(
-      (total, item) => {
+      (
+        total,
+        item
+      ) => {
 
         const price =
-          Number(item.price) || 0;
+          Number(
+            item.price
+          ) || 0;
 
 
         const quantity =
-          Number(item.quantity) || 1;
+          Number(
+            item.quantity
+          ) || 1;
 
 
         return (
           total +
-          price * quantity
+          price *
+            quantity
         );
 
       },
@@ -316,248 +937,184 @@ function Cart() {
     );
 
 
-  /* =====================================================
-     OPEN PRODUCT
-  ===================================================== */
+  // ==========================================================
+  // OPEN PRODUCT
+  // ==========================================================
 
-  const openProduct = (item) => {
+  const openProduct =
+    (item) => {
 
-    const productId =
-      item.productId || item.id;
-
-
-    if (!productId) {
-
-      return;
-
-    }
+      const productId =
+        item.originalProductId ||
+        item.id;
 
 
-    navigate(
-      `/product/${productId}`,
-      {
-        state: {
-          product: item,
-        },
+      if (!productId) {
+
+        return;
+
       }
-    );
-
-  };
 
 
-  /* =====================================================
-     CHECK LOGIN + CHECKOUT
-     
-     IMPORTANT:
-     
-     Login.jsx saves:
-     
-     localStorage.setItem(
-       "currentUser",
-       JSON.stringify(loggedInUser)
-     );
-     
-     Therefore we check "currentUser".
-  ===================================================== */
+      navigate(
+        `/product/${productId}`,
+        {
+          state: {
+            product:
+              item,
+          },
+        }
+      );
 
-  const handleCheckout = () => {
-
-    /* ---------------------------------------------
-       EMPTY CART CHECK
-    --------------------------------------------- */
-
-    if (cart.length === 0) {
-
-      return;
-
-    }
+    };
 
 
-    /* ---------------------------------------------
-       CHECK CURRENT USER
-    --------------------------------------------- */
+  // ==========================================================
+  // CHECKOUT
+  // ==========================================================
 
-    let currentUser = null;
+  const handleCheckout =
+    () => {
+
+      if (
+        cart.length === 0
+      ) {
+
+        return;
+
+      }
 
 
-    try {
+      let currentUser =
+        null;
 
-      const savedUser =
+
+      try {
+
+        const savedUser =
+          localStorage.getItem(
+            "currentUser"
+          );
+
+
+        if (
+          savedUser
+        ) {
+
+          currentUser =
+            JSON.parse(
+              savedUser
+            );
+
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Login check error:",
+          error
+        );
+
+      }
+
+
+      const adminLoggedIn =
         localStorage.getItem(
-          "currentUser"
+          "adminLoggedIn"
+        ) === "true";
+
+
+      if (
+        currentUser ||
+        adminLoggedIn
+      ) {
+
+        navigate(
+          "/checkout",
+          {
+            state: {
+
+              cart,
+
+              totalPrice,
+
+              totalQuantity,
+
+              user:
+                currentUser,
+
+            },
+          }
         );
 
 
-      if (savedUser) {
-
-        currentUser =
-          JSON.parse(savedUser);
+        return;
 
       }
 
-    } catch (error) {
-
-      console.error(
-        "Login check error:",
-        error
-      );
-
-      currentUser = null;
-
-    }
-
-
-    /* ---------------------------------------------
-       ALSO CHECK ADMIN SESSION
-    --------------------------------------------- */
-
-    const adminLoggedIn =
-      localStorage.getItem(
-        "adminLoggedIn"
-      ) === "true";
-
-
-    /* ---------------------------------------------
-       USER IS LOGGED IN
-    --------------------------------------------- */
-
-    if (
-      currentUser ||
-      adminLoggedIn
-    ) {
 
       navigate(
-        "/checkout",
+        "/login",
         {
           state: {
 
-            cart: cart,
+            redirectTo:
+              "/checkout",
 
-            totalPrice:
+            checkoutData: {
+
+              cart,
+
               totalPrice,
 
-            totalQuantity:
               totalQuantity,
 
-            user:
-              currentUser,
+            },
 
           },
         }
       );
 
-
-      return;
-
-    }
+    };
 
 
-    /* ---------------------------------------------
-       USER IS NOT LOGGED IN
-       
-       Send checkout information to Login
-       --------------------------------------------- */
+  // ==========================================================
+  // EMPTY CART
+  // ==========================================================
 
-    navigate(
-      "/login",
-      {
-        state: {
+  if (
+    cart.length === 0
+  ) {
 
-          redirectTo:
-            "/checkout",
+    return (
 
-          checkoutData: {
+      <main className="cart-page">
 
-            cart: cart,
+        <div className="cart-container">
 
-            totalPrice:
-              totalPrice,
+          <div className="cart-heading">
 
-            totalQuantity:
-              totalQuantity,
+            <div>
 
-          },
+              <span className="cart-label">
+                YOUR SHOPPING CART
+              </span>
 
-        },
-      }
-    );
+              <h1>
+                Shopping Cart
+              </h1>
 
-  };
+              <p>
+                Review your selected
+                products before checkout.
+              </p>
 
-
-  /* =====================================================
-     RETURN
-  ===================================================== */
-
-  return (
-
-    <main className="cart-page">
-
-      <div className="cart-container">
-
-
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
-        <div className="cart-heading">
-
-          <div>
-
-            <span className="cart-label">
-
-              YOUR SHOPPING CART
-
-            </span>
-
-
-            <h1>
-
-              Shopping Cart
-
-            </h1>
-
-
-            <p>
-
-              Review your selected products
-              before checkout.
-
-            </p>
+            </div>
 
           </div>
 
 
-          {cart.length > 0 && (
-
-            <button
-
-              type="button"
-
-              className="clear-cart"
-
-              onClick={clearCart}
-
-            >
-
-              Clear Cart
-
-            </button>
-
-          )}
-
-        </div>
-
-
-
-        {/* =================================================
-            EMPTY CART
-        ================================================= */}
-
-        {cart.length === 0 ? (
-
           <div className="empty-cart">
-
 
             <div className="empty-cart-icon">
 
@@ -569,26 +1126,19 @@ function Cart() {
 
 
             <h2>
-
               Your cart is empty
-
             </h2>
 
 
             <p>
-
               You haven't added any
               products to your cart yet.
-
             </p>
 
 
             <Link
-
               to="/"
-
               className="continue-shopping"
-
             >
 
               Explore Products
@@ -599,481 +1149,489 @@ function Cart() {
 
             </Link>
 
+          </div>
+
+        </div>
+
+      </main>
+
+    );
+
+  }
+
+
+  // ==========================================================
+  // MAIN CART
+  // ==========================================================
+
+  return (
+
+    <main className="cart-page">
+
+      <div className="cart-container">
+
+
+        {/* HEADER */}
+
+        <div className="cart-heading">
+
+          <div>
+
+            <span className="cart-label">
+              YOUR SHOPPING CART
+            </span>
+
+
+            <h1>
+              Shopping Cart
+            </h1>
+
+
+            <p>
+              Review your selected
+              products before checkout.
+            </p>
 
           </div>
 
-        ) : (
+
+          <button
+            type="button"
+            className="clear-cart"
+            onClick={
+              clearCart
+            }
+          >
+
+            Clear Cart
+
+          </button>
+
+        </div>
 
 
-          /* =================================================
-             CART CONTENT
-          ================================================= */
 
-          <div className="cart-layout">
+        {/* CART */}
 
-
-            {/* =================================================
-                CART ITEMS
-            ================================================= */}
-
-            <div className="cart-items">
+        <div className="cart-layout">
 
 
-              {cart.map(
-                (item, index) => {
+          {/* ITEMS */}
+
+          <div className="cart-items">
+
+            {cart.map(
+              (
+                item,
+                index
+              ) => {
+
+                const price =
+                  Number(
+                    item.price
+                  ) || 0;
 
 
-                  const price =
-                    Number(
-                      item.price
-                    ) || 0;
+                const quantity =
+                  Number(
+                    item.quantity
+                  ) || 100;
 
 
-                  const quantity =
-                    Number(
-                      item.quantity
-                    ) || 100;
+                const itemTotal =
+                  price *
+                  quantity;
 
 
-                  const itemTotal =
-                    price * quantity;
+                const customized =
+                  Boolean(
+                    item.isCustomized ||
+                    item.logo ||
+                    item.text
+                  );
 
 
-                  return (
+                return (
+
+                  <div
+                    className={
+                      customized
+                        ? "cart-item customized-cart-item"
+                        : "cart-item"
+                    }
+                    key={
+                      `${
+                        item.productId ||
+                        item.id ||
+                        "product"
+                      }-${index}`
+                    }
+                  >
+
+
+                    {/* PRODUCT IMAGE */}
 
                     <div
-
-                      className="cart-item"
-
-                      key={
-
-                        `${
-                          item.productId ||
-                          item.id ||
-                          "product"
-                        }-${index}`
-
-                      }
-
+                      className="cart-image"
                     >
 
-
-                      {/* =====================================
-                          PRODUCT IMAGE
-                      ===================================== */}
-
-                      <div
-
-                        className="cart-image"
-
-                        onClick={() =>
-                          openProduct(item)
+                      <CartProductPreview
+                        item={
+                          item
                         }
-
-                      >
-
-                        <img
-
-                          src={
-
-                            item.image ||
-
-                            item.images?.[0] ||
-
-                            "https://via.placeholder.com/300x300?text=Product"
-
-                          }
-
-                          alt={
-
-                            item.name ||
-                            "Product"
-
-                          }
-
-                        />
-
-                      </div>
-
-
-
-                      {/* =====================================
-                          PRODUCT INFORMATION
-                      ===================================== */}
-
-                      <div className="cart-info">
-
-
-                        <span className="cart-category">
-
-                          {item.paperType ||
-
-                            item.category ||
-
-                            "Premium"
-
-                          }
-
-                        </span>
-
-
-                        <h3
-
-                          onClick={() =>
-                            openProduct(item)
-                          }
-
-                        >
-
-                          {item.name ||
-
-                            "Untitled Product"
-
-                          }
-
-                        </h3>
-
-
-                        <p>
-
-                          Size:{" "}
-
-                          {item.size ||
-
-                            "Standard"
-
-                          }
-
-                        </p>
-
-
-                        <strong>
-
-                          ₹
-                          {price.toLocaleString(
-                            "en-IN"
-                          )}
-
-                        </strong>
-
-
-                        <small className="price-note">
-
-                          Price per piece
-
-                        </small>
-
-
-                      </div>
-
-
-
-                      {/* =====================================
-                          QUANTITY
-                      ===================================== */}
-
-                      <div className="cart-quantity">
-
-
-                        <button
-
-                          type="button"
-
-                          onClick={() =>
-                            decreaseQuantity(
-                              index
-                            )
-                          }
-
-                          disabled={
-                            quantity <= 100
-                          }
-
-                        >
-
-                          <Minus
-                            size={15}
-                          />
-
-                        </button>
-
-
-                        <span>
-
-                          {quantity}
-
-                        </span>
-
-
-                        <button
-
-                          type="button"
-
-                          onClick={() =>
-                            increaseQuantity(
-                              index
-                            )
-                          }
-
-                        >
-
-                          <Plus
-                            size={15}
-                          />
-
-                        </button>
-
-
-                      </div>
-
-
-
-                      {/* =====================================
-                          ITEM TOTAL
-                      ===================================== */}
-
-                      <div className="cart-item-total">
-
-
-                        <span>
-
-                          Item Total
-
-                        </span>
-
-
-                        <strong>
-
-                          ₹
-                          {itemTotal.toLocaleString(
-                            "en-IN"
-                          )}
-
-                        </strong>
-
-
-                        <button
-
-                          type="button"
-
-                          className="remove-item"
-
-                          onClick={() =>
-                            removeItem(index)
-                          }
-
-                          aria-label={
-
-                            `Remove ${
-                              item.name ||
-                              "product"
-                            }`
-
-                          }
-
-                        >
-
-                          <Trash2
-                            size={18}
-                          />
-
-                        </button>
-
-
-                      </div>
-
+                        onPreview={
+                          setPreviewProduct
+                        }
+                      />
 
                     </div>
 
-                  );
 
-                }
 
-              )}
+                    {/* INFO */}
+
+                    <div className="cart-info">
+
+                      <span className="cart-category">
+
+                        {
+                          item.paperType ||
+                          item.category ||
+                          "Premium"
+                        }
+
+                      </span>
+
+
+                      <h3
+                        onClick={() =>
+                          openProduct(
+                            item
+                          )
+                        }
+                      >
+
+                        {
+                          item.name ||
+                          "Untitled Product"
+                        }
+
+                      </h3>
+
+
+                      <p>
+
+                        Size:{" "}
+
+                        {
+                          item.size ||
+                          "Standard"
+                        }
+
+                      </p>
+
+
+                      {customized && (
+
+                        <div className="customization-info">
+
+                          <div>
+
+                            <Palette
+                              size={14}
+                            />
+
+                            Customized
+
+                          </div>
+
+
+                          {item.logo && (
+
+                            <span>
+
+                              <ImageIcon
+                                size={13}
+                              />
+
+                              Logo
+
+                            </span>
+
+                          )}
+
+
+                          {item.text && (
+
+                            <span>
+
+                              <Type
+                                size={13}
+                              />
+
+                              Text
+
+                            </span>
+
+                          )}
+
+                        </div>
+
+                      )}
+
+
+                      <strong>
+
+                        ₹
+                        {price.toLocaleString(
+                          "en-IN"
+                        )}
+
+                      </strong>
+
+
+                      <small className="price-note">
+
+                        Price per piece
+
+                      </small>
+
+                    </div>
+
+
+
+                    {/* QUANTITY */}
+
+                    <div className="cart-quantity">
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          decreaseQuantity(
+                            index
+                          )
+                        }
+                        disabled={
+                          quantity <=
+                          100
+                        }
+                      >
+
+                        <Minus
+                          size={15}
+                        />
+
+                      </button>
+
+
+                      <span>
+                        {quantity}
+                      </span>
+
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          increaseQuantity(
+                            index
+                          )
+                        }
+                      >
+
+                        <Plus
+                          size={15}
+                        />
+
+                      </button>
+
+                    </div>
+
+
+
+                    {/* TOTAL */}
+
+                    <div className="cart-item-total">
+
+                      <span>
+                        Item Total
+                      </span>
+
+
+                      <strong>
+
+                        ₹
+                        {itemTotal.toLocaleString(
+                          "en-IN"
+                        )}
+
+                      </strong>
+
+
+                      <button
+                        type="button"
+                        className="remove-item"
+                        onClick={() =>
+                          removeItem(
+                            index
+                          )
+                        }
+                      >
+
+                        <Trash2
+                          size={18}
+                        />
+
+                      </button>
+
+                    </div>
+
+
+                  </div>
+
+                );
+
+              }
+            )}
+
+          </div>
+
+
+
+          {/* SUMMARY */}
+
+          <aside className="cart-summary">
+
+            <h2>
+              Order Summary
+            </h2>
+
+
+            <div className="summary-row">
+
+              <span>
+                Products
+              </span>
+
+              <span>
+                {totalProducts}
+              </span>
 
             </div>
 
 
+            <div className="summary-row">
 
-            {/* =================================================
-                ORDER SUMMARY
-            ================================================= */}
+              <span>
+                Total Quantity
+              </span>
 
-            <aside className="cart-summary">
+              <span>
+                {totalQuantity}
+              </span>
 
+            </div>
 
-              <h2>
 
-                Order Summary
+            <div className="summary-row">
 
-              </h2>
+              <span>
+                Subtotal
+              </span>
 
+              <strong>
 
+                ₹
+                {totalPrice.toLocaleString(
+                  "en-IN"
+                )}
 
-              {/* PRODUCTS */}
+              </strong>
 
-              <div className="summary-row">
+            </div>
 
-                <span>
 
-                  Products
+            <div className="summary-row">
 
-                </span>
+              <span>
+                Delivery
+              </span>
 
+              <strong className="free">
+                FREE
+              </strong>
 
-                <span>
+            </div>
 
-                  {totalProducts}
 
-                </span>
+            <div className="summary-line" />
 
-              </div>
 
+            <div className="summary-total">
 
+              <span>
+                Total
+              </span>
 
-              {/* TOTAL QUANTITY */}
+              <strong>
 
-              <div className="summary-row">
+                ₹
+                {totalPrice.toLocaleString(
+                  "en-IN"
+                )}
 
-                <span>
+              </strong>
 
-                  Total Quantity
+            </div>
 
-                </span>
 
+            <button
+              type="button"
+              className="checkout-btn"
+              onClick={
+                handleCheckout
+              }
+            >
 
-                <span>
+              Proceed to Checkout
 
-                  {totalQuantity}
+              <ArrowRight
+                size={18}
+              />
 
-                </span>
+            </button>
 
-              </div>
 
+            <Link
+              to="/"
+              className="continue-link"
+            >
 
+              ← Continue Shopping
 
-              {/* SUBTOTAL */}
+            </Link>
 
-              <div className="summary-row">
+          </aside>
 
-                <span>
-
-                  Subtotal
-
-                </span>
-
-
-                <strong>
-
-                  ₹
-                  {totalPrice.toLocaleString(
-                    "en-IN"
-                  )}
-
-                </strong>
-
-              </div>
-
-
-
-              {/* DELIVERY */}
-
-              <div className="summary-row">
-
-                <span>
-
-                  Delivery
-
-                </span>
-
-
-                <strong className="free">
-
-                  FREE
-
-                </strong>
-
-              </div>
-
-
-
-              <div className="summary-line" />
-
-
-
-              {/* FINAL TOTAL */}
-
-              <div className="summary-total">
-
-                <span>
-
-                  Total
-
-                </span>
-
-
-                <strong>
-
-                  ₹
-                  {totalPrice.toLocaleString(
-                    "en-IN"
-                  )}
-
-                </strong>
-
-              </div>
-
-
-
-              {/* =============================================
-                  CHECKOUT BUTTON
-              ============================================= */}
-
-              <button
-
-                type="button"
-
-                className="checkout-btn"
-
-                onClick={handleCheckout}
-
-              >
-
-                Proceed to Checkout
-
-                <ArrowRight
-                  size={18}
-                />
-
-              </button>
-
-
-
-              {/* =============================================
-                  CONTINUE SHOPPING
-              ============================================= */}
-
-              <Link
-
-                to="/"
-
-                className="continue-link"
-
-              >
-
-                ← Continue Shopping
-
-              </Link>
-
-
-            </aside>
-
-
-          </div>
-
-        )}
+        </div>
 
       </div>
+
+
+
+      {/* ======================================================
+          LARGE PREVIEW MODAL
+      ====================================================== */}
+
+      <ProductPreviewModal
+        item={
+          previewProduct
+        }
+        onClose={() =>
+          setPreviewProduct(
+            null
+          )
+        }
+      />
 
     </main>
 
