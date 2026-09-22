@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import AdminTable from "../components/AdminTable";
 import categoriesData from "../../data/categories";
+import { fetchCategories } from "../../services/categoryApi";
 import {
   deleteProduct as deleteProductFromApi,
   fetchProducts,
@@ -13,6 +14,7 @@ import "./AdminProducts.css";
 export default function AdminProducts() {
 
   const [products, setProducts] = useState([]);
+  const [categoryList, setCategoryList] = useState(categoriesData);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Categories");
 
@@ -29,6 +31,16 @@ export default function AdminProducts() {
     };
 
     loadProducts();
+  }, []);
+
+
+  // Load categories from API
+  useEffect(() => {
+    const loadCategories = async () => {
+      setCategoryList(await fetchCategories());
+    };
+
+    loadCategories();
   }, []);
 
 
@@ -61,7 +73,7 @@ export default function AdminProducts() {
   const categories = [
     "All Categories",
     ...new Set([
-      ...categoriesData.map(cat => cat.name),
+      ...categoryList.map(cat => cat.name),
       ...products
         .map(product => product.category)
         .filter(Boolean),

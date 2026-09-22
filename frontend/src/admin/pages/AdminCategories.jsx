@@ -1,102 +1,21 @@
 import { useState, useEffect } from "react";
 import { API_URL } from "../../services/apiConfig";
 import {
+  fetchCategories,
+  createCategory,
+  deleteCategory,
+} from "../../services/categoryApi";
+import {
   Tags,
   ChevronRight,
   Package,
   FolderOpen,
   Eye,
+  Plus,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-/* =====================================================
-   CATEGORIES DATA (same as Navbar)
-===================================================== */
-
-const allCategories = [
-  {
-    name: "Visiting Cards",
-    items: [
-      "Premium Business Cards",
-      "Standard Cards",
-      "Matte Cards",
-      "Glossy Cards",
-    ],
-  },
-  {
-    name: "Stationery & Office",
-    items: [
-      "Letterheads",
-      "Notebooks",
-      "Envelopes",
-      "Office Files",
-      "Stamps",
-    ],
-  },
-  {
-    name: "Marketing Materials",
-    items: [
-      "Flyers",
-      "Brochures",
-      "Posters",
-      "Leaflets",
-      "Calendars",
-    ],
-  },
-  {
-    name: "Stickers & Labels",
-    items: [
-      "Product Labels",
-      "Vinyl Stickers",
-      "Round Stickers",
-      "Packaging Labels",
-    ],
-  },
-  {
-    name: "Packaging",
-    items: [
-      "Paper Bags",
-      "Boxes",
-      "Food Packaging",
-      "Product Packaging",
-    ],
-  },
-  {
-    name: "Clothing & Bags",
-    items: [
-      "T-Shirts",
-      "Caps",
-      "Tote Bags",
-      "Corporate Bags",
-    ],
-  },
-  {
-    name: "Mugs & Gifts",
-    items: [
-      "Coffee Mugs",
-      "Photo Mugs",
-      "Keychains",
-      "Corporate Gifts",
-    ],
-  },
-  {
-    name: "Pens & Drinkware",
-    items: [
-      "Ball Pens",
-      "Premium Pens",
-      "Water Bottles",
-      "Travel Mugs",
-    ],
-  },
-  {
-    name: "Custom Polo T-Shirts",
-    items: [
-      "Corporate Polo",
-      "Printed Polo",
-      "Custom T-Shirts",
-    ],
-  },
-];
 
 /* =====================================================
    CATEGORY COLORS
@@ -116,16 +35,32 @@ const categoryColors = [
 
 export default function AdminCategories() {
   const navigate = useNavigate();
+  const [categories, setCategories] = useState([]);
   const [productCounts, setProductCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedCategory, setExpandedCategory] = useState(null);
 
+  /* Add form state */
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newItems, setNewItems] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
   /* =====================================================
-     FETCH PRODUCT COUNTS PER CATEGORY
+     FETCH CATEGORIES + PRODUCT COUNTS
   ===================================================== */
 
+  const loadCategories = async () => {
+    const list = await fetchCategories();
+    setCategories(list);
+    return list;
+  };
+
   useEffect(() => {
-    const fetchProducts = async () => {
+    const load = async () => {
+      await loadCategories();
+
       try {
         const res = await fetch(
           `${API_URL}/products`
@@ -147,16 +82,81 @@ export default function AdminCategories() {
       }
     };
 
-    fetchProducts();
+    load();
   }, []);
+
+  /* =====================================================
+     ADD CATEGORY
+  ===================================================== */
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+
+    const name = newName.trim();
+    if (name.length < 2) {
+      alert("Category name must be at least 2 characters.");
+      return;
+    }
+
+    const items = newItems
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    setSaving(true);
+
+    try {
+      await createCategory(name, items);
+      setNewName("");
+      setNewItems("");
+      setShowAddForm(false);
+      await loadCategories();
+    } catch (error) {
+      alert(error.message || "Unable to add category.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* =====================================================
+     DELETE CATEGORY
+  ===================================================== */
+
+  const handleDeleteCategory = async (category) => {
+    if (!category.id) {
+      alert("This category cannot be deleted (default static data).");
+      return;
+    }
+
+    const count = productCounts[category.name] || 0;
+    const message =
+      count > 0
+        ? `Delete "${category.name}"? ${count} product(s) belong to this category — they will keep their category label.`
+        : `Delete "${category.name}"?`;
+
+    if (!window.confirm(message)) {
+      return;
+    }
+
+    setDeletingId(category.id);
+
+    try {
+      await deleteCategory(category.id);
+      await loadCategories();
+    } catch (error) {
+      alert(error.message || "Unable to delete category.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   /* =====================================================
      STATS
   ===================================================== */
 
-  const totalCategories = allCategories.length;
-  const totalSubcategories = allCategories.reduce(
-    (sum, c) => sum + c.items.length,
+  const totalCategories = categories.length;
+  const totalSubcategories = categories.reduce(
+    (sum, c) => sum + (c.items?.length || 0),
     0
   );
   const totalProducts = Object.values(productCounts).reduce(
@@ -176,7 +176,129 @@ export default function AdminCategories() {
           <h2>Categories</h2>
           <p>Manage product categories and subcategories</p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowAddForm(!showAddForm)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 18px",
+            border: "none",
+            borderRadius: "10px",
+            background: "#1263bd",
+            color: "#fff",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {showAddForm ? <X size={16} /> : <Plus size={16} />}
+          {showAddForm ? "Cancel" : "Add Category"}
+        </button>
       </div>
+
+      {/* =====================================================
+          ADD CATEGORY FORM
+      ===================================================== */}
+
+      {showAddForm && (
+        <form
+          onSubmit={handleAddCategory}
+          style={{
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: "14px",
+            padding: "22px 24px",
+            marginBottom: "24px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr auto",
+            gap: "16px",
+            alignItems: "end",
+          }}
+        >
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: "6px",
+              }}
+            >
+              Category Name *
+            </label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Diaries & Journals"
+              style={{
+                width: "100%",
+                height: "42px",
+                padding: "0 14px",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                fontSize: "14px",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: "6px",
+              }}
+            >
+              Subcategories (comma separated)
+            </label>
+            <input
+              type="text"
+              value={newItems}
+              onChange={(e) => setNewItems(e.target.value)}
+              placeholder="e.g. Diaries, Journals, Planners"
+              style={{
+                width: "100%",
+                height: "42px",
+                padding: "0 14px",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                fontSize: "14px",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            style={{
+              height: "42px",
+              padding: "0 22px",
+              border: "none",
+              borderRadius: "8px",
+              background: saving ? "#9ca3af" : "#10b981",
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: 600,
+              cursor: saving ? "not-allowed" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <Plus size={16} />
+            {saving ? "Adding..." : "Add"}
+          </button>
+        </form>
+      )}
 
       {/* =====================================================
           STATS CARDS
@@ -274,7 +396,7 @@ export default function AdminCategories() {
           gap: "20px",
         }}
       >
-        {allCategories.map((category, index) => {
+        {categories.map((category, index) => {
           const color = categoryColors[index % categoryColors.length];
           const count = productCounts[category.name] || 0;
           const isExpanded = expandedCategory === index;
@@ -360,16 +482,55 @@ export default function AdminCategories() {
                   </div>
                 </div>
 
-                <ChevronRight
-                  size={20}
-                  color="#9ca3af"
+                <div
                   style={{
-                    transform: isExpanded
-                      ? "rotate(90deg)"
-                      : "rotate(0deg)",
-                    transition: "transform 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
                   }}
-                />
+                >
+                  {category.id && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(category);
+                      }}
+                      disabled={deletingId === category.id}
+                      title="Delete category"
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        border: "none",
+                        borderRadius: "8px",
+                        background: "#fef2f2",
+                        color: "#dc2626",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor:
+                          deletingId === category.id
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          deletingId === category.id ? 0.5 : 1,
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+
+                  <ChevronRight
+                    size={20}
+                    color="#9ca3af"
+                    style={{
+                      transform: isExpanded
+                        ? "rotate(90deg)"
+                        : "rotate(0deg)",
+                      transition: "transform 0.2s",
+                    }}
+                  />
+                </div>
               </div>
 
               {/* Subcategories */}

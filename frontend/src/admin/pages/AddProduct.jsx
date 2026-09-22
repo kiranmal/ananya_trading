@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   PackagePlus,
@@ -15,19 +15,38 @@ import {
 } from "lucide-react";
 
 import "./AddProduct.css";
-import categories from "../../data/categories";
+import defaultCategories from "../../data/categories";
+import { fetchCategories } from "../../services/categoryApi";
 import { createProduct } from "../../services/productApi";
 
 export default function AddProduct() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
+  const [categories, setCategories] = useState(
+    defaultCategories
+  );
+
+  useEffect(() => {
+    const load = async () => {
+      const list = await fetchCategories();
+      setCategories(list);
+
+      const first = list[0];
+      if (first) {
+        setCategory(first.name);
+        setSubcategory(first.items?.[0] || "");
+      }
+    };
+    load();
+  }, []);
+
   const [name, setName] = useState("");
   const [category, setCategory] = useState(
-    "Visiting Cards"
+    defaultCategories[0]?.name || ""
   );
   const [subcategory, setSubcategory] = useState(
-    "Premium Business Cards"
+    defaultCategories[0]?.items?.[0] || ""
   );
 
   const [price, setPrice] = useState("");

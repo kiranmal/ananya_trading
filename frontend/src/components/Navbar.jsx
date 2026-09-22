@@ -5,13 +5,14 @@ import "./Navbar.css";
 import ananyaLogo from "../assets/logo.jpeg";
 
 import { getProducts } from "../data/productStorage";
+import { fetchCategories } from "../services/categoryApi";
 import { useAuth } from "../context/AuthContext";
 
 /* =====================================================
-   CATEGORIES
+   CATEGORIES (fallback — API se load hoti hain)
 ===================================================== */
 
-const categories = [
+const defaultCategories = [
   {
     name: "Visiting Cards",
     items: [
@@ -217,6 +218,9 @@ function Navbar() {
 
   const [mobileMenu, setMobileMenu] = useState(false);
 
+  const [categories, setCategories] =
+    useState(defaultCategories);
+
   /* =====================================================
      SEARCH STATES
   ===================================================== */
@@ -280,6 +284,12 @@ function Navbar() {
 
   useEffect(() => {
     loadProducts();
+
+    const loadCategories = async () => {
+      const list = await fetchCategories();
+      setCategories(list);
+    };
+    loadCategories();
 
     const handleProductsUpdate = () => {
       loadProducts();

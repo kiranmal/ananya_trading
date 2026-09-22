@@ -1727,6 +1727,186 @@ app.delete(
    404 HANDLER
 ========================================================= */
 
+/* =========================================================
+   CATEGORIES
+========================================================= */
+
+const DEFAULT_CATEGORIES = [
+  { name: "Visiting Cards", items: ["Premium Business Cards", "Standard Cards", "Matte Cards", "Glossy Cards"] },
+  { name: "Stationery & Office", items: ["Letterheads", "Notebooks", "Envelopes", "Office Files", "Stamps"] },
+  { name: "Marketing Materials", items: ["Flyers", "Brochures", "Posters", "Leaflets", "Calendars"] },
+  { name: "Stickers & Labels", items: ["Product Labels", "Vinyl Stickers", "Round Stickers", "Packaging Labels"] },
+  { name: "Packaging", items: ["Paper Bags", "Boxes", "Food Packaging", "Product Packaging"] },
+  { name: "Clothing & Bags", items: ["T-Shirts", "Caps", "Tote Bags", "Corporate Bags"] },
+  { name: "Mugs & Gifts", items: ["Coffee Mugs", "Photo Mugs", "Keychains", "Corporate Gifts"] },
+  { name: "Pens & Drinkware", items: ["Ball Pens", "Premium Pens", "Water Bottles", "Travel Mugs"] },
+  { name: "Custom Polo T-Shirts", items: ["Corporate Polo", "Printed Polo", "Custom T-Shirts"] },
+];
+
+async function ensureCategoriesTable() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INT NOT NULL AUTO_INCREMENT,
+      name VARCHAR(150) NOT NULL,
+      items TEXT DEFAULT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY category_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  const [rows] = await db.execute(
+    "SELECT COUNT(*) AS count FROM categories"
+  );
+
+  if (rows[0].count === 0) {
+    for (let i = 0; i < DEFAULT_CATEGORIES.length; i++) {
+      const cat = DEFAULT_CATEGORIES[i];
+      await db.execute(
+        "INSERT INTO categories (name, items, sort_order) VALUES (?, ?, ?)",
+        [cat.name, JSON.stringify(cat.items), i]
+      );
+    }
+    console.log("Default categories seeded");
+  }
+}
+
+app.get("/api/categories", async (req, res) => {
+  try {
+    await ensureCategoriesTable();
+    const [rows] = await db.execute(
+      "SELECT id, name, items, sort_order FROM categories ORDER BY sort_order ASC, id ASC"
+    );
+
+    const categories = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      items: (() => {
+        try {
+          return JSON.parse(row.items || "[]");
+        } catch {
+          return [];
+        }
+      })(),
+    }));
+
+    return res.status(200).json({ success: true, categories });
+  } catch (error) {
+    console.error("Categories fetch error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load categories.",
+    });
+  }
+});
+
+app.post(
+  "/api/admin/categories",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+      const items = Array.isArray(req.body?.items)
+        ? req.body.items
+            .map((item) => String(item).trim())
+            .filter(Boolean)
+        : [];
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Category name must be at least 2 characters.",
+        });
+      }
+
+      await ensureCategoriesTable();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM categories WHERE name = ? LIMIT 1",
+        [name]
+      );
+
+      if (existing.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Category already exists.",
+        });
+      }
+
+      const [maxRow] = await db.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM categories"
+      );
+
+      const [result] = await db.execute(
+        "INSERT INTO categories (name, items, sort_order) VALUES (?, ?, ?)",
+        [name, JSON.stringify(items), maxRow[0].maxOrder + 1]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Category added.",
+        category: {
+          id: result.insertId,
+          name,
+          items,
+        },
+      });
+    } catch (error) {
+      console.error("Category add error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to add category.",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/categories/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid category id.",
+        });
+      }
+
+      await ensureCategoriesTable();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM categories WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Category not found.",
+        });
+      }
+
+      await db.execute("DELETE FROM categories WHERE id = ?", [id]);
+
+      return res.status(200).json({
+        success: true,
+        message: "Category deleted.",
+      });
+    } catch (error) {
+      console.error("Category delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete category.",
+      });
+    }
+  }
+);
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
