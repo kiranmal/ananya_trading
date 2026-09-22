@@ -1,31 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
-const {
-  pool,
-} = require("../config/db");
-
-
-// =====================================================
-// CREATE JWT
-// =====================================================
-
-const generateToken = (user) => {
-
-  return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    },
-
-    process.env.JWT_SECRET,
-
-    {
-      expiresIn: "7d",
-    }
-  );
-};
+const db = require("../config/db");
 
 
 // =====================================================
@@ -33,9 +8,7 @@ const generateToken = (user) => {
 // =====================================================
 
 const signup = async (req, res) => {
-
   try {
-
     const {
       name,
       email,
@@ -44,9 +17,9 @@ const signup = async (req, res) => {
     } = req.body;
 
 
-    // -----------------------------------------------
-    // Required fields
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // BASIC VALIDATION
+    // ---------------------------------------------
 
     if (
       !name ||
@@ -54,137 +27,146 @@ const signup = async (req, res) => {
       !phone ||
       !password
     ) {
-
       return res.status(400).json({
         success: false,
-        message:
-          "All fields are required",
+        message: "All fields are required.",
       });
-
     }
 
 
-    const cleanName =
-      name.trim();
+    const cleanName = name.trim();
 
-    const cleanEmail =
-      email
-        .trim()
-        .toLowerCase();
+    const cleanEmail = email
+      .trim()
+      .toLowerCase();
 
-    const cleanPhone =
-      phone.trim();
+    const cleanPhone = phone.trim();
 
 
-    // -----------------------------------------------
-    // Password length
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // EMAIL VALIDATION
+    // ---------------------------------------------
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address.",
+      });
+    }
+
+
+    // ---------------------------------------------
+    // PHONE VALIDATION
+    // ---------------------------------------------
+
+    const phoneRegex =
+      /^[6-9]\d{9}$/;
+
+    if (!phoneRegex.test(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please enter a valid 10 digit Indian phone number.",
+      });
+    }
+
+
+    // ---------------------------------------------
+    // PASSWORD VALIDATION
+    // ---------------------------------------------
 
     if (password.length < 6) {
-
       return res.status(400).json({
         success: false,
         message:
-          "Password must be at least 6 characters",
+          "Password must be at least 6 characters.",
       });
-
     }
 
 
-    // -----------------------------------------------
-    // Check existing email
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // CHECK EXISTING EMAIL
+    // ---------------------------------------------
 
-    const [existingUsers] =
-      await pool.execute(
-        `
-        SELECT id
-        FROM users
-        WHERE email = ?
-        LIMIT 1
-        `,
-        [cleanEmail]
-      );
+    const [existingUsers] = await db.execute(
+      `
+      SELECT id
+      FROM users
+      WHERE email = ?
+      LIMIT 1
+      `,
+      [cleanEmail]
+    );
 
 
     if (existingUsers.length > 0) {
-
       return res.status(409).json({
         success: false,
         message:
           "This email is already registered!",
       });
-
     }
 
 
-    // -----------------------------------------------
-    // Hash password
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // HASH PASSWORD
+    // ---------------------------------------------
 
     const hashedPassword =
-      await bcrypt.hash(
+      await bcrypt.hash(password, 10);
+
+
+    // ---------------------------------------------
+    // INSERT USER
+    // ---------------------------------------------
+
+    const [result] = await db.execute(
+      `
+      INSERT INTO users
+      (
+        name,
+        email,
+        phone,
         password,
-        12
-      );
+        address,
+        photo,
+        role
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        cleanName,
+        cleanEmail,
+        cleanPhone,
+        hashedPassword,
+        "",
+        "",
+        "user",
+      ]
+    );
 
 
-    // -----------------------------------------------
-    // Insert user
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // RESPONSE
+    // ---------------------------------------------
 
-    const [result] =
-      await pool.execute(
-        `
-        INSERT INTO users
-        (
-          name,
-          email,
-          phone,
-          password,
-          role
-        )
-        VALUES (?, ?, ?, ?, 'user')
-        `,
-
-        [
-          cleanName,
-          cleanEmail,
-          cleanPhone,
-          hashedPassword,
-        ]
-      );
-
-
-    // -----------------------------------------------
-    // Response
-    // -----------------------------------------------
-
-    res.status(201).json({
-
+    return res.status(201).json({
       success: true,
-
       message:
         "Account created successfully!",
 
       user: {
-
         id: result.insertId,
-
         name: cleanName,
-
         email: cleanEmail,
-
         phone: cleanPhone,
-
         address: "",
-
         photo: "",
-
         role: "user",
-
       },
-
     });
 
   } catch (error) {
@@ -194,18 +176,14 @@ const signup = async (req, res) => {
       error
     );
 
-
-    res.status(500).json({
-
+    return res.status(500).json({
       success: false,
-
       message:
-        "Server error during signup",
-
+        "Server error while creating account.",
     });
-
   }
 };
+
 
 
 // =====================================================
@@ -213,7 +191,6 @@ const signup = async (req, res) => {
 // =====================================================
 
 const login = async (req, res) => {
-
   try {
 
     const {
@@ -222,78 +199,62 @@ const login = async (req, res) => {
     } = req.body;
 
 
-    // -----------------------------------------------
-    // Validation
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // VALIDATION
+    // ---------------------------------------------
 
-    if (
-      !email ||
-      !password
-    ) {
-
+    if (!email || !password) {
       return res.status(400).json({
-
         success: false,
-
         message:
-          "Email and password are required",
-
+          "Email and password are required.",
       });
-
     }
 
 
-    const cleanEmail =
-      email
-        .trim()
-        .toLowerCase();
+    const cleanEmail = email
+      .trim()
+      .toLowerCase();
 
 
-    // -----------------------------------------------
-    // Find user
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // FIND USER
+    // ---------------------------------------------
 
-    const [users] =
-      await pool.execute(
-        `
-        SELECT
-          id,
-          name,
-          email,
-          phone,
-          password,
-          address,
-          photo,
-          role
-        FROM users
-        WHERE email = ?
-        LIMIT 1
-        `,
-        [cleanEmail]
-      );
+    const [users] = await db.execute(
+      `
+      SELECT
+        id,
+        name,
+        email,
+        phone,
+        password,
+        address,
+        photo,
+        role
+      FROM users
+      WHERE email = ?
+      LIMIT 1
+      `,
+      [cleanEmail]
+    );
 
 
     if (users.length === 0) {
-
       return res.status(401).json({
-
         success: false,
-
         message:
           "Account not found. Please create an account first.",
-
       });
-
     }
 
 
-    const user =
-      users[0];
+    const user = users[0];
 
 
-    // -----------------------------------------------
-    // Password compare
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // CHECK PASSWORD
+    // ---------------------------------------------
 
     const passwordMatch =
       await bcrypt.compare(
@@ -303,62 +264,62 @@ const login = async (req, res) => {
 
 
     if (!passwordMatch) {
-
       return res.status(401).json({
-
         success: false,
-
         message:
           "Invalid email or password!",
-
       });
-
     }
 
 
-    // -----------------------------------------------
-    // JWT
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // CREATE JWT
+    // ---------------------------------------------
 
     const token =
-      generateToken(user);
+      jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+
+        process.env.JWT_SECRET,
+
+        {
+          expiresIn: "7d",
+        }
+      );
 
 
-    // -----------------------------------------------
-    // Response
-    // -----------------------------------------------
+    // ---------------------------------------------
+    // USER DATA
+    // ---------------------------------------------
 
-    res.json({
+    const loggedInUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "",
+      address: user.address || "",
+      photo: user.photo || "",
+      role: user.role || "user",
+    };
 
+
+    // ---------------------------------------------
+    // RESPONSE
+    // ---------------------------------------------
+
+    return res.status(200).json({
       success: true,
 
       message:
-        user.role === "admin"
-          ? "Admin Login Successful!"
-          : `Welcome back, ${user.name}!`,
+        `Welcome back, ${loggedInUser.name}!`,
 
       token,
 
-      user: {
-
-        id: user.id,
-
-        name: user.name,
-
-        email: user.email,
-
-        phone: user.phone,
-
-        address:
-          user.address || "",
-
-        photo:
-          user.photo || "",
-
-        role: user.role,
-
-      },
-
+      user: loggedInUser,
     });
 
   } catch (error) {
@@ -368,89 +329,66 @@ const login = async (req, res) => {
       error
     );
 
-
-    res.status(500).json({
-
+    return res.status(500).json({
       success: false,
-
       message:
-        "Server error during login",
-
+        "Server error while logging in.",
     });
-
   }
 };
 
 
+
 // =====================================================
-// CURRENT USER
+// GET CURRENT USER
 // =====================================================
 
-const getMe = async (
-  req,
-  res
-) => {
+const getMe = async (req, res) => {
 
   try {
 
-    const [users] =
-      await pool.execute(
-        `
-        SELECT
-          id,
-          name,
-          email,
-          phone,
-          address,
-          photo,
-          role
-        FROM users
-        WHERE id = ?
-        LIMIT 1
-        `,
-        [req.user.id]
-      );
+    const [users] = await db.execute(
+      `
+      SELECT
+        id,
+        name,
+        email,
+        phone,
+        address,
+        photo,
+        role
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [req.user.id]
+    );
 
 
     if (users.length === 0) {
-
       return res.status(404).json({
-
         success: false,
-
-        message:
-          "User not found",
-
+        message: "User not found.",
       });
-
     }
 
 
-    res.json({
-
+    return res.status(200).json({
       success: true,
-
       user: users[0],
-
     });
 
   } catch (error) {
 
     console.error(
-      "Get User Error:",
+      "Get Me Error:",
       error
     );
 
-
-    res.status(500).json({
-
+    return res.status(500).json({
       success: false,
-
-      message:
-        "Server error",
-
+      message: "Server error.",
     });
-
   }
 };
 

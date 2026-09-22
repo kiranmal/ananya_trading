@@ -1,26 +1,23 @@
-const express =
-  require("express");
+const express = require("express");
 
 const {
   signup,
   login,
   getMe,
-} =
-  require(
-    "../controllers/authController"
-  );
+} = require("../controllers/authController");
 
-const {
-  protect,
-} =
-  require(
-    "../middleware/authMiddleware"
-  );
+const authMiddleware =
+  require("../middleware/authMiddleware");
 
 
 const router =
   express.Router();
 
+
+// =====================================================
+// SIGNUP
+// POST /api/auth/signup
+// =====================================================
 
 router.post(
   "/signup",
@@ -28,15 +25,25 @@ router.post(
 );
 
 
+// =====================================================
+// LOGIN
+// POST /api/auth/login
+// =====================================================
+
 router.post(
   "/login",
   login
 );
 
 
+// =====================================================
+// CURRENT USER
+// GET /api/auth/me
+// =====================================================
+
 router.get(
   "/me",
-  protect,
+  authMiddleware,
   getMe
 );
 

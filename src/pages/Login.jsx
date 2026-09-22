@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 
 import {
@@ -19,17 +20,30 @@ import { useAuth } from "../context/AuthContext";
 import "./Login.css";
 
 
-// =====================================================
-// ADMIN LOGIN DETAILS
-// =====================================================
+/*
+|--------------------------------------------------------------------------
+| BACKEND API
+|--------------------------------------------------------------------------
+*/
 
-const ADMIN_EMAIL = "admin@ananyatrading.com";
-const ADMIN_PASSWORD = "Admin@123";
+const API_URL = "http://localhost:5000/api";
 
 
-// =====================================================
-// LOGIN COMPONENT
-// =====================================================
+/*
+|--------------------------------------------------------------------------
+| ADMIN LOGIN
+|--------------------------------------------------------------------------
+|
+| Ye aapke existing admin credentials hain.
+|
+*/
+
+const ADMIN_EMAIL =
+  "admin@ananyatrading.com";
+
+const ADMIN_PASSWORD =
+  "Admin@123";
+
 
 function Login() {
 
@@ -40,32 +54,44 @@ function Login() {
   const { login } = useAuth();
 
 
-  // =====================================================
-  // PASSWORD VISIBILITY
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | PASSWORD VISIBILITY
+  |--------------------------------------------------------------------------
+  */
 
   const [showPassword, setShowPassword] =
     useState(false);
 
 
-  // =====================================================
-  // FORM STATE
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | LOADING
+  |--------------------------------------------------------------------------
+  */
+
+  const [loading, setLoading] =
+    useState(false);
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | FORM
+  |--------------------------------------------------------------------------
+  */
 
   const [formData, setFormData] = useState({
-
     email: "",
-
     password: "",
-
     remember: false,
-
   });
 
 
-  // =====================================================
-  // INPUT CHANGE
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | INPUT CHANGE
+  |--------------------------------------------------------------------------
+  */
 
   const handleChange = (e) => {
 
@@ -78,60 +104,58 @@ function Login() {
 
 
     setFormData((previous) => ({
-
       ...previous,
 
       [name]:
         type === "checkbox"
           ? checked
           : value,
-
     }));
-
   };
 
 
-  // =====================================================
-  // AFTER LOGIN REDIRECT
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | REDIRECT PATH
+  |--------------------------------------------------------------------------
+  */
 
   const getRedirectPath = () => {
 
     /*
-      Agar user checkout se login page par aaya hai
-      to login ke baad checkout par bhejna hai.
+    |--------------------------------------------------------------------------
+    | Checkout se login
+    |--------------------------------------------------------------------------
     */
 
     if (
-      location.state?.from === "/checkout"
+      location.state?.from ===
+      "/checkout"
     ) {
-
       return "/checkout";
-
     }
 
 
     /*
-      Agar location.state me from object hai
-      jaise:
-      {
-        from: {
-          pathname: "/checkout"
-        }
-      }
+    |--------------------------------------------------------------------------
+    | React Router location object
+    |--------------------------------------------------------------------------
     */
 
     if (
       location.state?.from?.pathname
     ) {
 
-      return location.state.from.pathname;
-
+      return (
+        location.state.from.pathname
+      );
     }
 
 
     /*
-      Agar session me checkout pending hai
+    |--------------------------------------------------------------------------
+    | Checkout pending
+    |--------------------------------------------------------------------------
     */
 
     const checkoutPending =
@@ -149,45 +173,69 @@ function Login() {
       );
 
       return "/checkout";
-
     }
 
 
     /*
-      Normal login
+    |--------------------------------------------------------------------------
+    | Normal login
+    |--------------------------------------------------------------------------
     */
 
     return "/profile";
-
   };
 
 
-  // =====================================================
-  // LOGIN SUBMIT
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | LOGIN SUBMIT
+  |--------------------------------------------------------------------------
+  */
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
 
     e.preventDefault();
 
 
-    // =================================================
-    // CLEAN EMAIL
-    // =================================================
+    if (loading) {
+      return;
+    }
+
 
     const email =
       formData.email
         .trim()
         .toLowerCase();
 
-
     const password =
       formData.password;
 
 
-    // =================================================
-    // ADMIN LOGIN
-    // =================================================
+    /*
+    |--------------------------------------------------------------------------
+    | EMAIL VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+
+    if (!emailRegex.test(email)) {
+
+      alert(
+        "Please enter a valid email address."
+      );
+
+      return;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ADMIN LOGIN
+    |--------------------------------------------------------------------------
+    */
 
     if (
       email ===
@@ -215,12 +263,29 @@ function Login() {
       };
 
 
-      // Login context
+      /*
+      |--------------------------------------------------------------------------
+      | Admin login context
+      |--------------------------------------------------------------------------
+      */
 
-      login(adminUser);
+      /*
+      | Admin frontend login ke liye token ki
+      | requirement nahi rakhi gayi.
+      */
+
+      login(
+        adminUser,
+        "admin-local-token",
+        true
+      );
 
 
-      // Admin session
+      /*
+      |--------------------------------------------------------------------------
+      | Admin session
+      |--------------------------------------------------------------------------
+      */
 
       localStorage.setItem(
         "adminLoggedIn",
@@ -228,17 +293,11 @@ function Login() {
       );
 
 
-      // Current user
-
-      localStorage.setItem(
-        "currentUser",
-        JSON.stringify(
-          adminUser
-        )
-      );
-
-
-      // Remove pending checkout
+      /*
+      |--------------------------------------------------------------------------
+      | Remove checkout pending
+      |--------------------------------------------------------------------------
+      */
 
       localStorage.removeItem(
         "checkoutPending"
@@ -250,220 +309,196 @@ function Login() {
       );
 
 
-      // Admin dashboard
-
-      navigate("/admin");
-
-      return;
-
-    }
-
-
-    // =================================================
-    // NORMAL USER LOGIN
-    // =================================================
-
-    const savedUsers =
-      localStorage.getItem(
-        "users"
-      );
-
-
-    if (!savedUsers) {
-
-      alert(
-        "Account not found. Please create an account first."
+      navigate(
+        "/admin",
+        {
+          replace: true,
+        }
       );
 
       return;
-
     }
 
 
-    // =================================================
-    // PARSE USERS
-    // =================================================
+    /*
+    |--------------------------------------------------------------------------
+    | NORMAL USER LOGIN
+    |--------------------------------------------------------------------------
+    */
 
-    let users = [];
+    setLoading(true);
 
 
     try {
 
-      users =
-        JSON.parse(
-          savedUsers
+      /*
+      |--------------------------------------------------------------------------
+      | Node.js / MySQL API
+      |--------------------------------------------------------------------------
+      */
+
+      const response = await fetch(
+        `${API_URL}/auth/login`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
+      );
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | RESPONSE
+      |--------------------------------------------------------------------------
+      */
+
+      const data =
+        await response.json();
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | LOGIN ERROR
+      |--------------------------------------------------------------------------
+      */
+
+      if (!response.ok) {
+
+        alert(
+          data.message ||
+          "Invalid email or password!"
         );
+
+        return;
+      }
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | USER CHECK
+      |--------------------------------------------------------------------------
+      */
+
+      if (!data.user) {
+
+        alert(
+          "User information was not received from server."
+        );
+
+        return;
+      }
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | LOGIN CONTEXT
+      |--------------------------------------------------------------------------
+      */
+
+      login(
+        data.user,
+        data.token,
+        formData.remember
+      );
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | Remove admin session
+      |--------------------------------------------------------------------------
+      */
+
+      localStorage.removeItem(
+        "adminLoggedIn"
+      );
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | Existing project compatibility
+      |--------------------------------------------------------------------------
+      */
+
+      localStorage.setItem(
+        "currentUser",
+        JSON.stringify(data.user)
+      );
+
+      localStorage.setItem(
+        "ananyaUser",
+        JSON.stringify(data.user)
+      );
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | Redirect
+      |--------------------------------------------------------------------------
+      */
+
+      const redirectPath =
+        getRedirectPath();
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | SUCCESS
+      |--------------------------------------------------------------------------
+      */
+
+      alert(
+        `Welcome back, ${
+          data.user.name || "User"
+        }!`
+      );
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | Navigate
+      |--------------------------------------------------------------------------
+      */
+
+      navigate(
+        redirectPath,
+        {
+          replace: true,
+        }
+      );
 
     } catch (error) {
 
       console.error(
-        "Users parsing error:",
+        "Login error:",
         error
       );
 
 
       alert(
-        "Something went wrong. Please signup again."
+        "Unable to connect to server. Please make sure the Node.js backend is running."
       );
 
-      return;
+    } finally {
+
+      setLoading(false);
 
     }
-
-
-    // =================================================
-    // FIND USER
-    // =================================================
-
-    const user =
-      users.find(
-        (item) =>
-
-          item.email &&
-
-          item.email
-            .toLowerCase()
-            .trim() === email &&
-
-          item.password ===
-            password
-      );
-
-
-    // =================================================
-    // INVALID LOGIN
-    // =================================================
-
-    if (!user) {
-
-      alert(
-        "Invalid email or password!"
-      );
-
-      return;
-
-    }
-
-
-    // =================================================
-    // USER DATA
-    // =================================================
-
-    const loggedInUser = {
-
-      id:
-        user.id ||
-        Date.now(),
-
-      name:
-        user.name ||
-        "User",
-
-      email:
-        user.email,
-
-      phone:
-        user.phone ||
-        "",
-
-      address:
-        user.address ||
-        "",
-
-      photo:
-        user.photo ||
-        "",
-
-      role:
-        "user",
-
-    };
-
-
-    // =================================================
-    // LOGIN CONTEXT
-    // =================================================
-
-    login(
-      loggedInUser
-    );
-
-
-    // =================================================
-    // REMOVE ADMIN SESSION
-    // =================================================
-
-    localStorage.removeItem(
-      "adminLoggedIn"
-    );
-
-
-    // =================================================
-    // SAVE CURRENT USER
-    // =================================================
-
-    localStorage.setItem(
-      "currentUser",
-      JSON.stringify(
-        loggedInUser
-      )
-    );
-
-
-    // =================================================
-    // REMEMBER ME
-    // =================================================
-
-    if (formData.remember) {
-
-      localStorage.setItem(
-        "rememberMe",
-        "true"
-      );
-
-    } else {
-
-      localStorage.removeItem(
-        "rememberMe"
-      );
-
-    }
-
-
-    // =================================================
-    // CHECKOUT REDIRECT
-    // =================================================
-
-    const redirectPath =
-      getRedirectPath();
-
-
-    // =================================================
-    // SUCCESS MESSAGE
-    // =================================================
-
-    alert(
-      `Welcome back, ${loggedInUser.name}!`
-    );
-
-
-    // =================================================
-    // REDIRECT
-    // =================================================
-
-    navigate(
-      redirectPath,
-      {
-        replace: true,
-      }
-    );
-
   };
 
 
-  // =====================================================
-  // UI
-  // =====================================================
+  /*
+  |--------------------------------------------------------------------------
+  | UI
+  |--------------------------------------------------------------------------
+  */
 
   return (
 
@@ -499,9 +534,7 @@ function Login() {
           <div className="auth-left-content">
 
             <span className="auth-label">
-
               WELCOME BACK
-
             </span>
 
 
@@ -587,9 +620,7 @@ function Login() {
           <div className="auth-card">
 
 
-            {/* =================================================
-                HEADING
-            ================================================= */}
+            {/* HEADING */}
 
             <div className="auth-heading">
 
@@ -601,7 +632,9 @@ function Login() {
 
                 {location.state?.from ===
                 "/checkout"
+
                   ? "Login to continue with your order"
+
                   : "Enter your details to continue"}
 
               </p>
@@ -609,14 +642,10 @@ function Login() {
             </div>
 
 
-            {/* =================================================
-                FORM
-            ================================================= */}
+            {/* FORM */}
 
             <form
-              onSubmit={
-                handleSubmit
-              }
+              onSubmit={handleSubmit}
             >
 
 
@@ -630,34 +659,24 @@ function Login() {
                   Email Address
                 </label>
 
-
                 <div className="input-wrapper">
 
                   <Mail
                     size={18}
                   />
 
-
                   <input
-
                     type="email"
-
                     name="email"
-
                     placeholder="Enter your email"
-
                     value={
                       formData.email
                     }
-
                     onChange={
                       handleChange
                     }
-
                     autoComplete="email"
-
                     required
-
                   />
 
                 </div>
@@ -675,59 +694,45 @@ function Login() {
                   Password
                 </label>
 
-
                 <div className="input-wrapper">
 
                   <LockKeyhole
                     size={18}
                   />
 
-
                   <input
-
                     type={
                       showPassword
                         ? "text"
                         : "password"
                     }
-
                     name="password"
-
                     placeholder="Enter your password"
-
                     value={
                       formData.password
                     }
-
                     onChange={
                       handleChange
                     }
-
                     autoComplete="current-password"
-
                     required
-
                   />
 
 
                   <button
-
                     type="button"
-
                     className="password-toggle"
-
                     onClick={() =>
                       setShowPassword(
-                        !showPassword
+                        (previous) =>
+                          !previous
                       )
                     }
-
                     aria-label={
                       showPassword
                         ? "Hide password"
                         : "Show password"
                     }
-
                   >
 
                     {showPassword ? (
@@ -757,25 +762,19 @@ function Login() {
 
               <div className="auth-options">
 
-
                 <label
                   className="remember"
                 >
 
                   <input
-
                     type="checkbox"
-
                     name="remember"
-
                     checked={
                       formData.remember
                     }
-
                     onChange={
                       handleChange
                     }
-
                   />
 
                   <span>
@@ -786,17 +785,13 @@ function Login() {
 
 
                 <button
-
                   type="button"
-
                   className="forgot-password"
-
                   onClick={() =>
                     alert(
                       "Forgot password feature will be available soon."
                     )
                   }
-
                 >
 
                   Forgot Password?
@@ -811,22 +806,30 @@ function Login() {
               ================================================= */}
 
               <button
-
                 type="submit"
-
                 className="auth-submit"
-
+                disabled={loading}
               >
 
-                {location.state?.from ===
-                "/checkout"
-                  ? "Login & Continue"
-                  : "Sign In"}
+                {loading
+
+                  ? "Signing In..."
+
+                  : location.state?.from ===
+                    "/checkout"
+
+                    ? "Login & Continue"
+
+                    : "Sign In"
+
+                }
 
 
-                <ArrowRight
-                  size={18}
-                />
+                {!loading && (
+                  <ArrowRight
+                    size={18}
+                  />
+                )}
 
               </button>
 
@@ -866,9 +869,7 @@ function Login() {
       </div>
 
     </main>
-
   );
-
 }
 
 

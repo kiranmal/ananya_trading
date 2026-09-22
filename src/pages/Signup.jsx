@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 
 import {
@@ -18,6 +19,9 @@ import {
 import "./Signup.css";
 
 
+const API_URL = "http://localhost:5000/api";
+
+
 function Signup() {
 
   const navigate = useNavigate();
@@ -26,6 +30,9 @@ function Signup() {
     useState(false);
 
   const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
+
+  const [loading, setLoading] =
     useState(false);
 
 
@@ -48,27 +55,103 @@ function Signup() {
       checked,
     } = e.target;
 
-    setFormData({
-      ...formData,
+    setFormData((previous) => ({
+      ...previous,
 
       [name]:
         type === "checkbox"
           ? checked
           : value,
-    });
+    }));
   };
 
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
 
     e.preventDefault();
 
+    if (loading) {
+      return;
+    }
 
-    // Password validation
+
+    const name =
+      formData.name.trim();
+
+    const email =
+      formData.email
+        .trim()
+        .toLowerCase();
+
+    const phone =
+      formData.phone.trim();
+
+    const password =
+      formData.password;
+
+    const confirmPassword =
+      formData.confirmPassword;
+
+
+    // ================= NAME =================
+
+    if (name.length < 2) {
+
+      alert(
+        "Please enter your full name."
+      );
+
+      return;
+    }
+
+
+    // ================= EMAIL =================
+
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+
+      alert(
+        "Please enter a valid email address."
+      );
+
+      return;
+    }
+
+
+    // ================= PHONE =================
+
+    const phoneRegex =
+      /^[6-9]\d{9}$/;
+
+    if (!phoneRegex.test(phone)) {
+
+      alert(
+        "Please enter a valid 10-digit Indian mobile number."
+      );
+
+      return;
+    }
+
+
+    // ================= PASSWORD =================
+
+    if (password.length < 6) {
+
+      alert(
+        "Password must be at least 6 characters."
+      );
+
+      return;
+    }
+
+
+    // ================= CONFIRM PASSWORD =================
 
     if (
-      formData.password !==
-      formData.confirmPassword
+      password !==
+      confirmPassword
     ) {
 
       alert(
@@ -79,108 +162,99 @@ function Signup() {
     }
 
 
-    // Terms validation
+    // ================= TERMS =================
 
     if (!formData.terms) {
 
       alert(
-        "Please accept Terms & Conditions"
+        "Please accept Terms & Conditions and Privacy Policy."
       );
 
       return;
     }
 
 
-    const email =
-      formData.email
-        .trim()
-        .toLowerCase();
+    setLoading(true);
 
 
-    // Existing users
+    try {
 
-    const savedUsers =
-      localStorage.getItem("users");
+      // ================= API CALL =================
 
-    let users = [];
+      const response = await fetch(
+        `${API_URL}/auth/signup`,
+        {
+          method: "POST",
 
-    if (savedUsers) {
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-      try {
-        users = JSON.parse(savedUsers);
-      } catch (error) {
-        users = [];
-      }
-    }
-
-
-    // Check duplicate email
-
-    const existingUser =
-      users.find(
-        (user) =>
-          user.email.toLowerCase() === email
+          body: JSON.stringify({
+            name,
+            email,
+            phone,
+            password,
+          }),
+        }
       );
 
 
-    if (existingUser) {
+      const data =
+        await response.json();
+
+
+      // ================= ERROR =================
+
+      if (!response.ok) {
+
+        alert(
+          data.message ||
+          "Unable to create account."
+        );
+
+        return;
+      }
+
+
+      // ================= SUCCESS =================
 
       alert(
-        "This email is already registered!"
+        data.message ||
+        "Account created successfully!"
       );
 
-      return;
+
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        password: "",
+        confirmPassword: "",
+        terms: false,
+      });
+
+
+      // Login page
+
+      navigate("/login");
+
+    } catch (error) {
+
+      console.error(
+        "Signup error:",
+        error
+      );
+
+      alert(
+        "Unable to connect to server. Please make sure Node.js backend is running."
+      );
+
+    } finally {
+
+      setLoading(false);
+
     }
-
-
-    // New user
-
-    const newUser = {
-
-      id:
-        "USER_" +
-        Date.now(),
-
-      name:
-        formData.name.trim(),
-
-      email,
-
-      phone:
-        formData.phone.trim(),
-
-      password:
-        formData.password,
-
-      address: "",
-
-      photo: "",
-
-      createdAt:
-        new Date().toISOString(),
-
-    };
-
-
-    // Save user
-
-    users.push(newUser);
-
-    localStorage.setItem(
-      "users",
-      JSON.stringify(users)
-    );
-
-
-    alert(
-      "Account created successfully!"
-    );
-
-
-    // Login page
-
-    navigate("/login");
-
   };
 
 
@@ -191,7 +265,7 @@ function Signup() {
       <div className="signup-container">
 
 
-        {/* LEFT */}
+        {/* ================= LEFT ================= */}
 
         <div className="signup-left">
 
@@ -215,22 +289,17 @@ function Signup() {
             </span>
 
             <h1>
-
               Create your
               <br />
-
               <span>
                 account.
               </span>
-
             </h1>
 
             <p>
-
               Join Ananya Trading Company
               and discover premium products
               for your business and brand.
-
             </p>
 
           </div>
@@ -238,12 +307,11 @@ function Signup() {
         </div>
 
 
-        {/* RIGHT */}
+        {/* ================= RIGHT ================= */}
 
         <div className="signup-right">
 
           <div className="signup-card">
-
 
             <div className="signup-heading">
 
@@ -258,10 +326,12 @@ function Signup() {
             </div>
 
 
-            <form onSubmit={handleSubmit}>
+            <form
+              onSubmit={handleSubmit}
+            >
 
 
-              {/* NAME */}
+              {/* ================= NAME ================= */}
 
               <div className="signup-input-group">
 
@@ -279,6 +349,7 @@ function Signup() {
                     placeholder="Enter your full name"
                     value={formData.name}
                     onChange={handleChange}
+                    autoComplete="name"
                     required
                   />
 
@@ -287,7 +358,7 @@ function Signup() {
               </div>
 
 
-              {/* EMAIL */}
+              {/* ================= EMAIL ================= */}
 
               <div className="signup-input-group">
 
@@ -305,6 +376,7 @@ function Signup() {
                     placeholder="Enter your email"
                     value={formData.email}
                     onChange={handleChange}
+                    autoComplete="email"
                     required
                   />
 
@@ -313,7 +385,7 @@ function Signup() {
               </div>
 
 
-              {/* PHONE */}
+              {/* ================= PHONE ================= */}
 
               <div className="signup-input-group">
 
@@ -331,6 +403,8 @@ function Signup() {
                     placeholder="Enter your phone number"
                     value={formData.phone}
                     onChange={handleChange}
+                    autoComplete="tel"
+                    maxLength="10"
                     required
                   />
 
@@ -339,7 +413,7 @@ function Signup() {
               </div>
 
 
-              {/* PASSWORD */}
+              {/* ================= PASSWORD ================= */}
 
               <div className="signup-input-group">
 
@@ -361,6 +435,7 @@ function Signup() {
                     placeholder="Create password"
                     value={formData.password}
                     onChange={handleChange}
+                    autoComplete="new-password"
                     required
                   />
 
@@ -369,7 +444,8 @@ function Signup() {
                     className="signup-password-toggle"
                     onClick={() =>
                       setShowPassword(
-                        !showPassword
+                        (previous) =>
+                          !previous
                       )
                     }
                   >
@@ -387,7 +463,7 @@ function Signup() {
               </div>
 
 
-              {/* CONFIRM PASSWORD */}
+              {/* ================= CONFIRM PASSWORD ================= */}
 
               <div className="signup-input-group">
 
@@ -411,6 +487,7 @@ function Signup() {
                       formData.confirmPassword
                     }
                     onChange={handleChange}
+                    autoComplete="new-password"
                     required
                   />
 
@@ -419,7 +496,8 @@ function Signup() {
                     className="signup-password-toggle"
                     onClick={() =>
                       setShowConfirmPassword(
-                        !showConfirmPassword
+                        (previous) =>
+                          !previous
                       )
                     }
                   >
@@ -437,7 +515,7 @@ function Signup() {
               </div>
 
 
-              {/* TERMS */}
+              {/* ================= TERMS ================= */}
 
               <label className="signup-terms">
 
@@ -458,23 +536,29 @@ function Signup() {
               </label>
 
 
-              {/* BUTTON */}
+              {/* ================= BUTTON ================= */}
 
               <button
                 type="submit"
                 className="signup-submit"
+                disabled={loading}
               >
 
-                Create Account
+                {loading
+                  ? "Creating Account..."
+                  : "Create Account"
+                }
 
-                <ArrowRight size={18} />
+                {!loading && (
+                  <ArrowRight size={18} />
+                )}
 
               </button>
 
             </form>
 
 
-            {/* LOGIN */}
+            {/* ================= LOGIN ================= */}
 
             <div className="signup-switch">
 
@@ -497,5 +581,6 @@ function Signup() {
     </main>
   );
 }
+
 
 export default Signup;

@@ -1,3 +1,4 @@
+
 import React from "react";
 
 import {
@@ -6,7 +7,12 @@ import {
   Route,
 } from "react-router-dom";
 
+// ================= COMPONENTS =================
+
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
+// ================= PAGES =================
 
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -16,135 +22,198 @@ import ProductDetails from "./pages/ProductDetails";
 import Cart from "./pages/Cart";
 import Favorites from "./pages/Favorites";
 import Profile from "./pages/Profile";
-import Footer from "./components/Footer";
+import Checkout from "./pages/Checkout";
+import Customizer from "./pages/Customizer";
+
+// ================= ADMIN =================
 
 import AdminApp from "./admin/AdminApp";
 
-import Checkout from "./pages/Checkout";
-import { AuthProvider } from "./context/AuthContext";
-
-import Customizer from "./pages/Customizer";
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
 
-        <Routes>
+      <Routes>
 
-          {/* ================= HOME ================= */}
+        {/* ==================================================
+            HOME
+        ================================================== */}
 
-          <Route
-            path="/"
-            element={
-              <>
-                <Navbar />
-                <Home />
-                <Footer />
-              </>
-            }
-          />
+        <Route
+          path="/"
+          element={
+            <>
+              <Navbar />
+              <Home />
+              <Footer />
+            </>
+          }
+        />
 
-          {/* ================= LOGIN ================= */}
 
-          <Route
-            path="/login"
-            element={<Login />}
-          />
+        {/* ==================================================
+            LOGIN
+        ================================================== */}
 
-          {/* ================= SIGNUP ================= */}
+        <Route
+          path="/login"
+          element={<Login />}
+        />
 
-          <Route
-            path="/signup"
-            element={<Signup />}
-          />
 
-          {/* ================= PROFILE ================= */}
+        {/* ==================================================
+            SIGNUP
+        ================================================== */}
 
-          <Route
-            path="/profile"
-            element={
-              <>
-                <Navbar />
-                <Profile />
-              </>
-            }
-          />
+        <Route
+          path="/signup"
+          element={<Signup />}
+        />
 
-          {/* ================= CATEGORY ================= */}
 
-          <Route
-            path="/category"
-            element={
-              <>
-                <Navbar />
-                <Category />
-              </>
-            }
-          />
+        {/* ==================================================
+            PROFILE
+        ================================================== */}
 
-          {/* ================= PRODUCT DETAILS ================= */}
+        <Route
+          path="/profile"
+          element={
+            <>
+              <Navbar />
+              <Profile />
+              <Footer />
+            </>
+          }
+        />
 
-          <Route
-            path="/product/:id"
-            element={
-              <>
-                <Navbar />
-                <ProductDetails />
-              </>
-            }
-          />
 
-          {/* ================= CART ================= */}
+        {/* ==================================================
+            CATEGORY
+        ================================================== */}
 
-          <Route
-            path="/cart"
-            element={
-              <>
-                <Navbar />
-                <Cart />
-              </>
-            }
-          />
+        <Route
+          path="/category"
+          element={
+            <>
+              <Navbar />
+              <Category />
+              <Footer />
+            </>
+          }
+        />
 
-          {/* ================= FAVORITES ================= */}
 
-          <Route
-            path="/favorites"
-            element={
-              <>
-                <Navbar />
-                <Favorites />
-              </>
-            }
-          />
+        {/* ==================================================
+            PRODUCT DETAILS
+        ================================================== */}
 
-          {/* ================= ADMIN ================= */}
+        <Route
+          path="/product/:id"
+          element={
+            <>
+              <Navbar />
+              <ProductDetails />
+              <Footer />
+            </>
+          }
+        />
 
-          <Route
-            path="/admin/*"
-            element={<AdminApp />}
-          />
 
-          {/* ================= CHECKOUT ================= */}
+        {/* ==================================================
+            CART
+        ================================================== */}
 
-          <Route
-            path="/checkout"
-            element={<Checkout />}
-          />
+        <Route
+          path="/cart"
+          element={
+            <>
+              <Navbar />
+              <Cart />
+              <Footer />
+            </>
+          }
+        />
 
-          {/* ================= CUSTOMIZER ================= */}
 
-          <Route
-            path="/customize"
-            element={<Customizer />}
-          />
+        {/* ==================================================
+            FAVORITES
+        ================================================== */}
 
-        </Routes>
+        <Route
+          path="/favorites"
+          element={
+            <>
+              <Navbar />
+              <Favorites />
+              <Footer />
+            </>
+          }
+        />
 
-      </BrowserRouter>
-    </AuthProvider>
+
+        {/* ==================================================
+            CHECKOUT
+        ================================================== */}
+
+        <Route
+          path="/checkout"
+          element={<Checkout />}
+        />
+
+
+        {/* ==================================================
+            ADMIN
+        ================================================== */}
+
+        <Route
+          path="/admin/*"
+          element={<AdminApp />}
+        />
+
+
+        {/* ==================================================
+            CUSTOMIZER
+        ================================================== */}
+
+        <Route
+          path="/customize"
+          element={<Customizer />}
+        />
+
+
+        {/* ==================================================
+            PAGE NOT FOUND
+        ================================================== */}
+
+        <Route
+          path="*"
+          element={
+            <div
+              style={{
+                minHeight: "70vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                padding: "40px",
+                textAlign: "center",
+              }}
+            >
+              <h1>404</h1>
+
+              <p>
+                Page not found
+              </p>
+            </div>
+          }
+        />
+
+      </Routes>
+
+    </BrowserRouter>
   );
 }
+
 
 export default App;

@@ -1,9 +1,11 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Heart,
   ArrowRight,
   ShoppingCart,
+  Palette,
 } from "lucide-react";
 
 import "./Home.css";
@@ -17,108 +19,161 @@ function Home() {
   const [favorites, setFavorites] = useState([]);
 
   /* =====================================================
+     PRODUCT IMAGE HELPER
+  ===================================================== */
+
+  const getProductImages = (product) => {
+    if (
+      Array.isArray(product?.images) &&
+      product.images.length > 0
+    ) {
+      return product.images;
+    }
+
+    if (product?.image) {
+      return [product.image];
+    }
+
+    return [
+      "https://via.placeholder.com/600x500?text=Product",
+    ];
+  };
+
+  /* =====================================================
+     NORMALIZE PRODUCT
+     
+     Har product ka same structure banayega.
+  ===================================================== */
+
+  const normalizeProduct = (product, index = 0) => {
+    const images =
+      getProductImages(product);
+
+    const productId =
+      product?.id ||
+      product?.productId ||
+      `product-${index}`;
+
+    return {
+      ...product,
+
+      id: productId,
+
+      productId: productId,
+
+      name:
+        product?.name ||
+        "Untitled Product",
+
+      category:
+        product?.category ||
+        "General",
+
+      image:
+        product?.image ||
+        images[0],
+
+      images: images,
+
+      price: Number(
+        String(
+          product?.price || "0"
+        ).replace(/[₹,]/g, "")
+      ),
+
+      oldPrice: Number(
+        String(
+          product?.oldPrice ||
+            product?.price ||
+            "0"
+        ).replace(/[₹,]/g, "")
+      ),
+
+      rating: Number(
+        product?.rating || 4.8
+      ),
+
+      reviews: Number(
+        product?.reviews || 0
+      ),
+
+      badge:
+        product?.badge ||
+        "NEW",
+
+      description:
+        product?.description ||
+        "Premium quality customized product made for your brand and business.",
+
+      paperTypes:
+        Array.isArray(
+          product?.paperTypes
+        )
+          ? product.paperTypes
+          : ["Matte", "Glossy"],
+
+      sizes:
+        Array.isArray(
+          product?.sizes
+        )
+          ? product.sizes
+          : ["Standard"],
+
+      features:
+        Array.isArray(
+          product?.features
+        )
+          ? product.features
+          : [
+              "Premium Quality",
+              "High Quality Printing",
+              "Fast Delivery",
+              "100% Quality Assured",
+            ],
+    };
+  };
+
+  /* =====================================================
      LOAD PRODUCTS
   ===================================================== */
 
   const loadProducts = () => {
     try {
       const savedProducts =
-        localStorage.getItem("ananyaProducts");
+        localStorage.getItem(
+          "ananyaProducts"
+        );
 
-      const storedProducts = savedProducts
-        ? JSON.parse(savedProducts)
-        : [];
+      const storedProducts =
+        savedProducts
+          ? JSON.parse(savedProducts)
+          : [];
 
-      const adminProducts = Array.isArray(storedProducts)
-        ? storedProducts.map((product) => ({
-            ...product,
+      const adminProducts =
+        Array.isArray(storedProducts)
+          ? storedProducts.map(
+              (product, index) =>
+                normalizeProduct(
+                  product,
+                  index
+                )
+            )
+          : [];
 
-            id:
-              product.id ||
-              `admin-${Date.now()}`,
-
-            name:
-              product.name ||
-              "Untitled Product",
-
-            category:
-              product.category ||
-              "General",
-
-            images:
-              Array.isArray(product.images) &&
-              product.images.length > 0
-                ? product.images
-                : product.image
-                ? [product.image]
-                : [
-                    "https://via.placeholder.com/600x500?text=Product",
-                  ],
-
-            image:
-              product.image ||
-              product.images?.[0] ||
-              "",
-
-            price: Number(
-              String(product.price || "0").replace(
-                /[₹,]/g,
-                ""
-              )
-            ),
-
-            oldPrice: Number(
-              String(
-                product.oldPrice ||
-                  product.price ||
-                  "0"
-              ).replace(
-                /[₹,]/g,
-                ""
-              )
-            ),
-
-            rating: Number(
-              product.rating || 4.8
-            ),
-
-            reviews: Number(
-              product.reviews || 0
-            ),
-
-            badge:
-              product.badge ||
-              "NEW",
-
-            description:
-              product.description ||
-              "Premium quality customized product made for your brand and business.",
-
-            paperTypes:
-              Array.isArray(product.paperTypes)
-                ? product.paperTypes
-                : ["Matte", "Glossy"],
-
-            sizes:
-              Array.isArray(product.sizes)
-                ? product.sizes
-                : ["Standard"],
-
-            features:
-              Array.isArray(product.features)
-                ? product.features
-                : [
-                    "Premium Quality",
-                    "High Quality Printing",
-                    "Fast Delivery",
-                    "100% Quality Assured",
-                  ],
-          }))
-        : [];
+      const normalizedDefaultProducts =
+        Array.isArray(defaultProducts)
+          ? defaultProducts.map(
+              (product, index) =>
+                normalizeProduct(
+                  product,
+                  `default-${index}`
+                )
+            )
+          : [];
 
       setProducts([
         ...adminProducts,
-        ...defaultProducts,
+        ...normalizedDefaultProducts,
       ]);
     } catch (error) {
       console.error(
@@ -126,24 +181,34 @@ function Home() {
         error
       );
 
-      setProducts(
+      const fallbackProducts =
         Array.isArray(defaultProducts)
-          ? defaultProducts
-          : []
+          ? defaultProducts.map(
+              (product, index) =>
+                normalizeProduct(
+                  product,
+                  `fallback-${index}`
+                )
+            )
+          : [];
+
+      setProducts(
+        fallbackProducts
       );
     }
   };
 
   /* =====================================================
-     INITIAL LOAD
+     INITIAL PRODUCT LOAD
   ===================================================== */
 
   useEffect(() => {
     loadProducts();
 
-    const handleProductsUpdate = () => {
-      loadProducts();
-    };
+    const handleProductsUpdate =
+      () => {
+        loadProducts();
+      };
 
     window.addEventListener(
       "storage",
@@ -181,11 +246,15 @@ function Home() {
 
       const parsedFavorites =
         savedFavorites
-          ? JSON.parse(savedFavorites)
+          ? JSON.parse(
+              savedFavorites
+            )
           : [];
 
       setFavorites(
-        Array.isArray(parsedFavorites)
+        Array.isArray(
+          parsedFavorites
+        )
           ? parsedFavorites
           : []
       );
@@ -200,15 +269,16 @@ function Home() {
   };
 
   /* =====================================================
-     FAVORITES
+     FAVORITES INITIAL LOAD
   ===================================================== */
 
   useEffect(() => {
     loadFavorites();
 
-    const handleFavoritesUpdate = () => {
-      loadFavorites();
-    };
+    const handleFavoritesUpdate =
+      () => {
+        loadFavorites();
+      };
 
     window.addEventListener(
       "ananyaFavoritesUpdated",
@@ -237,7 +307,9 @@ function Home() {
      CHECK FAVORITE
   ===================================================== */
 
-  const isFavorite = (productId) => {
+  const isFavorite = (
+    productId
+  ) => {
     return favorites.some(
       (item) =>
         String(item.id) ===
@@ -249,7 +321,9 @@ function Home() {
      TOGGLE FAVORITE
   ===================================================== */
 
-  const toggleFavorite = (product) => {
+  const toggleFavorite = (
+    product
+  ) => {
     try {
       const savedFavorites =
         localStorage.getItem(
@@ -258,7 +332,9 @@ function Home() {
 
       const currentFavorites =
         savedFavorites
-          ? JSON.parse(savedFavorites)
+          ? JSON.parse(
+              savedFavorites
+            )
           : [];
 
       const alreadyFavorite =
@@ -291,7 +367,9 @@ function Home() {
         )
       );
 
-      setFavorites(updatedFavorites);
+      setFavorites(
+        updatedFavorites
+      );
 
       window.dispatchEvent(
         new Event(
@@ -307,31 +385,184 @@ function Home() {
   };
 
   /* =====================================================
-     VIEW DETAIL
+     VIEW PRODUCT DETAIL
   ===================================================== */
 
-  const handleProductClick = (product) => {
+  const handleProductClick = (
+    product
+  ) => {
+    if (!product) {
+      return;
+    }
+
     const productId =
       product.id ||
       product.productId;
 
-    if (!productId) return;
+    if (!productId) {
+      console.error(
+        "Product ID missing:",
+        product
+      );
+
+      return;
+    }
+
+    const normalizedProduct =
+      normalizeProduct(
+        product
+      );
 
     navigate(
       `/product/${productId}`,
       {
         state: {
-          product,
+          product:
+            normalizedProduct,
         },
       }
     );
   };
 
   /* =====================================================
+     CUSTOMIZE PRODUCT
+
+     IMPORTANT:
+     Selected product ki image/data customize page
+     ko bheja ja raha hai.
+
+     Example:
+
+     T-Shirt click
+       ↓
+     T-Shirt image
+       ↓
+     selectedCustomizeProduct
+       ↓
+     /customize
+  ===================================================== */
+
+  const handleCustomizeProduct = (
+    product
+  ) => {
+    if (!product) {
+      return;
+    }
+
+    const normalizedProduct =
+      normalizeProduct(
+        product
+      );
+
+    const productId =
+      normalizedProduct.id;
+
+    const productImages =
+      getProductImages(
+        normalizedProduct
+      );
+
+    const customizeProduct = {
+      ...normalizedProduct,
+
+      id:
+        productId ||
+        `custom-${Date.now()}`,
+
+      productId:
+        productId ||
+        `custom-${Date.now()}`,
+
+      name:
+        normalizedProduct.name ||
+        "Custom Product",
+
+      category:
+        normalizedProduct.category ||
+        "GENERAL",
+
+      image:
+        productImages[0],
+
+      images:
+        productImages,
+
+      price:
+        Number(
+          normalizedProduct.price
+        ) || 0,
+
+      oldPrice:
+        Number(
+          normalizedProduct.oldPrice
+        ) || 0,
+
+      rating:
+        Number(
+          normalizedProduct.rating
+        ) || 4.9,
+
+      reviews:
+        Number(
+          normalizedProduct.reviews
+        ) || 0,
+
+      description:
+        normalizedProduct.description ||
+        "Create your own customized product with your logo, text and design.",
+
+      /* Customizer ko ye information bhi milegi */
+      type:
+        normalizedProduct.type ||
+        "product",
+
+      color:
+        normalizedProduct.color ||
+        "#ffffff",
+
+      customizationPrice:
+        Number(
+          normalizedProduct.customizationPrice
+        ) || 199,
+    };
+
+    console.log(
+      "CUSTOMIZE PRODUCT:",
+      customizeProduct
+    );
+
+    /* ===================================================
+       LOCAL STORAGE
+    =================================================== */
+
+    localStorage.setItem(
+      "selectedCustomizeProduct",
+      JSON.stringify(
+        customizeProduct
+      )
+    );
+
+    /* ===================================================
+       OPEN CUSTOMIZE PAGE
+
+       State + localStorage dono me data bhej rahe hain.
+    =================================================== */
+
+    navigate("/customize", {
+      state: {
+        product:
+          customizeProduct,
+      },
+    });
+  };
+
+  /* =====================================================
      ADD TO CART
   ===================================================== */
 
-  const addToCart = (product) => {
+  const addToCart = (
+    product
+  ) => {
     try {
       const savedCart =
         localStorage.getItem(
@@ -343,16 +574,29 @@ function Home() {
           ? JSON.parse(savedCart)
           : [];
 
+      const normalizedProduct =
+        normalizeProduct(
+          product
+        );
+
       const productId =
-        product.id ||
-        product.productId;
+        normalizedProduct.id;
+
+      if (!productId) {
+        console.error(
+          "Product ID missing:",
+          product
+        );
+
+        return;
+      }
 
       const existingIndex =
         currentCart.findIndex(
           (item) =>
             String(
               item.productId ||
-              item.id
+                item.id
             ) ===
             String(productId)
         );
@@ -363,7 +607,9 @@ function Home() {
          EXISTING PRODUCT
       ================================================= */
 
-      if (existingIndex !== -1) {
+      if (
+        existingIndex !== -1
+      ) {
         updatedCart = [
           ...currentCart,
         ];
@@ -382,11 +628,10 @@ function Home() {
           existingIndex
         ] = {
           ...existingItem,
+
           quantity:
             oldQuantity + 100,
         };
-
-      
       }
 
       /* =================================================
@@ -394,28 +639,33 @@ function Home() {
       ================================================= */
 
       else {
+        const productImages =
+          getProductImages(
+            normalizedProduct
+          );
+
         const cartProduct = {
-          ...product,
+          ...normalizedProduct,
+
+          id:
+            normalizedProduct.id,
 
           productId:
-
-            productId,
+            normalizedProduct.id,
 
           name:
-            product.name ||
-            "Untitled Product",
+            normalizedProduct.name,
 
           image:
-            product.image ||
-            product.images?.[0] ||
-            "",
+            productImages[0],
 
           images:
-            product.images ||
-            [],
+            productImages,
 
           price:
-            Number(product.price) || 0,
+            Number(
+              normalizedProduct.price
+            ) || 0,
 
           quantity: 100,
         };
@@ -424,13 +674,10 @@ function Home() {
           ...currentCart,
           cartProduct,
         ];
-
-       
-        
       }
 
       /* =================================================
-         SAVE
+         SAVE CART
       ================================================= */
 
       localStorage.setItem(
@@ -441,7 +688,7 @@ function Home() {
       );
 
       /* =================================================
-         EVENTS
+         CART EVENTS
       ================================================= */
 
       window.dispatchEvent(
@@ -455,18 +702,21 @@ function Home() {
           "cartUpdated"
         )
       );
+
+      console.log(
+        "Product added to cart:",
+        normalizedProduct.name
+      );
     } catch (error) {
       console.error(
         "Add to cart error:",
         error
       );
-
-     
     }
   };
 
   /* =====================================================
-     SCROLL
+     SCROLL TO PRODUCTS
   ===================================================== */
 
   const scrollToProducts = () => {
@@ -578,7 +828,10 @@ function Home() {
 
         </div>
 
-        {/* HERO VISUAL */}
+
+        {/* =================================================
+            HERO VISUAL
+        ================================================= */}
 
         <div className="hero-visual">
 
@@ -620,10 +873,18 @@ function Home() {
 
 
       {/* =================================================
-          PRODUCTS
+          CUSTOMIZE PRODUCTS
+
+          Is component ke andar bhi selected product
+          /customize page par jayega.
       ================================================= */}
 
       <CustomizeProducts />
+
+
+      {/* =================================================
+          PRODUCTS
+      ================================================= */}
 
       <section
         className="products-section"
@@ -663,7 +924,8 @@ function Home() {
 
         <div className="product-grid">
 
-          {products.length === 0 ? (
+          {products.length ===
+          0 ? (
 
             <div className="no-products">
 
@@ -699,6 +961,11 @@ function Home() {
                     product.id
                   );
 
+                const productImage =
+                  product.image ||
+                  product.images?.[0] ||
+                  "https://via.placeholder.com/600x500?text=Product";
+
                 return (
 
                   <article
@@ -708,9 +975,9 @@ function Home() {
                     }
                   >
 
-                    {/* =================================================
-                        IMAGE
-                    ================================================= */}
+                    {/* =========================================
+                        PRODUCT IMAGE
+                    ========================================= */}
 
                     <div
                       className="product-image"
@@ -723,9 +990,7 @@ function Home() {
 
                       <img
                         src={
-                          product.images?.[0] ||
-                          product.image ||
-                          "https://via.placeholder.com/600x500?text=Product"
+                          productImage
                         }
                         alt={
                           product.name ||
@@ -786,17 +1051,21 @@ function Home() {
                     </div>
 
 
-                    {/* =================================================
+                    {/* =========================================
                         PRODUCT CONTENT
-                    ================================================= */}
+                    ========================================= */}
 
                     <div className="product-content">
 
+                      {/* CATEGORY */}
+
                       <span className="product-category">
+
                         {
                           product.category ||
                           "General"
                         }
+
                       </span>
 
 
@@ -809,12 +1078,14 @@ function Home() {
                         </span>
 
                         <small>
+
                           (
                           {
                             product.reviews ||
                             0
                           }
                           )
+
                         </small>
 
                       </div>
@@ -829,20 +1100,24 @@ function Home() {
                           )
                         }
                       >
+
                         {
                           product.name ||
                           "Untitled Product"
                         }
+
                       </h3>
 
 
                       {/* DESCRIPTION */}
 
                       <p>
+
                         {
                           product.description ||
                           "Premium quality customized product made for your brand and business."
                         }
+
                       </p>
 
 
@@ -853,20 +1128,25 @@ function Home() {
                         <div className="price">
 
                           <strong>
+
                             ₹
                             {productPrice.toLocaleString(
                               "en-IN"
                             )}
+
                           </strong>
+
 
                           {oldPrice >
                             productPrice && (
 
                             <del>
+
                               ₹
                               {oldPrice.toLocaleString(
                                 "en-IN"
                               )}
+
                             </del>
 
                           )}
@@ -876,21 +1156,21 @@ function Home() {
                       </div>
 
 
-                      {/* =================================================
+                      {/* =========================================
                           BUTTONS
-                      ================================================= */}
+                      ========================================= */}
 
                       <div className="product-actions">
+
+                        {/* VIEW DETAIL */}
 
                         <button
                           type="button"
                           className="view-detail-btn"
                           onClick={() =>
-
                             handleProductClick(
                               product
                             )
-
                           }
                         >
 
@@ -899,21 +1179,23 @@ function Home() {
                         </button>
 
 
+                        {/* CUSTOMIZE PRODUCT */}
+
                         <button
                           type="button"
                           className="add-cart-btn"
                           onClick={() =>
-                            addToCart(
+                            handleCustomizeProduct(
                               product
                             )
                           }
                         >
 
-                          <ShoppingCart
+                          <Palette
                             size={16}
                           />
 
-                          Add to Cart
+                          Customize Product
 
                         </button>
 
@@ -922,6 +1204,7 @@ function Home() {
                     </div>
 
                   </article>
+
                 );
               }
             )
