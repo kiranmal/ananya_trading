@@ -1981,6 +1981,388 @@ app.delete(
   }
 );
 
+/* =========================================================
+   ORDERS
+========================================================= */
+
+async function ensureOrdersTable() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id INT NOT NULL AUTO_INCREMENT,
+      order_id VARCHAR(60) DEFAULT NULL,
+      user_id INT DEFAULT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'New',
+      customer_name VARCHAR(150) DEFAULT NULL,
+      email VARCHAR(190) DEFAULT NULL,
+      phone VARCHAR(30) DEFAULT NULL,
+      total DECIMAL(10,2) DEFAULT 0,
+      total_price DECIMAL(10,2) DEFAULT 0,
+      payment_method VARCHAR(50) DEFAULT NULL,
+      payment_status VARCHAR(30) DEFAULT 'Pending',
+      items LONGTEXT DEFAULT NULL,
+      payload LONGTEXT DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY order_id (order_id),
+      KEY user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  /* Purane schema pe missing columns add karo */
+  const addColumn = async (sql) => {
+    try {
+      await db.execute(sql);
+    } catch {
+      /* column already exists — skip */
+    }
+  };
+
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN payload LONGTEXT"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN total DECIMAL(10,2) DEFAULT 0"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD UNIQUE KEY order_id (order_id)"
+  );
+}
+
+const buildOrderTracking = (status) => {
+  const s = String(status || "").toLowerCase();
+  return {
+    ordered: true,
+    processing:
+      s.includes("process") ||
+      s.includes("ship") ||
+      s.includes("out") ||
+      s.includes("deliver"),
+    shipped:
+      s.includes("ship") ||
+      s.includes("out") ||
+      s.includes("deliver"),
+    outForDelivery: s.includes("deliver"),
+    delivered: s.includes("delivered"),
+  };
+};
+
+const parseOrderRow = (row) => {
+  let payload = {};
+  try {
+    payload = JSON.parse(row.payload || "{}");
+  } catch {
+    payload = {};
+  }
+
+  return {
+    ...payload,
+    id: payload.id || row.order_id,
+    orderId: payload.orderId || row.order_id,
+    orderNumber:
+      payload.orderNumber || row.order_id,
+    status: row.status,
+    customerName:
+      payload.customerName || row.customer_name,
+    email: payload.email || row.email,
+    total:
+      payload.total ?? Number(row.total_price),
+    grandTotal:
+      payload.grandTotal ??
+      Number(row.total_price),
+    createdAt: payload.createdAt || row.created_at,
+    updatedAt: row.updated_at,
+    dbId: row.id,
+  };
+};
+
+/* USER — order place karna (login required) */
+app.post(
+  "/api/orders",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const order = req.body || {};
+      const orderNumber = String(
+        order.orderNumber ||
+          order.orderId ||
+          order.id ||
+          ""
+      ).trim();
+
+      if (!orderNumber) {
+        return res.status(400).json({
+          success: false,
+          message: "Order number is required.",
+        });
+      }
+
+      await ensureOrdersTable();
+
+      const status = String(
+        order.status || "New"
+      );
+      const customerName = String(
+        order.customerName ||
+          order.customer?.name ||
+          order.name ||
+          ""
+      );
+      const email = String(
+        order.email ||
+          order.customer?.email ||
+          ""
+      );
+      const phone = String(
+        order.phone ||
+          order.customer?.phone ||
+          ""
+      );
+      const total = Number(
+        order.total ??
+          order.grandTotal ??
+          order.totalPrice ??
+          0
+      );
+
+      const payload = {
+        ...order,
+        orderNumber,
+        status,
+        tracking:
+          order.tracking ||
+          buildOrderTracking(status),
+      };
+
+      await db.execute(
+        `INSERT INTO orders
+          (order_id, user_id, status,
+           customer_name, email, phone,
+           total_price, total,
+           payment_method, payment_status,
+           items, payload)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           user_id = VALUES(user_id),
+           status = VALUES(status),
+           payload = VALUES(payload),
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          orderNumber,
+          req.user?.id || null,
+          status,
+          customerName,
+          email,
+          phone,
+          total,
+          total,
+          String(
+            order.paymentMethod ||
+              order.payment ||
+              ""
+          ),
+          String(
+            order.paymentStatus || "Pending"
+          ),
+          JSON.stringify(
+            order.items ||
+              order.products ||
+              order.cart ||
+              []
+          ),
+          JSON.stringify(payload),
+        ]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Order saved.",
+        orderNumber,
+      });
+    } catch (error) {
+      console.error("Order save error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save order.",
+      });
+    }
+  }
+);
+
+/* USER — apne orders */
+app.get(
+  "/api/orders/my",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureOrdersTable();
+
+      const [rows] = await db.execute(
+        `SELECT * FROM orders
+         WHERE user_id = ?
+         ORDER BY created_at DESC`,
+        [req.user?.id || 0]
+      );
+
+      return res.status(200).json({
+        success: true,
+        orders: rows.map(parseOrderRow),
+      });
+    } catch (error) {
+      console.error("My orders error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load orders.",
+      });
+    }
+  }
+);
+
+/* USER — order number se track */
+app.get(
+  "/api/orders/track/:orderNumber",
+  async (req, res) => {
+    try {
+      await ensureOrdersTable();
+
+      const [rows] = await db.execute(
+        `SELECT * FROM orders
+         WHERE order_id = ? LIMIT 1`,
+        [String(req.params.orderNumber)]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found.",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        order: parseOrderRow(rows[0]),
+      });
+    } catch (error) {
+      console.error("Track order error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to track order.",
+      });
+    }
+  }
+);
+
+/* ADMIN — saare orders */
+app.get(
+  "/api/admin/orders",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureOrdersTable();
+
+      const [rows] = await db.execute(
+        "SELECT * FROM orders ORDER BY created_at DESC"
+      );
+
+      return res.status(200).json({
+        success: true,
+        orders: rows.map(parseOrderRow),
+      });
+    } catch (error) {
+      console.error("Admin orders error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load orders.",
+      });
+    }
+  }
+);
+
+/* ADMIN — status update */
+app.put(
+  "/api/admin/orders/:orderNumber/status",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const orderNumber = String(
+        req.params.orderNumber
+      );
+      const status = String(
+        req.body?.status || ""
+      ).trim();
+
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: "Status is required.",
+        });
+      }
+
+      await ensureOrdersTable();
+
+      const [rows] = await db.execute(
+        `SELECT * FROM orders
+         WHERE order_id = ? LIMIT 1`,
+        [orderNumber]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found.",
+        });
+      }
+
+      let payload = {};
+      try {
+        payload = JSON.parse(
+          rows[0].payload || "{}"
+        );
+      } catch {
+        payload = {};
+      }
+
+      payload.status = status;
+      payload.tracking =
+        buildOrderTracking(status);
+      payload.updatedAt =
+        new Date().toISOString();
+
+      await db.execute(
+        `UPDATE orders
+         SET status = ?, payload = ?
+         WHERE order_id = ?`,
+        [
+          status,
+          JSON.stringify(payload),
+          orderNumber,
+        ]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Order status updated.",
+        status,
+      });
+    } catch (error) {
+      console.error(
+        "Order status update error:",
+        error
+      );
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to update order status.",
+      });
+    }
+  }
+);
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,

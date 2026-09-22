@@ -175,13 +175,36 @@ export function TrackOrder() {
   const [orderId, setOrderId] = useState("");
   const [order, setOrder] = useState(null);
   const [error, setError] = useState("");
+  const [searching, setSearching] = useState(false);
 
-  const handleTrack = (e) => {
+  const handleTrack = async (e) => {
     e.preventDefault();
 
-    const found =
-      getOrderById(orderId.trim().toUpperCase()) ||
-      getOrderById(orderId.trim());
+    const query = orderId.trim();
+    setSearching(true);
+
+    /* Pehle server pe dhundo — localStorage pe fallback */
+    let found = null;
+
+    try {
+      const res = await fetch(
+        `${API_URL}/orders/track/${encodeURIComponent(query)}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.order) {
+        found = data.order;
+      }
+    } catch {
+      // offline — local fallback
+    }
+
+    if (!found) {
+      found =
+        getOrderById(query.toUpperCase()) ||
+        getOrderById(query);
+    }
+
+    setSearching(false);
 
     if (!found) {
       setOrder(null);
@@ -208,8 +231,8 @@ export function TrackOrder() {
             onChange={(e) => setOrderId(e.target.value)}
             required
           />
-          <button type="submit" className="support-submit">
-            Track Order
+          <button type="submit" className="support-submit" disabled={searching}>
+            {searching ? "Tracking..." : "Track Order"}
           </button>
         </form>
         <p className="track-hint">

@@ -25,11 +25,17 @@
   justify-content: space-between;
   gap: 35px;
 
-  background: linear-gradient(
-    135deg,
-    #ffffff,
-    #f5f8ff
-  );
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(255, 255, 255, 0.92) 42%,
+      rgba(245, 248, 255, 0.55) 70%,
+      rgba(245, 248, 255, 0.25) 100%
+    ),
+    url("../assets/hero-visual.jpg")
+      right center / cover
+      no-repeat;
 
   border-bottom: 1px solid #e5e7eb;
 }

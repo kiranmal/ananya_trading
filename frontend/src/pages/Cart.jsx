@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import "./Cart.css";
+import { saveOrderToServer } from "../services/orderApi";
 
 // ============================================================
 // HELPERS
@@ -1269,6 +1270,9 @@ function Cart() {
         updatedOrders
       )
     );
+
+    // DB mein bhi save — background mein
+    saveOrderToServer(order);
 
     // --------------------------------------------------------
     // ADMIN NOTIFICATION

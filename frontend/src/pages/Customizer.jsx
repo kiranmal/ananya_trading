@@ -36,6 +36,8 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
+import { saveOrderToServer } from "../services/orderApi";
+
 import "./Customizer.css";
 
 function Customizer() {
@@ -1175,6 +1177,9 @@ function Customizer() {
           updatedOrders
         )
       );
+
+      /* DB mein bhi save — background mein */
+      saveOrderToServer(newOrder);
     } catch (error) {
       console.error(
         "Order save error:",

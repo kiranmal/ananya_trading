@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  fetchAllOrders,
+  updateOrderStatusRemote,
+  mergeOrders,
+} from "../../services/orderApi";
 import "./AdminOrders.css";
 
 export default function AdminOrders() {
@@ -34,7 +39,9 @@ export default function AdminOrders() {
     };
   }, []);
 
-  function loadOrders() {
+  async function loadOrders() {
+    let localOrders = [];
+
     try {
       const savedOrders =
         localStorage.getItem("ananyaOrders");
@@ -43,18 +50,25 @@ export default function AdminOrders() {
         ? JSON.parse(savedOrders)
         : [];
 
-      setOrders(
-        Array.isArray(parsedOrders)
-          ? parsedOrders
-          : []
-      );
+      localOrders = Array.isArray(parsedOrders)
+        ? parsedOrders
+        : [];
     } catch (error) {
       console.error(
         "Orders loading error:",
         error
       );
+    }
 
-      setOrders([]);
+    /* Server se saare orders — sabhi users ke */
+    const remoteOrders = await fetchAllOrders();
+
+    if (remoteOrders) {
+      setOrders(
+        mergeOrders(remoteOrders, localOrders)
+      );
+    } else {
+      setOrders(localOrders);
     }
   }
 
@@ -75,8 +89,15 @@ export default function AdminOrders() {
     );
   };
 
-  const updateOrderStatus = (order, status) => {
+  const updateOrderStatus = async (order, status) => {
     const orderId = order.orderId || order.id || order.orderNumber;
+
+    /* DB update pehle — fail ho toh bhi local update */
+    updateOrderStatusRemote(
+      order.orderNumber || orderId,
+      status
+    );
+
     const updatedOrders = orders.map((item) => {
       const itemId = item.orderId || item.id || item.orderNumber;
 

@@ -1,8 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { getOrders } from "../services/orderService";
+import {
+  fetchMyOrders,
+  mergeOrders,
+} from "../services/orderApi";
 
 import ProfileSidebar from "../components/profile/ProfileSidebar";
 import ProfileHeader from "../components/profile/ProfileHeader";
@@ -35,24 +39,47 @@ const Profile = () => {
   );
 
   /* Track Order ke liye — real checkout orders prefer */
-  const [trackingOrders] = useState(() => {
-    try {
-      const saved =
-        localStorage.getItem("ananyaOrders");
-      const parsed = saved
-        ? JSON.parse(saved)
-        : [];
-      if (
-        Array.isArray(parsed) &&
-        parsed.length > 0
-      ) {
-        return parsed;
+  const [trackingOrders, setTrackingOrders] =
+    useState(() => {
+      try {
+        const saved =
+          localStorage.getItem("ananyaOrders");
+        const parsed = saved
+          ? JSON.parse(saved)
+          : [];
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0
+        ) {
+          return parsed;
+        }
+      } catch {
+        // fall through
       }
-    } catch {
-      // fall through
-    }
-    return getOrders();
-  });
+      return getOrders();
+    });
+
+  /* Server se orders merge — doosre device ke bhi */
+  useEffect(() => {
+    let mounted = true;
+
+    const loadRemote = async () => {
+      const remote = await fetchMyOrders();
+      if (!mounted || remote.length === 0) {
+        return;
+      }
+
+      setTrackingOrders((prev) =>
+        mergeOrders(remote, prev)
+      );
+    };
+
+    loadRemote();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleLogout = () => {
 

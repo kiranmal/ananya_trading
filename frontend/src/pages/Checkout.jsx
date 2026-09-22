@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from "../services/apiConfig";
+import { saveOrderToServer } from "../services/orderApi";
 
 import {
   MapPin,
@@ -906,6 +907,20 @@ function Checkout() {
         "ananyaOrders",
         JSON.stringify(updatedOrders)
       );
+
+      /*
+      DB MEIN BHI SAVE — server fail ho toh
+      local order phir bhi placed rahega
+      */
+
+      try {
+        await saveOrderToServer(newOrder);
+      } catch (apiError) {
+        console.error(
+          "Order API save error:",
+          apiError
+        );
+      }
 
       /*
       ADMIN NOTIFICATION

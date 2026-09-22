@@ -19,6 +19,10 @@ import {
 } from "lucide-react";
 
 import "./MyOrders.css";
+import {
+  fetchMyOrders,
+  mergeOrders,
+} from "../../services/orderApi";
 
 const MyOrders = ({
   orders: ordersFromProps = [],
@@ -28,10 +32,12 @@ const MyOrders = ({
   const [expandedOrders, setExpandedOrders] = useState({});
 
   /* ============================================================
-     LOAD ORDERS
+     LOAD ORDERS — localStorage + server DB merge
   ============================================================ */
 
-  const loadOrders = () => {
+  const loadOrders = async () => {
+    let localOrders = [];
+
     try {
       const savedOrders = localStorage.getItem("ananyaOrders");
 
@@ -39,25 +45,22 @@ const MyOrders = ({
         const parsedOrders = JSON.parse(savedOrders);
 
         if (Array.isArray(parsedOrders)) {
-          setOrders(parsedOrders);
-          return;
+          localOrders = parsedOrders;
         }
       }
-
-      setOrders(
-        Array.isArray(ordersFromProps)
-          ? ordersFromProps
-          : []
-      );
     } catch (error) {
       console.error("Orders load error:", error);
-
-      setOrders(
-        Array.isArray(ordersFromProps)
-          ? ordersFromProps
-          : []
-      );
     }
+
+    if (localOrders.length === 0) {
+      localOrders = Array.isArray(ordersFromProps)
+        ? ordersFromProps
+        : [];
+    }
+
+    /* Server se bhi laao — doosre device ke orders */
+    const remoteOrders = await fetchMyOrders();
+    setOrders(mergeOrders(remoteOrders, localOrders));
   };
 
   useEffect(() => {

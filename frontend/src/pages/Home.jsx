@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 
 import "./Home.css";
-import heroImage from "../assets/hero-visual.jpg";
 import defaultProducts from "../data/products";
 import CustomizeProducts from "../components/CustomizeProducts";
 import { fetchProducts } from "../services/productApi";
@@ -799,40 +798,6 @@ function Home() {
               <span>
                 Quality Assured
               </span>
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* =================================================
-            HERO VISUAL
-        ================================================= */}
-
-        <div className="hero-visual">
-
-          <div className="hero-image-card">
-
-            <img
-              src={heroImage}
-              alt="Premium business card printing"
-            />
-
-          </div>
-
-          <div className="hero-card hero-card-two">
-
-            <div className="mock-card">
-
-              <strong>
-                ANANYA
-              </strong>
-
-              <span>
-                TRADING COMPANY
-              </span>
-
             </div>
 
           </div>
