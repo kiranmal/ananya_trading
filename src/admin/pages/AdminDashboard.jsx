@@ -1,8 +1,10 @@
+import React from "react";
+import { useNavigate } from "react-router-dom";
+
 import StatCard from "../components/StatCard";
 import "./AdminDashboard.css";
 
 const recentOrders = [
-
   {
     id: "#ORD-1001",
     customer: "Rahul Sharma",
@@ -37,21 +39,39 @@ const recentOrders = [
     amount: "₹6,799",
     status: "Delivered",
   },
-
 ];
 
-
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+
+  /* =====================================================
+     ADD PRODUCT
+  ===================================================== */
+
+  const handleAddProduct = () => {
+    navigate("/admin/products/add");
+  };
+
+  /* =====================================================
+     VIEW ALL ORDERS
+  ===================================================== */
+
+  const handleViewOrders = (event) => {
+    event.preventDefault();
+
+    navigate("/admin/orders");
+  };
 
   return (
-    <div>
+    <div className="admin-dashboard">
 
-      {/* Heading */}
+      {/* =====================================================
+          PAGE HEADING
+      ===================================================== */}
 
       <div className="page-heading">
 
         <div>
-
           <h2>
             Good afternoon, Admin 👋
           </h2>
@@ -60,17 +80,22 @@ export default function AdminDashboard() {
             Here is what's happening with
             your store today.
           </p>
-
         </div>
 
-        <button className="primary-btn">
+        <button
+          type="button"
+          className="primary-btn"
+          onClick={handleAddProduct}
+        >
           ＋ Add Product
         </button>
 
       </div>
 
 
-      {/* Statistics */}
+      {/* =====================================================
+          STATISTICS
+      ===================================================== */}
 
       <div className="stats-grid">
 
@@ -105,11 +130,15 @@ export default function AdminDashboard() {
       </div>
 
 
-      {/* Charts */}
+      {/* =====================================================
+          CHARTS
+      ===================================================== */}
 
       <div className="dashboard-grid">
 
-        {/* Sales */}
+        {/* =================================================
+            SALES OVERVIEW
+        ================================================= */}
 
         <section className="panel">
 
@@ -127,17 +156,20 @@ export default function AdminDashboard() {
 
             </div>
 
-            <select>
+            <select
+              defaultValue="7"
+              aria-label="Sales period"
+            >
 
-              <option>
+              <option value="7">
                 Last 7 days
               </option>
 
-              <option>
+              <option value="30">
                 Last 30 days
               </option>
 
-              <option>
+              <option value="6">
                 Last 6 months
               </option>
 
@@ -148,35 +180,49 @@ export default function AdminDashboard() {
 
           <div className="fake-chart">
 
-            {[35, 55, 42, 72, 58, 80, 68, 92, 75, 88, 70, 96]
-              .map((height, index) => (
+            {[
+              35,
+              55,
+              42,
+              72,
+              58,
+              80,
+              68,
+              92,
+              75,
+              88,
+              70,
+              96,
+            ].map((height, index) => (
+
+              <div
+                className="bar-col"
+                key={index}
+              >
 
                 <div
-                  className="bar-col"
-                  key={index}
-                >
+                  className="bar"
+                  style={{
+                    height: `${height}%`,
+                  }}
+                />
 
-                  <div
-                    className="bar"
-                    style={{
-                      height: `${height}%`,
-                    }}
-                  />
+                <small>
+                  {index + 1}
+                </small>
 
-                  <small>
-                    {index + 1}
-                  </small>
+              </div>
 
-                </div>
-
-              ))}
+            ))}
 
           </div>
 
         </section>
 
 
-        {/* Order Status */}
+        {/* =================================================
+            ORDER STATUS
+        ================================================= */}
 
         <section className="panel">
 
@@ -218,26 +264,45 @@ export default function AdminDashboard() {
 
             <span>
               <i className="dot delivered"></i>
+
               Delivered
-              <b>68%</b>
+
+              <b>
+                68%
+              </b>
             </span>
+
 
             <span>
               <i className="dot processing"></i>
+
               Processing
-              <b>17%</b>
+
+              <b>
+                17%
+              </b>
             </span>
+
 
             <span>
               <i className="dot pending"></i>
+
               Pending
-              <b>10%</b>
+
+              <b>
+                10%
+              </b>
             </span>
+
 
             <span>
               <i className="dot cancelled"></i>
+
               Cancelled
-              <b>5%</b>
+
+              <b>
+                5%
+              </b>
             </span>
 
           </div>
@@ -247,7 +312,9 @@ export default function AdminDashboard() {
       </div>
 
 
-      {/* Recent Orders */}
+      {/* =====================================================
+          RECENT ORDERS
+      ===================================================== */}
 
       <section className="panel recent-panel">
 
@@ -265,9 +332,14 @@ export default function AdminDashboard() {
 
           </div>
 
-          <a href="/admin/orders">
+
+          <button
+            type="button"
+            className="view-all-btn"
+            onClick={handleViewOrders}
+          >
             View All →
-          </a>
+          </button>
 
         </div>
 
@@ -303,39 +375,44 @@ export default function AdminDashboard() {
 
             <tbody>
 
-              {recentOrders.map(
-                (order) => (
+              {recentOrders.map((order) => (
 
-                  <tr key={order.id}>
+                <tr
+                  key={order.id}
+                >
 
-                    <td>
-                      <strong>
-                        {order.id}
-                      </strong>
-                    </td>
+                  <td>
 
-                    <td>
-                      {order.customer}
-                    </td>
+                    <strong>
+                      {order.id}
+                    </strong>
 
-                    <td>
-                      {order.amount}
-                    </td>
+                  </td>
 
-                    <td>
 
-                      <span
-                        className={`status ${order.status.toLowerCase()}`}
-                      >
-                        {order.status}
-                      </span>
+                  <td>
+                    {order.customer}
+                  </td>
 
-                    </td>
 
-                  </tr>
+                  <td>
+                    {order.amount}
+                  </td>
 
-                )
-              )}
+
+                  <td>
+
+                    <span
+                      className={`status ${order.status.toLowerCase()}`}
+                    >
+                      {order.status}
+                    </span>
+
+                  </td>
+
+                </tr>
+
+              ))}
 
             </tbody>
 
