@@ -123,9 +123,24 @@ function Login() {
 
     if (
       location.state?.from ===
-      "/checkout"
+      "/checkout" ||
+      location.state?.redirectTo ===
+        "/checkout"
     ) {
       return "/checkout";
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generic redirectTo (Cart Buy Now etc.)
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      location.state?.redirectTo
+    ) {
+      return location.state.redirectTo;
     }
 
 
@@ -341,12 +356,39 @@ function Login() {
         }!`
       );
 
-      navigate(
+      const redirectPath =
         isAdmin
           ? "/admin"
-          : getRedirectPath(),
+          : getRedirectPath();
+
+      navigate(
+        redirectPath,
         {
           replace: true,
+          state:
+            redirectPath ===
+              "/checkout" &&
+            location.state?.checkoutData
+              ? {
+                  cart:
+                    location.state
+                      .checkoutData.cart,
+                  totalPrice:
+                    location.state
+                      .checkoutData.totalPrice,
+                  totalQuantity:
+                    location.state
+                      .checkoutData
+                      .totalQuantity,
+                  user: data.user,
+                }
+              : location.state?.orderProduct
+                ? {
+                    orderProduct:
+                      location.state
+                        .orderProduct,
+                  }
+                : undefined,
         }
       );
 
@@ -507,7 +549,9 @@ function Login() {
               <p>
 
                 {location.state?.from ===
-                "/checkout"
+                  "/checkout" ||
+                location.state?.redirectTo ===
+                  "/checkout"
 
                   ? "Login to continue with your order"
 
@@ -692,7 +736,9 @@ function Login() {
                   ? "Signing In..."
 
                   : location.state?.from ===
-                    "/checkout"
+                      "/checkout" ||
+                    location.state?.redirectTo ===
+                      "/checkout"
 
                     ? "Login & Continue"
 

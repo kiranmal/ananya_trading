@@ -89,6 +89,33 @@ function Checkout() {
 
   /*
   =====================================================
+  AUTH GUARD — bina login ke order nahi
+  =====================================================
+  */
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem("currentUser");
+    const adminLoggedIn =
+      localStorage.getItem("adminLoggedIn") === "true";
+
+    if (!savedUser && !adminLoggedIn) {
+      navigate("/login", {
+        replace: true,
+        state: {
+          redirectTo: "/checkout",
+          checkoutData: {
+            cart,
+            totalPrice,
+            totalQuantity,
+          },
+        },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /*
+  =====================================================
   CHECK DELIVERY
   =====================================================
   */
