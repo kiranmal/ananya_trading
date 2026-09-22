@@ -19,7 +19,7 @@ function Home() {
   const [favorites, setFavorites] = useState([]);
 
   /* =====================================================
-     PRODUCT IMAGE HELPER
+     PRODUCT IMAGE HELPER           
   ===================================================== */
 
   const getProductImages = (product) => {

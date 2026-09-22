@@ -1131,8 +1131,8 @@
 
 .home-page .products-section {
   width: 100%;
-  padding-left: 80px;
-  padding-right: 80px;
+  padding-left: 0px;
+  padding-right: 0px;
 }
 
 .home-page .product-grid {
@@ -1760,6 +1760,10 @@
   .home-page .product-actions button {
     min-height: 30px;
   }
+      .home-page .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
+    }
 
 }
 
@@ -1777,5 +1781,19 @@
   .home-page .product-image {
     height: 220px;
   }
+      .home-page .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
+    }
 
+    .home-page .product-content > p{
+      margin: 0 0 -10px;
+    }
+    .home-page .product-content h3{
+          margin: 3px 0 -16px;
+    }
+
+    .home-page .product-actions {
+      margin-top: -18px;
+    }
 }
