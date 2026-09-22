@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import "./Navbar.css";
-import ananyaLogo from "../assets/ananya-logo.png";
+import ananyaLogo from "../assets/logo.jpeg";
 
 import { getProducts } from "../data/productStorage";
 import { useAuth } from "../context/AuthContext";
