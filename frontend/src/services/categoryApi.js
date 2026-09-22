@@ -45,6 +45,21 @@ export const createCategory = async (name, items = []) => {
   return data.category;
 };
 
+export const updateCategory = async (id, name, items = []) => {
+  const res = await fetch(`${API_URL}/admin/categories/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name, items }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to update category.");
+  }
+
+  return data.category;
+};
+
 export const deleteCategory = async (id) => {
   const res = await fetch(`${API_URL}/admin/categories/${id}`, {
     method: "DELETE",

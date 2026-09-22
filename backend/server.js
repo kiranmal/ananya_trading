@@ -1863,6 +1863,80 @@ app.post(
   }
 );
 
+app.put(
+  "/api/admin/categories/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const name = String(req.body?.name || "").trim();
+      const items = Array.isArray(req.body?.items)
+        ? req.body.items
+            .map((item) => String(item).trim())
+            .filter(Boolean)
+        : [];
+
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid category id.",
+        });
+      }
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Category name must be at least 2 characters.",
+        });
+      }
+
+      await ensureCategoriesTable();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM categories WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Category not found.",
+        });
+      }
+
+      const [duplicate] = await db.execute(
+        "SELECT id FROM categories WHERE name = ? AND id != ? LIMIT 1",
+        [name, id]
+      );
+
+      if (duplicate.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Another category with this name already exists.",
+        });
+      }
+
+      await db.execute(
+        "UPDATE categories SET name = ?, items = ? WHERE id = ?",
+        [name, JSON.stringify(items), id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Category updated.",
+        category: { id, name, items },
+      });
+    } catch (error) {
+      console.error("Category update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update category.",
+      });
+    }
+  }
+);
+
 app.delete(
   "/api/admin/categories/:id",
   authenticateToken,

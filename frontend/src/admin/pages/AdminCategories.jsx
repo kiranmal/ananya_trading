@@ -3,6 +3,7 @@ import { API_URL } from "../../services/apiConfig";
 import {
   fetchCategories,
   createCategory,
+  updateCategory,
   deleteCategory,
 } from "../../services/categoryApi";
 import {
@@ -12,6 +13,7 @@ import {
   FolderOpen,
   Eye,
   Plus,
+  Pencil,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,10 +42,11 @@ export default function AdminCategories() {
   const [loading, setLoading] = useState(true);
   const [expandedCategory, setExpandedCategory] = useState(null);
 
-  /* Add form state */
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newItems, setNewItems] = useState("");
+  /* Add/Edit form state */
+  const [showForm, setShowForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [formName, setFormName] = useState("");
+  const [formItems, setFormItems] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -86,19 +89,45 @@ export default function AdminCategories() {
   }, []);
 
   /* =====================================================
-     ADD CATEGORY
+     FORM OPEN/CLOSE
   ===================================================== */
 
-  const handleAddCategory = async (e) => {
+  const openAddForm = () => {
+    setEditingCategory(null);
+    setFormName("");
+    setFormItems("");
+    setShowForm(true);
+  };
+
+  const openEditForm = (category) => {
+    setEditingCategory(category);
+    setFormName(category.name);
+    setFormItems((category.items || []).join(", "));
+    setShowForm(true);
+    setExpandedCategory(null);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingCategory(null);
+    setFormName("");
+    setFormItems("");
+  };
+
+  /* =====================================================
+     SAVE CATEGORY (ADD + EDIT)
+  ===================================================== */
+
+  const handleSaveCategory = async (e) => {
     e.preventDefault();
 
-    const name = newName.trim();
+    const name = formName.trim();
     if (name.length < 2) {
       alert("Category name must be at least 2 characters.");
       return;
     }
 
-    const items = newItems
+    const items = formItems
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
@@ -106,13 +135,15 @@ export default function AdminCategories() {
     setSaving(true);
 
     try {
-      await createCategory(name, items);
-      setNewName("");
-      setNewItems("");
-      setShowAddForm(false);
+      if (editingCategory) {
+        await updateCategory(editingCategory.id, name, items);
+      } else {
+        await createCategory(name, items);
+      }
+      closeForm();
       await loadCategories();
     } catch (error) {
-      alert(error.message || "Unable to add category.");
+      alert(error.message || "Unable to save category.");
     } finally {
       setSaving(false);
     }
@@ -179,7 +210,7 @@ export default function AdminCategories() {
 
         <button
           type="button"
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => (showForm ? closeForm() : openAddForm())}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -194,109 +225,132 @@ export default function AdminCategories() {
             cursor: "pointer",
           }}
         >
-          {showAddForm ? <X size={16} /> : <Plus size={16} />}
-          {showAddForm ? "Cancel" : "Add Category"}
+          {showForm ? <X size={16} /> : <Plus size={16} />}
+          {showForm ? "Cancel" : "Add Category"}
         </button>
       </div>
 
       {/* =====================================================
-          ADD CATEGORY FORM
+          ADD / EDIT CATEGORY FORM
       ===================================================== */}
 
-      {showAddForm && (
+      {showForm && (
         <form
-          onSubmit={handleAddCategory}
+          onSubmit={handleSaveCategory}
           style={{
             background: "#fff",
             border: "1px solid #e5e7eb",
             borderRadius: "14px",
             padding: "22px 24px",
             marginBottom: "24px",
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr auto",
-            gap: "16px",
-            alignItems: "end",
           }}
         >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#374151",
-                marginBottom: "6px",
-              }}
-            >
-              Category Name *
-            </label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Diaries & Journals"
-              style={{
-                width: "100%",
-                height: "42px",
-                padding: "0 14px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                fontSize: "14px",
-                outline: "none",
-              }}
-            />
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#374151",
-                marginBottom: "6px",
-              }}
-            >
-              Subcategories (comma separated)
-            </label>
-            <input
-              type="text"
-              value={newItems}
-              onChange={(e) => setNewItems(e.target.value)}
-              placeholder="e.g. Diaries, Journals, Planners"
-              style={{
-                width: "100%",
-                height: "42px",
-                padding: "0 14px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                fontSize: "14px",
-                outline: "none",
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
+          <div
             style={{
-              height: "42px",
-              padding: "0 22px",
-              border: "none",
-              borderRadius: "8px",
-              background: saving ? "#9ca3af" : "#10b981",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: saving ? "not-allowed" : "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
+              fontSize: "15px",
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: "16px",
             }}
           >
-            <Plus size={16} />
-            {saving ? "Adding..." : "Add"}
-          </button>
+            {editingCategory
+              ? `Edit Category: ${editingCategory.name}`
+              : "Add New Category"}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr auto",
+              gap: "16px",
+              alignItems: "end",
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#374151",
+                  marginBottom: "6px",
+                }}
+              >
+                Category Name *
+              </label>
+              <input
+                type="text"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="e.g. Diaries & Journals"
+                style={{
+                  width: "100%",
+                  height: "42px",
+                  padding: "0 14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#374151",
+                  marginBottom: "6px",
+                }}
+              >
+                Subcategories (comma separated)
+              </label>
+              <input
+                type="text"
+                value={formItems}
+                onChange={(e) => setFormItems(e.target.value)}
+                placeholder="e.g. Diaries, Journals, Planners"
+                style={{
+                  width: "100%",
+                  height: "42px",
+                  padding: "0 14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                height: "42px",
+                padding: "0 22px",
+                border: "none",
+                borderRadius: "8px",
+                background: saving ? "#9ca3af" : "#10b981",
+                color: "#fff",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: saving ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {editingCategory
+                ? saving
+                  ? "Saving..."
+                  : "Save"
+                : saving
+                  ? "Adding..."
+                  : "Add"}
+            </button>
+          </div>
         </form>
       )}
 
@@ -489,6 +543,31 @@ export default function AdminCategories() {
                     gap: "10px",
                   }}
                 >
+                  {category.id && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditForm(category);
+                      }}
+                      title="Edit category"
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        border: "none",
+                        borderRadius: "8px",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  )}
+
                   {category.id && (
                     <button
                       type="button"
