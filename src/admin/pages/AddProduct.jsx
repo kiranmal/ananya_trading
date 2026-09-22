@@ -1,8 +1,20 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  PackagePlus,
+  Tag,
+  IndianRupee,
+  Image as ImageIcon,
+  FileText,
+  X,
+  CheckCircle2,
+  ArrowLeft,
+  Sparkles,
+} from "lucide-react";
+
+import "./AddProduct.css";
 
 export default function AddProduct() {
-
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -12,12 +24,28 @@ export default function AddProduct() {
   const [image, setImage] = useState("");
   const [description, setDescription] = useState("");
 
-  const handleSubmit = (e) => {
+  const [imageError, setImageError] = useState(false);
+  const [success, setSuccess] = useState(false);
 
+  /* =====================================================
+     ADD PRODUCT
+  ===================================================== */
+
+  const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!name.trim() || !price || !image.trim()) {
-      alert("Please fill Product Name, Price and Image");
+    if (!name.trim()) {
+      alert("Please enter product name.");
+      return;
+    }
+
+    if (!price || Number(price) <= 0) {
+      alert("Please enter a valid product price.");
+      return;
+    }
+
+    if (!image.trim()) {
+      alert("Please enter product image URL.");
       return;
     }
 
@@ -34,7 +62,6 @@ export default function AddProduct() {
         : "";
 
     const newProduct = {
-
       id: Date.now(),
 
       name: name.trim(),
@@ -55,9 +82,7 @@ export default function AddProduct() {
 
       image: image.trim(),
 
-      images: [
-        image.trim()
-      ],
+      images: [image.trim()],
 
       description:
         description.trim() ||
@@ -66,32 +91,48 @@ export default function AddProduct() {
       paperTypes: [
         "Matte",
         "Glossy",
-        "Textured"
+        "Textured",
       ],
 
       sizes: [
         "Standard",
-        "Premium"
+        "Premium",
       ],
 
       features: [
         "Premium Quality",
         "High Quality Printing",
         "Fast Delivery",
-        "100% Quality Assured"
-      ]
+        "100% Quality Assured",
+      ],
     };
 
-    // IMPORTANT:
-    // Same storage key used by Home.jsx
-    const existingProducts =
-      JSON.parse(
+    /* =====================================================
+       GET EXISTING PRODUCTS
+    ===================================================== */
+
+    let existingProducts = [];
+
+    try {
+      existingProducts = JSON.parse(
         localStorage.getItem("ananyaProducts") || "[]"
       );
 
+      if (!Array.isArray(existingProducts)) {
+        existingProducts = [];
+      }
+    } catch (error) {
+      console.error("Product storage error:", error);
+      existingProducts = [];
+    }
+
+    /* =====================================================
+       SAVE PRODUCT
+    ===================================================== */
+
     const updatedProducts = [
       ...existingProducts,
-      newProduct
+      newProduct,
     ];
 
     localStorage.setItem(
@@ -99,212 +140,590 @@ export default function AddProduct() {
       JSON.stringify(updatedProducts)
     );
 
-    // Other components ko notify karo
+    /* =====================================================
+       NOTIFY OTHER COMPONENTS
+    ===================================================== */
+
     window.dispatchEvent(
       new Event("productsUpdated")
     );
 
-    alert("Product added successfully!");
+    /* =====================================================
+       SUCCESS MESSAGE
+    ===================================================== */
 
-    navigate("/admin/products");
+    setSuccess(true);
 
+    setTimeout(() => {
+      navigate("/admin/products");
+    }, 1000);
   };
 
+  /* =====================================================
+     RESET IMAGE
+  ===================================================== */
+
+  const removeImage = () => {
+    setImage("");
+    setImageError(false);
+  };
+
+  /* =====================================================
+     PRICE FORMAT
+  ===================================================== */
+
+  const calculateDiscount = () => {
+    if (
+      !price ||
+      !oldPrice ||
+      Number(oldPrice) <= Number(price)
+    ) {
+      return null;
+    }
+
+    return Math.round(
+      ((Number(oldPrice) - Number(price)) /
+        Number(oldPrice)) *
+        100
+    );
+  };
+
+  const discount = calculateDiscount();
+
   return (
+    <div className="add-product-page">
 
-    <div className="admin-page">
+      {/* =====================================================
+          SUCCESS MESSAGE
+      ===================================================== */}
 
-      <div className="page-heading">
+      {success && (
+        <div className="success-toast">
+          <CheckCircle2 size={20} />
 
-        <div>
+          <div>
+            <strong>Product Added Successfully</strong>
 
-          <h2>
-            Add Product
-          </h2>
+            <span>
+              Redirecting to products...
+            </span>
+          </div>
+        </div>
+      )}
 
-          <p>
-            Add a new product to your store.
-          </p>
+      {/* =====================================================
+          PAGE HEADER
+      ===================================================== */}
+
+      <div className="add-product-header">
+
+        <div className="header-left">
+
+          <button
+            type="button"
+            className="back-btn"
+            onClick={() =>
+              navigate("/admin/products")
+            }
+          >
+            <ArrowLeft size={18} />
+          </button>
+
+          <div>
+
+            <div className="header-label">
+              <Sparkles size={15} />
+              PRODUCT MANAGEMENT
+            </div>
+
+            <h1>
+              Add New Product
+            </h1>
+
+            <p>
+              Create and publish a new product
+              to your Ananya Trading store.
+            </p>
+
+          </div>
 
         </div>
 
       </div>
 
+      {/* =====================================================
+          MAIN CONTENT
+      ===================================================== */}
 
       <form
+        className="add-product-layout"
         onSubmit={handleSubmit}
-        className="product-form"
       >
 
-        <div className="form-group">
+        {/* =====================================================
+            LEFT FORM
+        ===================================================== */}
 
-          <label>
-            Product Name
-          </label>
+        <div className="product-form-card">
 
-          <input
-            type="text"
-            placeholder="Premium Visiting Card"
-            value={name}
-            onChange={(e) =>
-              setName(e.target.value)
-            }
-          />
+          <div className="form-card-header">
 
-        </div>
+            <div className="form-card-icon">
+              <PackagePlus size={21} />
+            </div>
 
+            <div>
+              <h2>
+                Product Information
+              </h2>
 
-        <div className="form-group">
+              <p>
+                Enter the basic details of your product.
+              </p>
+            </div>
 
-          <label>
-            Category
-          </label>
+          </div>
 
-          <select
-            value={category}
-            onChange={(e) =>
-              setCategory(e.target.value)
-            }
-          >
-
-            <option>Visiting Cards</option>
-            <option>Business Cards</option>
-            <option>Premium Cards</option>
-            <option>Luxury Cards</option>
-            <option>Brochures</option>
-            <option>Flyers</option>
-            <option>Posters</option>
-            <option>Banners</option>
-            <option>Stickers</option>
-            <option>Packaging</option>
-
-          </select>
-
-        </div>
-
-
-        <div className="form-row">
+          {/* =================================================
+              PRODUCT NAME
+          ================================================= */}
 
           <div className="form-group">
 
             <label>
-              Price
+              Product Name
+              <span>*</span>
             </label>
 
-            <input
-              type="number"
-              min="0"
-              placeholder="499"
-              value={price}
-              onChange={(e) =>
-                setPrice(e.target.value)
-              }
-            />
+            <div className="input-wrapper">
+
+              <Tag size={18} />
+
+              <input
+                type="text"
+                placeholder="Premium Visiting Card"
+                value={name}
+                onChange={(e) =>
+                  setName(e.target.value)
+                }
+              />
+
+            </div>
 
           </div>
 
+          {/* =================================================
+              CATEGORY
+          ================================================= */}
 
           <div className="form-group">
 
             <label>
-              Old Price
+              Category
+              <span>*</span>
             </label>
 
-            <input
-              type="number"
-              min="0"
-              placeholder="699"
-              value={oldPrice}
-              onChange={(e) =>
-                setOldPrice(e.target.value)
+            <div className="input-wrapper">
+
+              <PackagePlus size={18} />
+
+              <select
+                value={category}
+                onChange={(e) =>
+                  setCategory(e.target.value)
+                }
+              >
+
+                <option>
+                  Visiting Cards
+                </option>
+
+                <option>
+                  Business Cards
+                </option>
+
+                <option>
+                  Premium Cards
+                </option>
+
+                <option>
+                  Luxury Cards
+                </option>
+
+                <option>
+                  Brochures
+                </option>
+
+                <option>
+                  Flyers
+                </option>
+
+                <option>
+                  Posters
+                </option>
+
+                <option>
+                  Banners
+                </option>
+
+                <option>
+                  Stickers
+                </option>
+
+                <option>
+                  Packaging
+                </option>
+
+              </select>
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              PRICE
+          ================================================= */}
+
+          <div className="form-row">
+
+            <div className="form-group">
+
+              <label>
+                Selling Price
+                <span>*</span>
+              </label>
+
+              <div className="input-wrapper">
+
+                <IndianRupee size={18} />
+
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="499"
+                  value={price}
+                  onChange={(e) =>
+                    setPrice(e.target.value)
+                  }
+                />
+
+              </div>
+
+            </div>
+
+            <div className="form-group">
+
+              <label>
+                Original Price
+              </label>
+
+              <div className="input-wrapper">
+
+                <IndianRupee size={18} />
+
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="699"
+                  value={oldPrice}
+                  onChange={(e) =>
+                    setOldPrice(e.target.value)
+                  }
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              DISCOUNT
+          ================================================= */}
+
+          {discount && (
+            <div className="discount-preview">
+
+              <div className="discount-icon">
+                <Sparkles size={17} />
+              </div>
+
+              <div>
+
+                <strong>
+                  {discount}% OFF
+                </strong>
+
+                <span>
+                  Customers will see this discount
+                  on your product.
+                </span>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* =================================================
+              IMAGE URL
+          ================================================= */}
+
+          <div className="form-group">
+
+            <label>
+              Product Image URL
+              <span>*</span>
+            </label>
+
+            <div className="input-wrapper">
+
+              <ImageIcon size={18} />
+
+              <input
+                type="url"
+                placeholder="https://example.com/product.jpg"
+                value={image}
+                onChange={(e) => {
+                  setImage(e.target.value);
+                  setImageError(false);
+                }}
+              />
+
+              {image && (
+                <button
+                  type="button"
+                  className="clear-input"
+                  onClick={removeImage}
+                >
+                  <X size={16} />
+                </button>
+              )}
+
+            </div>
+
+            <small className="field-help">
+              Use a publicly accessible image URL.
+            </small>
+
+          </div>
+
+          {/* =================================================
+              DESCRIPTION
+          ================================================= */}
+
+          <div className="form-group">
+
+            <div className="label-row">
+
+              <label>
+                Product Description
+              </label>
+
+              <span className="character-count">
+                {description.length}/500
+              </span>
+
+            </div>
+
+            <div className="textarea-wrapper">
+
+              <FileText size={18} />
+
+              <textarea
+                rows="6"
+                maxLength="500"
+                placeholder="Enter product description..."
+                value={description}
+                onChange={(e) =>
+                  setDescription(e.target.value)
+                }
+              />
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              ACTIONS
+          ================================================= */}
+
+          <div className="form-actions">
+
+            <button
+              type="button"
+              className="cancel-btn"
+              onClick={() =>
+                navigate("/admin/products")
               }
-            />
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={success}
+            >
+              <PackagePlus size={18} />
+
+              {success
+                ? "Product Added"
+                : "Add Product"}
+            </button>
 
           </div>
 
         </div>
 
+        {/* =====================================================
+            RIGHT PREVIEW
+        ===================================================== */}
 
-        <div className="form-group">
+        <aside className="product-preview-card">
 
-          <label>
-            Product Image URL
-          </label>
+          <div className="preview-header">
 
-          <input
-            type="url"
-            placeholder="https://example.com/product.jpg"
-            value={image}
-            onChange={(e) =>
-              setImage(e.target.value)
-            }
-          />
+            <div>
 
-        </div>
+              <span>
+                LIVE PREVIEW
+              </span>
 
+              <h2>
+                Product Card
+              </h2>
 
-        {image && (
+            </div>
 
-          <div className="image-preview">
-
-            <img
-              src={image}
-              alt="Product Preview"
-              style={{
-                width: "180px",
-                height: "180px",
-                objectFit: "cover",
-                borderRadius: "12px"
-              }}
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
+            <div className="preview-status">
+              <i />
+              Preview
+            </div>
 
           </div>
 
-        )}
+          {/* =================================================
+              IMAGE
+          ================================================= */}
 
+          <div className="preview-image">
 
-        <div className="form-group">
+            {image && !imageError ? (
+              <img
+                src={image}
+                alt="Product Preview"
+                onError={() =>
+                  setImageError(true)
+                }
+              />
+            ) : (
+              <div className="image-placeholder">
 
-          <label>
-            Description
-          </label>
+                <ImageIcon size={42} />
 
-          <textarea
-            rows="5"
-            placeholder="Enter product description..."
-            value={description}
-            onChange={(e) =>
-              setDescription(e.target.value)
-            }
-          />
+                <strong>
+                  Product Image
+                </strong>
 
-        </div>
+                <span>
+                  Add an image URL to preview
+                </span>
 
+              </div>
+            )}
 
-        <div className="form-actions">
+            {discount && (
+              <span className="preview-discount">
+                {discount}% OFF
+              </span>
+            )}
 
-          <button
-            type="button"
-            className="secondary-btn"
-            onClick={() =>
-              navigate("/admin/products")
-            }
-          >
-            Cancel
-          </button>
+            <span className="preview-new">
+              NEW
+            </span>
 
+          </div>
 
-          <button
-            type="submit"
-            className="primary-btn"
-          >
-            Add Product
-          </button>
+          {/* =================================================
+              PREVIEW DETAILS
+          ================================================= */}
 
-        </div>
+          <div className="preview-details">
+
+            <span className="preview-category">
+              {category}
+            </span>
+
+            <h3>
+              {name ||
+                "Your Product Name"}
+            </h3>
+
+            <p>
+              {description ||
+                "Your product description will appear here."}
+            </p>
+
+            <div className="preview-rating">
+              <span>
+                ★★★★★
+              </span>
+
+              <small>
+                5.0
+              </small>
+            </div>
+
+            <div className="preview-price">
+
+              <strong>
+                ₹
+                {Number(price || 0).toLocaleString(
+                  "en-IN"
+                )}
+              </strong>
+
+              {oldPrice &&
+                Number(oldPrice) >
+                  Number(price || 0) && (
+                  <del>
+                    ₹
+                    {Number(
+                      oldPrice
+                    ).toLocaleString(
+                      "en-IN"
+                    )}
+                  </del>
+                )}
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              PREVIEW INFO
+          ================================================= */}
+
+          <div className="preview-info">
+
+            <div>
+              <CheckCircle2 size={17} />
+              Premium Quality
+            </div>
+
+            <div>
+              <CheckCircle2 size={17} />
+              Fast Delivery
+            </div>
+
+            <div>
+              <CheckCircle2 size={17} />
+              Quality Assured
+            </div>
+
+          </div>
+
+        </aside>
 
       </form>
 
