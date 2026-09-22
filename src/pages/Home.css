@@ -1631,7 +1631,10 @@
     transform 0.2s ease;
 }
 
-
+.home-page .product-actions button{
+  height: 32px;
+  margin-top: 12px;
+}
 /* VIEW DETAIL */
 
 .home-page .view-detail-btn {

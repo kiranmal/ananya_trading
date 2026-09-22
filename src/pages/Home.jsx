@@ -386,11 +386,7 @@ function Home() {
             oldQuantity + 100,
         };
 
-        alert(
-          `${product.name} quantity increased to ${
-            oldQuantity + 100
-          }.`
-        );
+      
       }
 
       /* =================================================
@@ -429,9 +425,8 @@ function Home() {
           cartProduct,
         ];
 
-        alert(
-          `${product.name} added to cart!`
-        );
+       
+        
       }
 
       /* =================================================
@@ -466,9 +461,7 @@ function Home() {
         error
       );
 
-      alert(
-        "Unable to add product to cart."
-      );
+     
     }
   };
 

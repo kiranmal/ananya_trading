@@ -800,9 +800,7 @@ function Customizer() {
       )
     );
 
-    alert(
-      `${productName} added to cart!`
-    );
+   
   };
 
   /* =====================================================
@@ -2156,11 +2154,7 @@ function Customizer() {
 
           <button
             className="save-design-btn"
-            onClick={() =>
-              alert(
-                "Design saved successfully!"
-              )
-            }
+           
           >
             <Heart
               size={20}
