@@ -49,7 +49,7 @@ const products = [
     images: [
       "https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?auto=format&fit=crop&w=1000&q=85",
       "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1000&q=85",
-      "https://rukminim2.flixcart.com/image/640/661/xif0q/kids-top/u/y/u/15-16-years-girls-white-rayon-embroidered-casual-round-tie-up-original-imagrxczeafv7pbn.jpeg?q=60"
+      "https://i5.walmartimages.com/seo/AWZXDE-Girls-Adjustable-Elastic-Band-Sequin-Crop-Top-Exposes-Navel-For-Carnival-Party-Performance-Girls-Tops-Over-5-Years-Old-Black-7-9-Years_09f9c65e-7215-4a8e-9d22-1c7b326537fb.d551f1295ad5cf913e51315ce01427be.jpeg?odnHeight=573&odnWidth=573&odnBg=FFFFFF"
     ],
 
     paperTypes: ["Matte", "Luxury", "Textured"],
