@@ -34,6 +34,26 @@ const Profile = () => {
     getOrders()
   );
 
+  /* Track Order ke liye — real checkout orders prefer */
+  const [trackingOrders] = useState(() => {
+    try {
+      const saved =
+        localStorage.getItem("ananyaOrders");
+      const parsed = saved
+        ? JSON.parse(saved)
+        : [];
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0
+      ) {
+        return parsed;
+      }
+    } catch {
+      // fall through
+    }
+    return getOrders();
+  });
+
   const handleLogout = () => {
 
     logout();
@@ -142,6 +162,7 @@ const Profile = () => {
           {activeTab === "tracking" && (
             <OrderTracking
               order={selectedOrder}
+              orders={trackingOrders}
             />
           )}
 
