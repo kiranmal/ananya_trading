@@ -12,7 +12,9 @@ import {
   Inbox,
 } from "lucide-react";
 
-const API_BASE = "http://localhost:5000/api/admin/feedback";
+import { API_URL } from "../../services/apiConfig";
+
+const API_BASE = `${API_URL}/admin/feedback`;
 
 const STATUS_COLORS = {
   Pending: { bg: "#fef3c7", color: "#b45309", icon: Clock },

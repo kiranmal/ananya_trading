@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { API_URL } from "../services/apiConfig";
 
 import {
   useParams,
@@ -801,7 +802,7 @@ function ProductDetails() {
 
       try {
         await fetch(
-          "http://localhost:5000/api/feedback",
+          `${API_URL}/feedback`,
           {
             method: "POST",
             headers: {

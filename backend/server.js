@@ -24,6 +24,7 @@ const allowedOrigins = [
   "http://127.0.0.1:5174",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
+  "https://ananya-trading.vercel.app",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
@@ -44,6 +45,11 @@ app.use(
         origin.startsWith("http://localhost:") ||
         origin.startsWith("http://127.0.0.1:")
       ) {
+        return callback(null, true);
+      }
+
+      // Allow Vercel preview deployments
+      if (origin.endsWith(".vercel.app")) {
         return callback(null, true);
       }
 

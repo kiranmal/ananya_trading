@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { API_URL } from "../services/apiConfig";
 
 import {
   MapPin,
@@ -153,7 +154,7 @@ function Checkout() {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/check-delivery",
+        `${API_URL}/check-delivery`,
         {
           method: "POST",
 

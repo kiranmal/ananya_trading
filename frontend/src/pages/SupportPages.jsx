@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { API_URL } from "../services/apiConfig";
 import {
   Phone,
   Mail,
@@ -46,7 +47,7 @@ export function ContactUs() {
     };
 
     try {
-      const response = await fetch("http://localhost:5000/api/feedback", {
+      const response = await fetch(`${API_URL}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(feedback),

@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5000/api";
+import { API_URL } from "./apiConfig";
 const STORAGE_KEY = "ananyaProducts";
 
 const request = async (path, options = {}) => {

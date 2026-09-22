@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_URL } from "../../services/apiConfig";
 import {
   Tags,
   ChevronRight,
@@ -127,7 +128,7 @@ export default function AdminCategories() {
     const fetchProducts = async () => {
       try {
         const res = await fetch(
-          "http://localhost:5000/api/products"
+          `${API_URL}/products`
         );
         const data = await res.json();
 
