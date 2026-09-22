@@ -10,12 +10,27 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  useLocation,
 } from "react-router-dom";
 
 // ================= COMPONENTS =================
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+
+// ================= SCROLL TO TOP =================
+// Har page navigation pe scroll top pe — warna naya
+// page purani scroll position (bottom) se khulta hai
+
+function ScrollToTop() {
+  const { pathname, search } = useLocation();
+
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname, search]);
+
+  return null;
+}
 
 // ================= PAGES =================
 
@@ -39,6 +54,8 @@ import AdminApp from "./admin/AdminApp";
 function App() {
   return (
     <BrowserRouter>
+
+      <ScrollToTop />
 
       <Routes>
 
