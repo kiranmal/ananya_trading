@@ -47,8 +47,13 @@ const getProductId = (item) =>
 const getQuantity = (item) => {
   const quantity = Number(item?.quantity);
 
-  return quantity > 0 ? quantity : 100;
+  return quantity > 0
+    ? quantity
+    : Math.max(1, Number(item?.quantityStep) || 1);
 };
+
+const getQuantityStep = (item) =>
+  Math.max(1, Number(item?.quantityStep) || 1);
 
 const getPrice = (item) => {
   const price = Number(item?.price);
@@ -786,11 +791,14 @@ function Cart() {
     const currentQuantity =
       getQuantity(item);
 
+    const step =
+      getQuantityStep(item);
+
     updatedCart[index] = {
       ...item,
 
       quantity:
-        currentQuantity + 100,
+        currentQuantity + step,
     };
 
     saveCart(updatedCart);
@@ -811,13 +819,16 @@ function Cart() {
     const currentQuantity =
       getQuantity(item);
 
+    const step =
+      getQuantityStep(item);
+
     updatedCart[index] = {
       ...item,
 
       quantity:
         Math.max(
-          100,
-          currentQuantity - 100
+          step,
+          currentQuantity - step
         ),
     };
 
@@ -1849,7 +1860,7 @@ function Cart() {
                         }
                         disabled={
                           quantity <=
-                          100
+                          getQuantityStep(item)
                         }
                       >
                         <Minus

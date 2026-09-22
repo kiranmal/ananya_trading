@@ -51,6 +51,8 @@ export default function AddProduct() {
 
   const [price, setPrice] = useState("");
   const [oldPrice, setOldPrice] = useState("");
+  const [quantityStep, setQuantityStep] =
+    useState("1");
 
   const [images, setImages] = useState([]);
 
@@ -205,6 +207,11 @@ export default function AddProduct() {
       price: priceNumber,
 
       oldPrice: oldPriceNumber,
+
+      quantityStep: Math.max(
+        1,
+        Math.floor(Number(quantityStep)) || 1
+      ),
 
       discount: productDiscount,
 
@@ -479,6 +486,39 @@ export default function AddProduct() {
                   }
                 />
               </div>
+            </div>
+
+            <div className="form-group">
+              <label>
+                Quantity Step
+                <span>*</span>
+              </label>
+
+              <div className="input-wrapper">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="1"
+                  value={quantityStep}
+                  onChange={(e) =>
+                    setQuantityStep(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <small
+                style={{
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                Min order + step. e.g. 100 for
+                business cards, 1 for normal
+                products.
+              </small>
             </div>
 
           </div>

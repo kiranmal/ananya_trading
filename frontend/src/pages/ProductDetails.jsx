@@ -99,7 +99,18 @@ function ProductDetails() {
     useState(0);
 
   const [quantity, setQuantity] =
-    useState(100);
+    useState(1);
+
+  /* Admin-set quantity step / min order */
+  const quantityStep = Math.max(
+    1,
+    Number(product?.quantityStep) || 1
+  );
+
+  /* Product load hone pe start qty = step */
+  useEffect(() => {
+    setQuantity(quantityStep);
+  }, [quantityStep, id]);
 
   const [paper, setPaper] =
     useState(paperTypes[0]);
@@ -287,7 +298,7 @@ function ProductDetails() {
 
     setQuantity(
       (previousQuantity) =>
-        previousQuantity + 100
+        previousQuantity + quantityStep
     );
 
   };
@@ -302,8 +313,8 @@ function ProductDetails() {
     setQuantity(
       (previousQuantity) =>
         Math.max(
-          100,
-          previousQuantity - 100
+          quantityStep,
+          previousQuantity - quantityStep
         )
     );
 
@@ -522,6 +533,9 @@ function ProductDetails() {
 
         quantity:
           quantity,
+
+        quantityStep:
+          quantityStep,
 
         paperType:
           paper,
@@ -1357,7 +1371,7 @@ function ProductDetails() {
                   decreaseQuantity
                 }
                 disabled={
-                  quantity <= 100
+                  quantity <= quantityStep
                 }
                 aria-label="Decrease quantity"
               >

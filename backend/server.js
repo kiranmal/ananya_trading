@@ -1103,11 +1103,21 @@ async function ensureProductsTable() {
       paper_types TEXT DEFAULT NULL,
       sizes TEXT DEFAULT NULL,
       features TEXT DEFAULT NULL,
+      quantity_step INT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
+
+  /* Purani table pe missing column add karo */
+  try {
+    await db.execute(
+      "ALTER TABLE products ADD COLUMN quantity_step INT NOT NULL DEFAULT 1"
+    );
+  } catch {
+    /* column already exists */
+  }
 }
 
 function parseProductList(value) {
@@ -1146,6 +1156,10 @@ function mapProduct(row) {
     paperTypes: parseProductList(row.paper_types),
     sizes: parseProductList(row.sizes),
     features: parseProductList(row.features),
+    quantityStep: Math.max(
+      1,
+      Number(row.quantity_step || 1)
+    ),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1186,6 +1200,10 @@ function getProductPayload(body) {
     paperTypes: Array.isArray(body.paperTypes) ? body.paperTypes : [],
     sizes: Array.isArray(body.sizes) ? body.sizes : [],
     features: Array.isArray(body.features) ? body.features : [],
+    quantityStep: Math.max(
+      1,
+      Math.floor(Number(body.quantityStep ?? 1)) || 1
+    ),
   };
 }
 
@@ -1279,8 +1297,8 @@ app.post(
           `INSERT INTO products
             (name, category, subcategory, price, old_price, stock, status,
              badge, rating, reviews, discount, description, images,
-             paper_types, sizes, features)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             paper_types, sizes, features, quantity_step)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             product.name,
             product.category,
@@ -1298,6 +1316,7 @@ app.post(
             JSON.stringify(product.paperTypes),
             JSON.stringify(product.sizes),
             JSON.stringify(product.features),
+            product.quantityStep,
           ]
         );
       }
@@ -1345,8 +1364,8 @@ app.post(
         `INSERT INTO products
           (name, category, subcategory, price, old_price, stock, status,
            badge, rating, reviews, discount, description, images,
-           paper_types, sizes, features)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           paper_types, sizes, features, quantity_step)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           product.name,
           product.category,
@@ -1364,6 +1383,7 @@ app.post(
           JSON.stringify(product.paperTypes),
           JSON.stringify(product.sizes),
           JSON.stringify(product.features),
+          product.quantityStep,
         ]
       );
 
@@ -1408,7 +1428,7 @@ app.put(
           name = ?, category = ?, subcategory = ?, price = ?, old_price = ?,
           stock = ?, status = ?, badge = ?, rating = ?, reviews = ?,
           discount = ?, description = ?, images = ?, paper_types = ?,
-          sizes = ?, features = ?
+          sizes = ?, features = ?, quantity_step = ?
          WHERE id = ?`,
         [
           product.name,
@@ -1427,6 +1447,7 @@ app.put(
           JSON.stringify(product.paperTypes),
           JSON.stringify(product.sizes),
           JSON.stringify(product.features),
+          product.quantityStep,
           req.params.id,
         ]
       );

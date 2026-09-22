@@ -595,10 +595,17 @@ function Home() {
             existingIndex
           ];
 
+        const step = Math.max(
+          1,
+          Number(
+            normalizedProduct.quantityStep
+          ) || 1
+        );
+
         const oldQuantity =
           Number(
             existingItem.quantity
-          ) || 100;
+          ) || step;
 
         updatedCart[
           existingIndex
@@ -606,7 +613,7 @@ function Home() {
           ...existingItem,
 
           quantity:
-            oldQuantity + 100,
+            oldQuantity + step,
         };
       }
 
@@ -643,7 +650,19 @@ function Home() {
               normalizedProduct.price
             ) || 0,
 
-          quantity: 100,
+          quantity: Math.max(
+            1,
+            Number(
+              normalizedProduct.quantityStep
+            ) || 1
+          ),
+
+          quantityStep: Math.max(
+            1,
+            Number(
+              normalizedProduct.quantityStep
+            ) || 1
+          ),
         };
 
         updatedCart = [
