@@ -143,8 +143,11 @@ export default function AdminCoupons() {
       type: form.type,
       value: Number(form.value),
       minOrder: Number(form.minOrder) || 0,
-      validFrom: form.validFrom,
-      validTo: form.validTo,
+      /* Browser ke local time ko absolute
+         instant mein convert karo — server
+         ka timezone matter nahi karega */
+      validFrom: new Date(form.validFrom).toISOString(),
+      validTo: new Date(form.validTo).toISOString(),
     };
 
     try {

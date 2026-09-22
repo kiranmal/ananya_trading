@@ -2744,7 +2744,7 @@ app.post("/api/coupons/validate", async (req, res) => {
     if (now < new Date(coupon.valid_from)) {
       return res.status(400).json({
         success: false,
-        message: `Coupon starts from ${new Date(coupon.valid_from).toLocaleString("en-IN")}.`,
+        message: `Coupon starts from ${new Date(coupon.valid_from).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}.`,
       });
     }
 
