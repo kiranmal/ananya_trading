@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Star,
   Mail,
+  TicketPercent,
 } from "lucide-react";
 
 import "./AdminLayout.css";
@@ -74,6 +75,12 @@ function AdminLayout() {
       name: "Orders",
       path: "/admin/orders",
       icon: ShoppingBag,
+    },
+
+    {
+      name: "Coupons",
+      path: "/admin/coupons",
+      icon: TicketPercent,
     },
 
     {

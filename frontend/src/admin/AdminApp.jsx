@@ -16,6 +16,7 @@ import AdminOrders from "./pages/AdminOrders";
 import AdminDelivery from "./pages/AdminDelivery";
 import AdminReviews from "./pages/AdminReviews";
 import AdminMessages from "./pages/AdminMessages";
+import AdminCoupons from "./pages/AdminCoupons";
 
 // Product Pages
 import AddProduct from "./pages/AddProduct";
@@ -184,6 +185,17 @@ export default function AdminApp() {
         <Route
           path="messages"
           element={<AdminMessages />}
+        />
+
+
+        {/* =================================================
+            DISCOUNT COUPONS
+            URL: /admin/coupons
+        ================================================= */}
+
+        <Route
+          path="coupons"
+          element={<AdminCoupons />}
         />
 
       </Route>

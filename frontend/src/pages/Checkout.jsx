@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from "../services/apiConfig";
 import { saveOrderToServer } from "../services/orderApi";
+import { validateCoupon } from "../services/couponApi";
 
 import {
   MapPin,
@@ -44,6 +45,69 @@ function Checkout() {
   const [totalQuantity, setTotalQuantity] = useState(
     Number(location.state?.totalQuantity || 0)
   );
+
+  /*
+  =====================================================
+  COUPON
+  =====================================================
+  */
+
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponMessage, setCouponMessage] = useState("");
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+
+  const couponDiscount = Math.min(
+    Number(appliedCoupon?.discount) || 0,
+    totalPrice
+  );
+
+  const payableTotal = Math.max(
+    0,
+    totalPrice - couponDiscount
+  );
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+
+    if (!code) {
+      return;
+    }
+
+    setApplyingCoupon(true);
+    setCouponMessage("");
+
+    const result = await validateCoupon(
+      code,
+      totalPrice
+    );
+
+    setApplyingCoupon(false);
+
+    if (!result?.success) {
+      setAppliedCoupon(null);
+      setCouponMessage(
+        result?.message || "Invalid coupon."
+      );
+      return;
+    }
+
+    setAppliedCoupon({
+      code: result.coupon?.code || code,
+      discount: Number(result.discount) || 0,
+      label:
+        result.coupon?.type === "percent"
+          ? `${result.coupon.value}% OFF`
+          : `₹${result.coupon.value} OFF`,
+    });
+    setCouponMessage("");
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponMessage("");
+  };
 
   /*
   =====================================================
@@ -743,7 +807,10 @@ function Checkout() {
       );
 
     const shippingCharge = 0;
-    const discount = 0;
+    const discount = Math.min(
+      Number(appliedCoupon?.discount) || 0,
+      calculatedSubtotal
+    );
 
     const finalTotal =
       calculatedSubtotal +
@@ -828,6 +895,8 @@ function Checkout() {
       shippingCharge,
 
       discount,
+
+      couponCode: appliedCoupon?.code || null,
 
       total: finalTotal,
 
@@ -1734,6 +1803,116 @@ function Checkout() {
               </strong>
             </div>
 
+            {/* COUPON */}
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "14px",
+              }}
+            >
+              <input
+                type="text"
+                value={couponInput}
+                onChange={(e) =>
+                  setCouponInput(
+                    e.target.value.toUpperCase()
+                  )
+                }
+                placeholder="Coupon code"
+                disabled={Boolean(appliedCoupon)}
+                style={{
+                  flex: 1,
+                  height: "40px",
+                  padding: "0 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  textTransform: "uppercase",
+                  outline: "none",
+                }}
+              />
+
+              {appliedCoupon ? (
+                <button
+                  type="button"
+                  onClick={removeCoupon}
+                  style={{
+                    height: "40px",
+                    padding: "0 14px",
+                    border: "1px solid #fecaca",
+                    borderRadius: "8px",
+                    background: "#fef2f2",
+                    color: "#dc2626",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleApplyCoupon}
+                  disabled={applyingCoupon}
+                  style={{
+                    height: "40px",
+                    padding: "0 16px",
+                    border: "none",
+                    borderRadius: "8px",
+                    background: "#1263bd",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: applyingCoupon
+                      ? "not-allowed"
+                      : "pointer",
+                  }}
+                >
+                  {applyingCoupon
+                    ? "Checking..."
+                    : "Apply"}
+                </button>
+              )}
+            </div>
+
+            {couponMessage && (
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: "12px",
+                  color: "#dc2626",
+                }}
+              >
+                {couponMessage}
+              </p>
+            )}
+
+            {appliedCoupon && (
+              <div
+                className="summary-price-row"
+                style={{
+                  marginTop: "10px",
+                  color: "#15803d",
+                }}
+              >
+                <span>
+                  Discount ({appliedCoupon.code}
+                  {" — "}
+                  {appliedCoupon.label})
+                </span>
+
+                <strong>
+                  − ₹
+                  {couponDiscount.toLocaleString(
+                    "en-IN"
+                  )}
+                </strong>
+              </div>
+            )}
+
             <div className="checkout-summary-line" />
 
             <div className="checkout-final-total">
@@ -1744,7 +1923,7 @@ function Checkout() {
 
               <strong>
                 ₹
-                {totalPrice.toLocaleString(
+                {payableTotal.toLocaleString(
                   "en-IN"
                 )}
               </strong>

@@ -2363,6 +2363,412 @@ app.put(
   }
 );
 
+/* =========================================================
+   DISCOUNT COUPONS
+========================================================= */
+
+async function ensureCouponsTable() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS coupons (
+      id INT NOT NULL AUTO_INCREMENT,
+      code VARCHAR(50) NOT NULL,
+      type ENUM('percent','flat') NOT NULL DEFAULT 'percent',
+      value DECIMAL(10,2) NOT NULL DEFAULT 0,
+      min_order DECIMAL(10,2) NOT NULL DEFAULT 0,
+      valid_from DATETIME NOT NULL,
+      valid_to DATETIME NOT NULL,
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY coupon_code (code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+}
+
+const formatCoupon = (row) => ({
+  id: row.id,
+  code: row.code,
+  type: row.type,
+  value: Number(row.value),
+  minOrder: Number(row.min_order),
+  validFrom: row.valid_from,
+  validTo: row.valid_to,
+  active: Boolean(row.active),
+  createdAt: row.created_at,
+});
+
+/* ADMIN — list */
+app.get(
+  "/api/admin/coupons",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureCouponsTable();
+      const [rows] = await db.execute(
+        "SELECT * FROM coupons ORDER BY created_at DESC"
+      );
+      return res.status(200).json({
+        success: true,
+        coupons: rows.map(formatCoupon),
+      });
+    } catch (error) {
+      console.error("Coupons fetch error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load coupons.",
+      });
+    }
+  }
+);
+
+/* ADMIN — create */
+app.post(
+  "/api/admin/coupons",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const code = String(req.body?.code || "")
+        .trim()
+        .toUpperCase();
+      const type =
+        req.body?.type === "flat" ? "flat" : "percent";
+      const value = Number(req.body?.value);
+      const minOrder = Number(req.body?.minOrder) || 0;
+      const validFrom = req.body?.validFrom;
+      const validTo = req.body?.validTo;
+
+      if (code.length < 3 || !/^[A-Z0-9]+$/.test(code)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Code must be at least 3 characters (letters & numbers only).",
+        });
+      }
+
+      if (!value || value <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Discount value must be greater than 0.",
+        });
+      }
+
+      if (
+        type === "percent" &&
+        value > 100
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Percent discount cannot exceed 100.",
+        });
+      }
+
+      const from = new Date(validFrom);
+      const to = new Date(validTo);
+
+      if (
+        isNaN(from.getTime()) ||
+        isNaN(to.getTime()) ||
+        to <= from
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Valid To must be after Valid From.",
+        });
+      }
+
+      await ensureCouponsTable();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM coupons WHERE code = ? LIMIT 1",
+        [code]
+      );
+
+      if (existing.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Coupon code already exists.",
+        });
+      }
+
+      const [result] = await db.execute(
+        `INSERT INTO coupons
+          (code, type, value, min_order,
+           valid_from, valid_to, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [code, type, value, minOrder, from, to]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Coupon created.",
+        coupon: {
+          id: result.insertId,
+          code,
+          type,
+          value,
+          minOrder,
+          validFrom: from,
+          validTo: to,
+          active: true,
+        },
+      });
+    } catch (error) {
+      console.error("Coupon create error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to create coupon.",
+      });
+    }
+  }
+);
+
+/* ADMIN — update (edit / active toggle) */
+app.put(
+  "/api/admin/coupons/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await ensureCouponsTable();
+
+      const [rows] = await db.execute(
+        "SELECT * FROM coupons WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Coupon not found.",
+        });
+      }
+
+      const current = rows[0];
+
+      const code = String(
+        req.body?.code || current.code
+      )
+        .trim()
+        .toUpperCase();
+      const type =
+        req.body?.type === "flat"
+          ? "flat"
+          : req.body?.type === "percent"
+            ? "percent"
+            : current.type;
+      const value =
+        req.body?.value !== undefined
+          ? Number(req.body.value)
+          : Number(current.value);
+      const minOrder =
+        req.body?.minOrder !== undefined
+          ? Number(req.body.minOrder)
+          : Number(current.min_order);
+      const validFrom = req.body?.validFrom
+        ? new Date(req.body.validFrom)
+        : current.valid_from;
+      const validTo = req.body?.validTo
+        ? new Date(req.body.validTo)
+        : current.valid_to;
+      const active =
+        req.body?.active !== undefined
+          ? (req.body.active ? 1 : 0)
+          : current.active;
+
+      if (code.length < 3 || !/^[A-Z0-9]+$/.test(code)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid coupon code.",
+        });
+      }
+
+      if (!value || value <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Discount value must be greater than 0.",
+        });
+      }
+
+      if (new Date(validTo) <= new Date(validFrom)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Valid To must be after Valid From.",
+        });
+      }
+
+      const [dup] = await db.execute(
+        "SELECT id FROM coupons WHERE code = ? AND id != ? LIMIT 1",
+        [code, id]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Another coupon with this code exists.",
+        });
+      }
+
+      await db.execute(
+        `UPDATE coupons
+         SET code = ?, type = ?, value = ?,
+             min_order = ?, valid_from = ?,
+             valid_to = ?, active = ?
+         WHERE id = ?`,
+        [
+          code,
+          type,
+          value,
+          minOrder,
+          validFrom,
+          validTo,
+          active,
+          id,
+        ]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Coupon updated.",
+      });
+    } catch (error) {
+      console.error("Coupon update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update coupon.",
+      });
+    }
+  }
+);
+
+/* ADMIN — delete */
+app.delete(
+  "/api/admin/coupons/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await ensureCouponsTable();
+
+      const [result] = await db.execute(
+        "DELETE FROM coupons WHERE id = ?",
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Coupon not found.",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Coupon deleted.",
+      });
+    } catch (error) {
+      console.error("Coupon delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete coupon.",
+      });
+    }
+  }
+);
+
+/* USER — coupon validate (checkout) */
+app.post("/api/coupons/validate", async (req, res) => {
+  try {
+    const code = String(req.body?.code || "")
+      .trim()
+      .toUpperCase();
+    const orderTotal = Number(req.body?.total) || 0;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a coupon code.",
+      });
+    }
+
+    await ensureCouponsTable();
+
+    const [rows] = await db.execute(
+      "SELECT * FROM coupons WHERE code = ? LIMIT 1",
+      [code]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid coupon code.",
+      });
+    }
+
+    const coupon = rows[0];
+    const now = new Date();
+
+    if (!coupon.active) {
+      return res.status(400).json({
+        success: false,
+        message: "This coupon is no longer active.",
+      });
+    }
+
+    if (now < new Date(coupon.valid_from)) {
+      return res.status(400).json({
+        success: false,
+        message: `Coupon starts from ${new Date(coupon.valid_from).toLocaleString("en-IN")}.`,
+      });
+    }
+
+    if (now > new Date(coupon.valid_to)) {
+      return res.status(400).json({
+        success: false,
+        message: "This coupon has expired.",
+      });
+    }
+
+    if (orderTotal < Number(coupon.min_order)) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum order ₹${Number(coupon.min_order).toLocaleString("en-IN")} required for this coupon.`,
+      });
+    }
+
+    const discount =
+      coupon.type === "percent"
+        ? Math.round(
+            (orderTotal *
+              Number(coupon.value)) /
+              100
+          )
+        : Number(coupon.value);
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon applied!",
+      coupon: {
+        code: coupon.code,
+        type: coupon.type,
+        value: Number(coupon.value),
+      },
+      discount: Math.min(discount, orderTotal),
+    });
+  } catch (error) {
+    console.error("Coupon validate error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to validate coupon.",
+    });
+  }
+});
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
