@@ -1011,6 +1011,18 @@
     flex-direction: column;
 
     align-items: flex-start;
+
+    /* Mobile pe text readable — halka white veil */
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.88) 0%,
+        rgba(255, 255, 255, 0.82) 55%,
+        rgba(255, 255, 255, 0.6) 100%
+      ),
+      url("../assets/hero-visual.jpg")
+        center top / cover
+        no-repeat;
   }
 
   .hero-content {
