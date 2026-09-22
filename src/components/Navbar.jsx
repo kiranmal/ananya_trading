@@ -238,6 +238,13 @@ function Navbar() {
     useState(0);
 
   /* =====================================================
+     MY ACCOUNT DROPDOWN
+  ===================================================== */
+
+  const [accountMenuOpen, setAccountMenuOpen] =
+    useState(false);
+
+  /* =====================================================
      LOAD PRODUCTS
   ===================================================== */
 
@@ -530,6 +537,34 @@ function Navbar() {
       document.removeEventListener(
         "mousedown",
         handleOutsideClick
+      );
+    };
+  }, []);
+
+  /* =====================================================
+     MY ACCOUNT - CLOSE ON OUTSIDE CLICK
+  ===================================================== */
+
+  useEffect(() => {
+    const handleAccountOutsideClick = (e) => {
+      if (
+        !e.target.closest(
+          ".account-wrapper"
+        )
+      ) {
+        setAccountMenuOpen(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleAccountOutsideClick
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleAccountOutsideClick
       );
     };
   }, []);
@@ -859,32 +894,6 @@ function Navbar() {
               )}
             </button>
 
-            {/* SIGN IN */}
-
-            <Link
-              to="/login"
-              className="nav-action signup-link"
-            >
-              <UserIcon />
-
-              <span>
-                Sign In
-              </span>
-            </Link>
-
-            {/* SIGN UP */}
-
-            <Link
-              to="/signup"
-              className="nav-action signup-link"
-            >
-              <UserIcon />
-
-              <span>
-                Sign Up
-              </span>
-            </Link>
-
             {/* CART */}
 
             <button
@@ -908,22 +917,109 @@ function Navbar() {
               )}
             </button>
 
-            {/* PROFILE */}
+            {/* MY ACCOUNT */}
 
-            <button
-              type="button"
-              className="nav-action profile-nav-btn"
-              onClick={
-                handleProfileClick
-              }
-              aria-label="Open Profile"
+            <div
+              className={`account-wrapper ${
+                accountMenuOpen
+                  ? "account-open"
+                  : ""
+              }`}
             >
-              <UserIcon />
+              <button
+                type="button"
+                className="my-account-btn"
+                onClick={() => {
+                  setAccountMenuOpen(
+                    !accountMenuOpen
+                  );
+                  setShowSearchResults(false);
+                }}
+                aria-expanded={
+                  accountMenuOpen
+                }
+                aria-haspopup="menu"
+              >
+                <span className="account-icon">
+                  <UserIcon />
+                </span>
 
-              <span>
-                Profile
-              </span>
-            </button>
+                <span className="account-label">
+                  My Account
+                </span>
+
+                <span
+                  className={`account-chevron ${
+                    accountMenuOpen
+                      ? "account-chevron-up"
+                      : ""
+                  }`}
+                >
+                  ⌃
+                </span>
+              </button>
+
+              {accountMenuOpen && (
+                <div
+                  className="account-dropdown"
+                  role="menu"
+                >
+                  <Link
+                    to="/login"
+                    className="account-menu-item"
+                    role="menuitem"
+                    onClick={() =>
+                      setAccountMenuOpen(false)
+                    }
+                  >
+                    <span className="account-menu-icon">
+                      <UserIcon />
+                    </span>
+
+                    <span>
+                      Sign In
+                    </span>
+                  </Link>
+
+                  <Link
+                    to="/signup"
+                    className="account-menu-item"
+                    role="menuitem"
+                    onClick={() =>
+                      setAccountMenuOpen(false)
+                    }
+                  >
+                    <span className="account-menu-icon account-add-icon">
+                      <UserIcon />
+                      <small>+</small>
+                    </span>
+
+                    <span>
+                      Sign Up
+                    </span>
+                  </Link>
+
+                  <div className="account-menu-divider"></div>
+
+                  <Link
+                    to="/profile"
+                    className="account-menu-item"
+                    role="menuitem"
+                    onClick={() =>
+                      setAccountMenuOpen(false)
+                    }
+                  >
+                    <span className="account-menu-icon">
+                      <UserIcon />
+                    </span>
+
+                    <span>
+                      My Profile
+                    </span>
+                  </Link>
+                </div>
+              )}
+            </div>
 
           </div>
 

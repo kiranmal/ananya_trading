@@ -1,4 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ArrowLeft,
@@ -22,6 +26,12 @@ import {
   AlignCenter,
   AlignRight,
   RefreshCcw,
+  CheckCircle,
+  FileText,
+  MessageSquare,
+  Info,
+  PackageCheck,
+  ClipboardList,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -37,25 +47,26 @@ function Customizer() {
      SELECTED PRODUCT
   ===================================================== */
 
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] =
+    useState(null);
 
   useEffect(() => {
-    const savedProduct = localStorage.getItem(
-      "selectedCustomizeProduct"
-    );
+    const savedProduct =
+      localStorage.getItem(
+        "selectedCustomizeProduct"
+      );
 
     if (!savedProduct) {
       return;
     }
 
     try {
-      const product = JSON.parse(savedProduct);
-
-      console.log("CUSTOMIZER SELECTED PRODUCT:", product);
+      const product =
+        JSON.parse(savedProduct);
 
       setSelectedProduct(product);
 
-      if (product.color) {
+      if (product?.color) {
         setProductColor(product.color);
       }
     } catch (error) {
@@ -70,29 +81,59 @@ function Customizer() {
      BASIC STATES
   ===================================================== */
 
-  const [activeTool, setActiveTool] = useState("text");
+  const [activeTool, setActiveTool] =
+    useState("text");
 
-  const [side, setSide] = useState("front");
+  const [side, setSide] =
+    useState("front");
 
   const [productColor, setProductColor] =
     useState("#ffffff");
 
-  const [size, setSize] = useState("M");
+  const [size, setSize] =
+    useState("M");
 
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] =
+    useState(1);
+
+  /* =====================================================
+     CUSTOMER DESCRIPTION / NOTE
+  ===================================================== */
+
+  const [
+    customerDescription,
+    setCustomerDescription,
+  ] = useState("");
+
+  const [
+    customerNote,
+    setCustomerNote,
+  ] = useState("");
+
+  const [cartSuccess, setCartSuccess] =
+    useState(false);
+
+  const [orderSuccess, setOrderSuccess] =
+    useState(false);
+
+  const [isPlacingOrder, setIsPlacingOrder] =
+    useState(false);
 
   /* =====================================================
      LOGO
   ===================================================== */
 
-  const [logo, setLogo] = useState(null);
+  const [logo, setLogo] =
+    useState(null);
 
-  const [logoPosition, setLogoPosition] = useState({
-    x: 50,
-    y: 31,
-  });
+  const [logoPosition, setLogoPosition] =
+    useState({
+      x: 50,
+      y: 31,
+    });
 
-  const [logoSize, setLogoSize] = useState(115);
+  const [logoSize, setLogoSize] =
+    useState(115);
 
   /* =====================================================
      TEXT
@@ -101,12 +142,14 @@ function Customizer() {
   const [text, setText] =
     useState("ANANYA TRADING");
 
-  const [textPosition, setTextPosition] = useState({
-    x: 50,
-    y: 55,
-  });
+  const [textPosition, setTextPosition] =
+    useState({
+      x: 50,
+      y: 55,
+    });
 
-  const [fontSize, setFontSize] = useState(25);
+  const [fontSize, setFontSize] =
+    useState(25);
 
   const [fontFamily, setFontFamily] =
     useState("Poppins");
@@ -114,9 +157,11 @@ function Customizer() {
   const [textColor, setTextColor] =
     useState("#102a4c");
 
-  const [bold, setBold] = useState(true);
+  const [bold, setBold] =
+    useState(true);
 
-  const [italic, setItalic] = useState(false);
+  const [italic, setItalic] =
+    useState(false);
 
   const [underline, setUnderline] =
     useState(false);
@@ -125,12 +170,14 @@ function Customizer() {
      HISTORY
   ===================================================== */
 
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] =
+    useState([]);
 
-  const [future, setFuture] = useState([]);
+  const [future, setFuture] =
+    useState([]);
 
   /* =====================================================
-     PRODUCT PRICE
+     PRICE
   ===================================================== */
 
   const basePrice =
@@ -145,26 +192,20 @@ function Customizer() {
     basePrice + customizationPrice;
 
   /* =====================================================
-     PRODUCT TYPE
+     PRODUCT
   ===================================================== */
 
   const productType =
-    selectedProduct?.type || "tshirt";
+    selectedProduct?.type ||
+    "tshirt";
 
   const isHoodie =
-    productType.toLowerCase() === "hoodie";
-
-  /* =====================================================
-     PRODUCT NAME
-  ===================================================== */
+    productType
+      .toLowerCase() === "hoodie";
 
   const productName =
     selectedProduct?.name ||
     "Custom Product";
-
-  /* =====================================================
-     PRODUCT IMAGE
-  ===================================================== */
 
   const productImage =
     selectedProduct?.image ||
@@ -173,26 +214,8 @@ function Customizer() {
     selectedProduct?.thumbnail ||
     "";
 
-  /*
-    Debug ke liye browser console me check kar sakte ho.
-  */
-
-  useEffect(() => {
-    if (selectedProduct) {
-      console.log(
-        "Selected Product:",
-        selectedProduct
-      );
-
-      console.log(
-        "Selected Product Image:",
-        productImage
-      );
-    }
-  }, [selectedProduct, productImage]);
-
   /* =====================================================
-     SAVE CURRENT STATE
+     CURRENT DESIGN STATE
   ===================================================== */
 
   const getCurrentState = () => {
@@ -226,8 +249,14 @@ function Customizer() {
       productColor,
 
       size,
+
+      side,
     };
   };
+
+  /* =====================================================
+     HISTORY
+  ===================================================== */
 
   const saveHistory = () => {
     setHistory((prev) => [
@@ -238,14 +267,12 @@ function Customizer() {
     setFuture([]);
   };
 
-  /* =====================================================
-     RESTORE
-  ===================================================== */
-
   const restoreState = (state) => {
-    if (!state) return;
+    if (!state) {
+      return;
+    }
 
-    setLogo(state.logo);
+    setLogo(state.logo || null);
 
     setLogoPosition(
       state.logoPosition || {
@@ -254,9 +281,13 @@ function Customizer() {
       }
     );
 
-    setLogoSize(state.logoSize || 115);
+    setLogoSize(
+      state.logoSize || 115
+    );
 
-    setText(state.text || "");
+    setText(
+      state.text ?? ""
+    );
 
     setTextPosition(
       state.textPosition || {
@@ -265,7 +296,9 @@ function Customizer() {
       }
     );
 
-    setFontSize(state.fontSize || 25);
+    setFontSize(
+      state.fontSize || 25
+    );
 
     setFontFamily(
       state.fontFamily || "Poppins"
@@ -294,14 +327,16 @@ function Customizer() {
     setSize(
       state.size || "M"
     );
+
+    setSide(
+      state.side || "front"
+    );
   };
 
-  /* =====================================================
-     UNDO
-  ===================================================== */
-
   const undo = () => {
-    if (history.length === 0) return;
+    if (history.length === 0) {
+      return;
+    }
 
     const previous =
       history[history.length - 1];
@@ -318,12 +353,10 @@ function Customizer() {
     restoreState(previous);
   };
 
-  /* =====================================================
-     REDO
-  ===================================================== */
-
   const redo = () => {
-    if (future.length === 0) return;
+    if (future.length === 0) {
+      return;
+    }
 
     const next =
       future[future.length - 1];
@@ -341,14 +374,16 @@ function Customizer() {
   };
 
   /* =====================================================
-     UPLOAD LOGO
+     LOGO UPLOAD
   ===================================================== */
 
   const handleLogoUpload = (event) => {
     const file =
       event.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     if (
       !file.type.startsWith("image/")
@@ -356,6 +391,8 @@ function Customizer() {
       alert(
         "Please select a valid image."
       );
+
+      event.target.value = "";
 
       return;
     }
@@ -383,12 +420,10 @@ function Customizer() {
     event.target.value = "";
   };
 
-  /* =====================================================
-     DELETE LOGO
-  ===================================================== */
-
   const deleteLogo = () => {
-    if (!logo) return;
+    if (!logo) {
+      return;
+    }
 
     saveHistory();
 
@@ -409,7 +444,9 @@ function Customizer() {
         ".print-area"
       );
 
-    if (!printArea) return;
+    if (!printArea) {
+      return;
+    }
 
     const container =
       printArea.getBoundingClientRect();
@@ -491,7 +528,6 @@ function Customizer() {
     event
   ) => {
     event.preventDefault();
-
     event.stopPropagation();
 
     const startX =
@@ -559,7 +595,9 @@ function Customizer() {
         ".print-area"
       );
 
-    if (!printArea) return;
+    if (!printArea) {
+      return;
+    }
 
     const container =
       printArea.getBoundingClientRect();
@@ -660,9 +698,13 @@ function Customizer() {
 
     setFontSize(25);
 
-    setFontFamily("Poppins");
+    setFontFamily(
+      "Poppins"
+    );
 
-    setTextColor("#102a4c");
+    setTextColor(
+      "#102a4c"
+    );
 
     setBold(true);
 
@@ -680,23 +722,32 @@ function Customizer() {
     setZoom(1);
 
     setSide("front");
+
+    setCustomerDescription("");
+
+    setCustomerNote("");
+
+    setCartSuccess(false);
+    setOrderSuccess(false);
   };
 
   /* =====================================================
-     ADD TO CART
+     CREATE CUSTOM PRODUCT
   ===================================================== */
 
-  const addToCart = () => {
-    const customProduct = {
+  const createCustomProduct = () => {
+    const now = Date.now();
+
+    return {
+      id:
+        `custom-${selectedProduct?.id || "product"}-${now}`,
+
       productId:
-        "custom-" +
-        (selectedProduct?.id ||
-          "product") +
-        "-" +
-        Date.now(),
+        `custom-${selectedProduct?.id || "product"}-${now}`,
 
       originalProductId:
-        selectedProduct?.id,
+        selectedProduct?.id ||
+        null,
 
       name:
         selectedProduct?.name ||
@@ -710,12 +761,6 @@ function Customizer() {
         selectedProduct?.type ||
         "tshirt",
 
-      /*
-        IMPORTANT:
-        Same selected product image
-        cart me save hogi.
-      */
-
       image:
         productImage,
 
@@ -723,12 +768,20 @@ function Customizer() {
         selectedProduct?.description ||
         "",
 
+      customerDescription:
+        customerDescription.trim(),
+
+      customerNote:
+        customerNote.trim(),
+
       basePrice,
 
       customizationPrice,
 
       price:
         totalPrice,
+
+      totalPrice,
 
       quantity: 1,
 
@@ -768,25 +821,66 @@ function Customizer() {
       createdAt:
         new Date().toISOString(),
     };
+  };
 
-    const existingCart =
-      JSON.parse(
+  /* =====================================================
+     ADD TO CART
+  ===================================================== */
+
+  const addToCart = () => {
+    const customProduct =
+      createCustomProduct();
+
+    let existingCart = [];
+
+    try {
+      const savedCart =
         localStorage.getItem(
           "ananyaCart"
-        )
-      ) || [];
+        );
+
+      existingCart = savedCart
+        ? JSON.parse(savedCart)
+        : [];
+
+      if (
+        !Array.isArray(existingCart)
+      ) {
+        existingCart = [];
+      }
+    } catch (error) {
+      console.error(
+        "Cart load error:",
+        error
+      );
+
+      existingCart = [];
+    }
 
     const updatedCart = [
       ...existingCart,
       customProduct,
     ];
 
-    localStorage.setItem(
-      "ananyaCart",
-      JSON.stringify(
-        updatedCart
-      )
-    );
+    try {
+      localStorage.setItem(
+        "ananyaCart",
+        JSON.stringify(
+          updatedCart
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Cart save error:",
+        error
+      );
+
+      alert(
+        "Product cart me save nahi ho paya."
+      );
+
+      return;
+    }
 
     window.dispatchEvent(
       new Event(
@@ -800,11 +894,404 @@ function Customizer() {
       )
     );
 
-   
+    setCartSuccess(true);
+
+    setTimeout(() => {
+      setCartSuccess(false);
+    }, 4000);
   };
 
   /* =====================================================
-     PRODUCT COLORS
+     GET CURRENT USER
+  ===================================================== */
+
+  const getCurrentUser = () => {
+    try {
+      const savedUser =
+        localStorage.getItem(
+          "currentUser"
+        );
+
+      if (!savedUser) {
+        return null;
+      }
+
+      const user =
+        JSON.parse(savedUser);
+
+      return user;
+    } catch (error) {
+      console.error(
+        "User load error:",
+        error
+      );
+
+      return null;
+    }
+  };
+
+  /* =====================================================
+     GET EXISTING ORDERS
+  ===================================================== */
+
+  const getExistingOrders = () => {
+    try {
+      const savedOrders =
+        localStorage.getItem(
+          "ananyaOrders"
+        );
+
+      if (!savedOrders) {
+        return [];
+      }
+
+      const parsedOrders =
+        JSON.parse(savedOrders);
+
+      return Array.isArray(
+        parsedOrders
+      )
+        ? parsedOrders
+        : [];
+    } catch (error) {
+      console.error(
+        "Orders load error:",
+        error
+      );
+
+      return [];
+    }
+  };
+
+  /* =====================================================
+     PLACE ORDER
+     
+     IMPORTANT:
+     YAHAN /orders PAR AUTOMATIC NAVIGATE NAHI HOGA.
+     Order save hone ke baad My Orders me event ke
+     through data refresh hoga.
+  ===================================================== */
+
+  const placeOrder = () => {
+    if (isPlacingOrder) {
+      return;
+    }
+
+    /* -----------------------------------------------
+       CURRENT USER
+    ----------------------------------------------- */
+
+    const currentUser =
+      getCurrentUser();
+
+    /* -----------------------------------------------
+       LOGIN CHECK
+    ----------------------------------------------- */
+
+    if (!currentUser) {
+      alert(
+        "Please login before placing your order."
+      );
+
+      navigate("/login", {
+        state: {
+          from: "/customizer",
+        },
+      });
+
+      return;
+    }
+
+    setIsPlacingOrder(true);
+
+    /* -----------------------------------------------
+       CREATE CUSTOM PRODUCT
+    ----------------------------------------------- */
+
+    const customProduct =
+      createCustomProduct();
+
+    /* -----------------------------------------------
+       EXISTING ORDERS
+    ----------------------------------------------- */
+
+    const existingOrders =
+      getExistingOrders();
+
+    /* -----------------------------------------------
+       UNIQUE IDs
+    ----------------------------------------------- */
+
+    const timestamp =
+      Date.now();
+
+    const orderId =
+      `ORD${timestamp}`;
+
+    const orderNumber =
+      `#ORD${timestamp
+        .toString()
+        .slice(-6)}`;
+
+    const now =
+      new Date().toISOString();
+
+    /* -----------------------------------------------
+       USER ID
+    ----------------------------------------------- */
+
+    const userId =
+      currentUser?.id ||
+      currentUser?.email ||
+      currentUser?.phone ||
+      null;
+
+    /* -----------------------------------------------
+       ORDER ITEM
+    ----------------------------------------------- */
+
+    const orderItem = {
+      ...customProduct,
+
+      id:
+        customProduct.id ||
+        `item-${timestamp}`,
+
+      quantity: 1,
+
+      customerDescription:
+        customerDescription.trim(),
+
+      customerNote:
+        customerNote.trim(),
+
+      specialNote:
+        customerNote.trim(),
+
+      instructions:
+        customerNote.trim(),
+
+      totalPrice:
+        totalPrice,
+
+      price:
+        totalPrice,
+    };
+
+    /* -----------------------------------------------
+       NEW ORDER
+    ----------------------------------------------- */
+
+    const newOrder = {
+      id: orderId,
+
+      orderId,
+
+      orderNumber,
+
+      userId,
+
+      user: currentUser,
+
+      status: "Confirmed",
+
+      paymentStatus: "Pending",
+
+      paymentMethod:
+        "Cash on Delivery",
+
+      placedAt: now,
+
+      createdAt: now,
+
+      date: now,
+
+      /* IMPORTANT FOR ORDERS PAGE */
+
+      items: [orderItem],
+
+      products: [orderItem],
+
+      cart: [orderItem],
+
+      /* ORDER LEVEL CUSTOM DATA */
+
+      customerDescription:
+        customerDescription.trim(),
+
+      userDescription:
+        customerDescription.trim(),
+
+      customDescription:
+        customerDescription.trim(),
+
+      customerNote:
+        customerNote.trim(),
+
+      specialNote:
+        customerNote.trim(),
+
+      instructions:
+        customerNote.trim(),
+
+      /* PRODUCT DESCRIPTION */
+
+      productDescription:
+        selectedProduct?.description ||
+        "",
+
+      totalQuantity: 1,
+
+      subtotal:
+        totalPrice,
+
+      customizationCharges:
+        customizationPrice,
+
+      customizationPrice:
+        customizationPrice,
+
+      totalPrice:
+        totalPrice,
+
+      total:
+        totalPrice,
+
+      /* SHIPPING / PAYMENT */
+
+      shipping: 0,
+
+      currency: "INR",
+
+      source: "customizer",
+
+      isCustomized: true,
+    };
+
+    /* -----------------------------------------------
+       SAVE ORDER
+    ----------------------------------------------- */
+
+    const updatedOrders = [
+      newOrder,
+      ...existingOrders,
+    ];
+
+    try {
+      localStorage.setItem(
+        "ananyaOrders",
+        JSON.stringify(
+          updatedOrders
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Order save error:",
+        error
+      );
+
+      alert(
+        "Order save nahi ho paya. Please try again."
+      );
+
+      setIsPlacingOrder(false);
+
+      return;
+    }
+
+    /* -----------------------------------------------
+       VERIFY ORDER
+    ----------------------------------------------- */
+
+    let verifyOrders = [];
+
+    try {
+      const saved =
+        localStorage.getItem(
+          "ananyaOrders"
+        );
+
+      verifyOrders =
+        saved
+          ? JSON.parse(saved)
+          : [];
+    } catch (error) {
+      console.error(
+        "Order verify error:",
+        error
+      );
+
+      verifyOrders = [];
+    }
+
+    const savedSuccessfully =
+      Array.isArray(
+        verifyOrders
+      ) &&
+      verifyOrders.some(
+        (order) =>
+          order.id === orderId
+      );
+
+    if (!savedSuccessfully) {
+      alert(
+        "Order save nahi hua. Please try again."
+      );
+
+      setIsPlacingOrder(false);
+
+      return;
+    }
+
+    /* -----------------------------------------------
+       NOTIFY ALL ORDER COMPONENTS
+    ----------------------------------------------- */
+
+    window.dispatchEvent(
+      new Event(
+        "ananyaOrdersUpdated"
+      )
+    );
+
+    window.dispatchEvent(
+      new Event(
+        "ordersUpdated"
+      )
+    );
+
+    /* -----------------------------------------------
+       SUCCESS
+    ----------------------------------------------- */
+
+    setOrderSuccess(true);
+
+    setIsPlacingOrder(false);
+
+    /*
+      IMPORTANT:
+      Pehle yahan automatically:
+      
+      navigate("/orders")
+      
+      ho raha tha.
+
+      Ab remove kar diya hai.
+
+      Isliye order place karne ke baad
+      user current Customizer page par rahega.
+    */
+  };
+
+  /* =====================================================
+     GO TO MY ORDERS
+  ===================================================== */
+
+  const goToMyOrders = () => {
+    navigate("/orders");
+  };
+
+  /* =====================================================
+     COLORS
   ===================================================== */
 
   const productColors = [
@@ -814,10 +1301,6 @@ function Customizer() {
     "#d92132",
     "#075c51",
   ];
-
-  /* =====================================================
-     TEXT COLORS
-  ===================================================== */
 
   const textColors = [
     "#111827",
@@ -866,7 +1349,7 @@ function Customizer() {
     <div className="customizer-page">
 
       {/* =================================================
-          TITLE BAR
+          TITLE
       ================================================= */}
 
       <section className="customizer-title">
@@ -887,8 +1370,7 @@ function Customizer() {
         <div className="title-center">
 
           <h1>
-            Customize{" "}
-            {productName}
+            Customize {productName}
           </h1>
 
           <p>
@@ -931,7 +1413,7 @@ function Customizer() {
       </section>
 
       {/* =================================================
-          MAIN CUSTOMIZER
+          MAIN
       ================================================= */}
 
       <main className="customizer-main">
@@ -966,9 +1448,7 @@ function Customizer() {
                 : ""
             }
             onClick={() => {
-              setActiveTool(
-                "upload"
-              );
+              setActiveTool("upload");
 
               fileInputRef.current?.click();
             }}
@@ -987,9 +1467,7 @@ function Customizer() {
                 : ""
             }
             onClick={() =>
-              setActiveTool(
-                "color"
-              )
+              setActiveTool("color")
             }
           >
             <Palette />
@@ -1006,9 +1484,7 @@ function Customizer() {
                 : ""
             }
             onClick={() =>
-              setActiveTool(
-                "font"
-              )
+              setActiveTool("font")
             }
           >
             <Type />
@@ -1020,15 +1496,12 @@ function Customizer() {
 
           <button
             className={
-              activeTool ===
-              "fontSize"
+              activeTool === "fontSize"
                 ? "tool-active"
                 : ""
             }
             onClick={() =>
-              setActiveTool(
-                "fontSize"
-              )
+              setActiveTool("fontSize")
             }
           >
             <Type />
@@ -1040,15 +1513,12 @@ function Customizer() {
 
           <button
             className={
-              activeTool ===
-              "position"
+              activeTool === "position"
                 ? "tool-active"
                 : ""
             }
             onClick={() =>
-              setActiveTool(
-                "position"
-              )
+              setActiveTool("position")
             }
           >
             <Move />
@@ -1060,15 +1530,12 @@ function Customizer() {
 
           <button
             className={
-              activeTool ===
-              "layers"
+              activeTool === "layers"
                 ? "tool-active"
                 : ""
             }
             onClick={() =>
-              setActiveTool(
-                "layers"
-              )
+              setActiveTool("layers")
             }
           >
             <Layers />
@@ -1079,9 +1546,7 @@ function Customizer() {
           </button>
 
           <button
-            onClick={
-              deleteLogo
-            }
+            onClick={deleteLogo}
           >
             <Trash2 />
 
@@ -1093,15 +1558,14 @@ function Customizer() {
         </aside>
 
         {/* =================================================
-            SETTINGS PANEL
+            SETTINGS
         ================================================= */}
 
         <section className="settings-panel">
 
           {/* TEXT */}
 
-          {activeTool ===
-            "text" && (
+          {activeTool === "text" && (
             <div className="settings-content">
 
               <h3>
@@ -1121,9 +1585,7 @@ function Customizer() {
 
               <select
                 className="font-select"
-                value={
-                  fontFamily
-                }
+                value={fontFamily}
                 onChange={(event) => {
                   saveHistory();
 
@@ -1169,9 +1631,7 @@ function Customizer() {
                     );
                   }}
                 >
-                  <Bold
-                    size={18}
-                  />
+                  <Bold size={18} />
                 </button>
 
                 <button
@@ -1188,9 +1648,7 @@ function Customizer() {
                     );
                   }}
                 >
-                  <Italic
-                    size={18}
-                  />
+                  <Italic size={18} />
                 </button>
 
                 <button
@@ -1207,9 +1665,7 @@ function Customizer() {
                     );
                   }}
                 >
-                  <Underline
-                    size={18}
-                  />
+                  <Underline size={18} />
                 </button>
 
                 <button>
@@ -1229,8 +1685,7 @@ function Customizer() {
                     <button
                       key={color}
                       className={
-                        textColor ===
-                        color
+                        textColor === color
                           ? "text-color selected-text-color"
                           : "text-color"
                       }
@@ -1265,14 +1720,11 @@ function Customizer() {
                   type="range"
                   min="12"
                   max="55"
-                  value={
-                    fontSize
-                  }
+                  value={fontSize}
                   onChange={(event) =>
                     setFontSize(
                       Number(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     )
                   }
@@ -1302,7 +1754,6 @@ function Customizer() {
                 </button>
 
                 <button
-                  className="selected-align"
                   onClick={() =>
                     setTextPosition({
                       ...textPosition,
@@ -1331,8 +1782,7 @@ function Customizer() {
 
           {/* UPLOAD */}
 
-          {activeTool ===
-            "upload" && (
+          {activeTool === "upload" && (
             <div className="settings-content">
 
               <h3>
@@ -1345,9 +1795,7 @@ function Customizer() {
                   fileInputRef.current?.click()
                 }
               >
-                <UploadCloud
-                  size={40}
-                />
+                <UploadCloud size={40} />
 
                 <strong>
                   Upload Logo
@@ -1359,9 +1807,7 @@ function Customizer() {
               </div>
 
               <input
-                ref={
-                  fileInputRef
-                }
+                ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 hidden
@@ -1395,16 +1841,11 @@ function Customizer() {
                       type="range"
                       min="50"
                       max="240"
-                      value={
-                        logoSize
-                      }
-                      onChange={(
-                        event
-                      ) =>
+                      value={logoSize}
+                      onChange={(event) =>
                         setLogoSize(
                           Number(
-                            event.target
-                              .value
+                            event.target.value
                           )
                         )
                       }
@@ -1422,9 +1863,7 @@ function Customizer() {
                       deleteLogo
                     }
                   >
-                    <Trash2
-                      size={17}
-                    />
+                    <Trash2 size={17} />
 
                     Remove Logo
                   </button>
@@ -1436,8 +1875,7 @@ function Customizer() {
 
           {/* COLOR */}
 
-          {activeTool ===
-            "color" && (
+          {activeTool === "color" && (
             <div className="settings-content">
 
               <h3>
@@ -1455,8 +1893,7 @@ function Customizer() {
                           color,
                       }}
                       className={
-                        textColor ===
-                        color
+                        textColor === color
                           ? "color-selected"
                           : ""
                       }
@@ -1478,8 +1915,7 @@ function Customizer() {
 
           {/* FONT */}
 
-          {activeTool ===
-            "font" && (
+          {activeTool === "font" && (
             <div className="settings-content">
 
               <h3>
@@ -1503,8 +1939,7 @@ function Customizer() {
                           font,
                       }}
                       className={
-                        fontFamily ===
-                        font
+                        fontFamily === font
                           ? "font-selected"
                           : ""
                       }
@@ -1528,8 +1963,7 @@ function Customizer() {
 
           {/* FONT SIZE */}
 
-          {activeTool ===
-            "fontSize" && (
+          {activeTool === "fontSize" && (
             <div className="settings-content">
 
               <h3>
@@ -1541,14 +1975,11 @@ function Customizer() {
                 type="range"
                 min="12"
                 max="60"
-                value={
-                  fontSize
-                }
+                value={fontSize}
                 onChange={(event) =>
                   setFontSize(
                     Number(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   )
                 }
@@ -1563,8 +1994,7 @@ function Customizer() {
 
           {/* POSITION */}
 
-          {activeTool ===
-            "position" && (
+          {activeTool === "position" && (
             <div className="settings-content">
 
               <h3>
@@ -1572,10 +2002,9 @@ function Customizer() {
               </h3>
 
               <p className="position-info">
-                Logo ya text ko mouse
-                se directly product
-                par drag karke move
-                karein.
+                Logo ya text ko mouse se
+                directly product par
+                drag karke move karein.
               </p>
 
               <div className="position-buttons">
@@ -1609,8 +2038,7 @@ function Customizer() {
 
           {/* LAYERS */}
 
-          {activeTool ===
-            "layers" && (
+          {activeTool === "layers" && (
             <div className="settings-content">
 
               <h3>
@@ -1619,9 +2047,7 @@ function Customizer() {
 
               <div className="layer-item">
 
-                <Layers
-                  size={17}
-                />
+                <Layers size={17} />
 
                 <span>
                   {productName}
@@ -1647,9 +2073,7 @@ function Customizer() {
               {text && (
                 <div className="layer-item">
 
-                  <Type
-                    size={17}
-                  />
+                  <Type size={17} />
 
                   <span>
                     {text}
@@ -1679,10 +2103,6 @@ function Customizer() {
               }}
             >
 
-              {/* =================================================
-                  IMPORTANT PRODUCT IMAGE
-              ================================================= */}
-
               <div
                 className="real-product-preview"
                 style={{
@@ -1697,77 +2117,37 @@ function Customizer() {
                     src={productImage}
                     alt={productName}
                     draggable="false"
-                    onError={(event) => {
-                      console.error(
-                        "Product image failed:",
-                        productImage
-                      );
-
-                      event.currentTarget.style.display =
-                        "none";
-
-                      const fallback =
-                        event.currentTarget.parentElement.querySelector(
-                          ".product-image-fallback"
-                        );
-
-                      if (fallback) {
-                        fallback.style.display =
-                          "block";
-                      }
-                    }}
                   />
-                ) : null}
+                ) : (
+                  <div className="product-image-fallback">
 
-                {/* =================================================
-                    FALLBACK PRODUCT
-                ================================================= */}
+                    <div
+                      className={
+                        isHoodie
+                          ? "hoodie"
+                          : "tshirt"
+                      }
+                      style={{
+                        "--shirt-color":
+                          productColor,
+                      }}
+                    >
 
-                <div
-                  className="product-image-fallback"
-                  style={{
-                    display:
-                      productImage
-                        ? "none"
-                        : "block",
-                  }}
-                >
+                      <div className="shirt-collar" />
 
-                  <div
-                    className={
-                      isHoodie
-                        ? "hoodie"
-                        : "tshirt"
-                    }
-                    style={{
-                      "--shirt-color":
-                        productColor,
-                    }}
-                  >
+                      <div className="shirt-left-sleeve" />
 
-                    <div className="shirt-collar" />
+                      <div className="shirt-right-sleeve" />
 
-                    <div className="shirt-left-sleeve" />
-
-                    <div className="shirt-right-sleeve" />
+                    </div>
 
                   </div>
-
-                </div>
-
-                {/* =================================================
-                    PRINT AREA
-                ================================================= */}
+                )}
 
                 <div className="print-area">
 
-                  {/* =================================================
-                      LOGO
-                  ================================================= */}
-
                   {logo &&
-                    side ===
-                      "front" && (
+                    side === "front" && (
                     <div
                       className="design-logo"
                       style={{
@@ -1786,18 +2166,15 @@ function Customizer() {
                     >
 
                       <button
+                        type="button"
                         className="delete-design"
-                        onClick={(
-                          event
-                        ) => {
+                        onClick={(event) => {
                           event.stopPropagation();
 
                           deleteLogo();
                         }}
                       >
-                        <X
-                          size={12}
-                        />
+                        <X size={12} />
                       </button>
 
                       <img
@@ -1807,6 +2184,7 @@ function Customizer() {
                       />
 
                       <button
+                        type="button"
                         className="resize-handle"
                         onMouseDown={
                           handleLogoResize
@@ -1818,13 +2196,8 @@ function Customizer() {
                     </div>
                   )}
 
-                  {/* =================================================
-                      TEXT
-                  ================================================= */}
-
                   {text &&
-                    side ===
-                      "front" && (
+                    side === "front" && (
                     <div
                       className="design-text"
                       style={{
@@ -1865,12 +2238,7 @@ function Customizer() {
                     </div>
                   )}
 
-                  {/* =================================================
-                      BACK
-                  ================================================= */}
-
-                  {side ===
-                    "back" && (
+                  {side === "back" && (
                     <div className="back-preview-text">
                       BACK
                     </div>
@@ -1889,8 +2257,7 @@ function Customizer() {
               <button
                 onClick={undo}
                 disabled={
-                  history.length ===
-                  0
+                  history.length === 0
                 }
               >
                 <RotateCcw />
@@ -1903,8 +2270,7 @@ function Customizer() {
               <button
                 onClick={redo}
                 disabled={
-                  future.length ===
-                  0
+                  future.length === 0
                 }
               >
                 <RotateCw />
@@ -1964,36 +2330,10 @@ function Customizer() {
 
           </div>
 
-          {/* PRODUCT THUMBNAIL */}
-
-          <div className="product-thumbnails">
-
-            <div className="thumb active-thumb">
-
-              {productImage ? (
-                <img
-                  src={productImage}
-                  alt={productName}
-                  className="thumbnail-product-image"
-                />
-              ) : (
-                <div
-                  className="mini-shirt"
-                  style={{
-                    background:
-                      productColor,
-                  }}
-                />
-              )}
-
-            </div>
-
-          </div>
-
         </section>
 
         {/* =================================================
-            PRODUCT SETTINGS
+            RIGHT SETTINGS
         ================================================= */}
 
         <aside className="product-settings">
@@ -2016,6 +2356,8 @@ function Customizer() {
 
           </div>
 
+          {/* PRODUCT COLOR */}
+
           <h3>
             Choose Product Color
           </h3>
@@ -2027,8 +2369,7 @@ function Customizer() {
                 <button
                   key={color}
                   className={
-                    productColor ===
-                    color
+                    productColor === color
                       ? "product-color selected-product-color"
                       : "product-color"
                   }
@@ -2051,6 +2392,8 @@ function Customizer() {
 
           <div className="setting-divider" />
 
+          {/* SIZE */}
+
           <h3>
             Choose Size
           </h3>
@@ -2068,15 +2411,12 @@ function Customizer() {
                 <button
                   key={item}
                   className={
-                    size ===
-                    item
+                    size === item
                       ? "size-selected"
                       : ""
                   }
                   onClick={() =>
-                    setSize(
-                      item
-                    )
+                    setSize(item)
                   }
                 >
                   {item}
@@ -2087,6 +2427,112 @@ function Customizer() {
           </div>
 
           <div className="setting-divider" />
+
+          {/* DESCRIPTION */}
+
+          <div className="customer-request-box">
+
+            <div className="customer-request-title">
+
+              <FileText size={18} />
+
+              <div>
+
+                <strong>
+                  Product Description
+                </strong>
+
+                <span>
+                  Tell us about your customization
+                </span>
+
+              </div>
+
+            </div>
+
+            <textarea
+              className="customer-description-input"
+              value={
+                customerDescription
+              }
+              onChange={(event) =>
+                setCustomerDescription(
+                  event.target.value
+                )
+              }
+              maxLength={500}
+              placeholder="Example: Logo should be placed on the left chest area..."
+            />
+
+            <div className="character-count">
+
+              {customerDescription.length}
+              /500 characters
+
+            </div>
+
+          </div>
+
+          {/* SPECIAL NOTE */}
+
+          <div className="customer-request-box">
+
+            <div className="customer-request-title">
+
+              <MessageSquare size={18} />
+
+              <div>
+
+                <strong>
+                  Customer Instructions / Special Note
+                </strong>
+
+                <span>
+                  Write any special requirement
+                </span>
+
+              </div>
+
+            </div>
+
+            <textarea
+              className="customer-description-input customer-note-input"
+              value={customerNote}
+              onChange={(event) =>
+                setCustomerNote(
+                  event.target.value
+                )
+              }
+              maxLength={500}
+              placeholder="Example: Logo left side me chahiye. Text ka color blue rakho. Delivery se pehle mujhe confirm karna hai."
+            />
+
+            <div className="character-count">
+
+              {customerNote.length}
+              /500 characters
+
+            </div>
+
+          </div>
+
+          {/* INFO */}
+
+          <div className="customer-info-message">
+
+            <Info size={16} />
+
+            <span>
+              Your description and special
+              instructions will be saved with
+              this customized product.
+            </span>
+
+          </div>
+
+          <div className="setting-divider" />
+
+          {/* PRICE */}
 
           <h3>
             Price Details
@@ -2139,26 +2585,179 @@ function Customizer() {
 
           </div>
 
+          {/* CART SUCCESS */}
+
+          {cartSuccess && (
+            <div className="cart-success-message">
+
+              <CheckCircle size={19} />
+
+              <div>
+
+                <strong>
+                  Added to Cart
+                </strong>
+
+                <span>
+                  Product and your instructions
+                  have been saved.
+                </span>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCartSuccess(false)
+                }
+              >
+                <X size={16} />
+              </button>
+
+            </div>
+          )}
+
+          {/* ORDER SUCCESS */}
+
+          {orderSuccess && (
+            <div className="cart-success-message">
+
+              <CheckCircle size={19} />
+
+              <div>
+
+                <strong>
+                  Order Placed Successfully
+                </strong>
+
+                <span>
+                  Your product description and
+                  instructions are saved with
+                  your order.
+                </span>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setOrderSuccess(false)
+                }
+              >
+                <X size={16} />
+              </button>
+
+            </div>
+          )}
+
+          {/* ADD TO CART */}
+
           <button
+            type="button"
             className="add-cart-btn"
-            onClick={
-              addToCart
-            }
+            onClick={addToCart}
           >
-            <ShoppingCart
-              size={20}
-            />
+            <ShoppingCart size={20} />
 
             Add to Cart
           </button>
 
+          {/* PLACE ORDER */}
+
           <button
-            className="save-design-btn"
-           
+            type="button"
+            className="place-order-btn"
+            onClick={placeOrder}
+            disabled={isPlacingOrder}
           >
-            <Heart
-              size={20}
-            />
+            <PackageCheck size={20} />
+
+            {isPlacingOrder
+              ? "Placing Order..."
+              : "Place Order"}
+
+          </button>
+
+          {/* GO TO MY ORDERS */}
+
+          {orderSuccess && (
+            <button
+              type="button"
+              className="save-design-btn"
+              onClick={goToMyOrders}
+            >
+              <ClipboardList size={20} />
+
+              View My Orders
+            </button>
+          )}
+
+          {/* SAVE DESIGN */}
+
+          <button
+            type="button"
+            className="save-design-btn"
+            onClick={() => {
+              try {
+                localStorage.setItem(
+                  "savedCustomDesign",
+                  JSON.stringify({
+                    product:
+                      selectedProduct,
+
+                    logo,
+
+                    logoPosition,
+
+                    logoSize,
+
+                    text,
+
+                    textPosition,
+
+                    textColor,
+
+                    fontSize,
+
+                    fontFamily,
+
+                    bold,
+
+                    italic,
+
+                    underline,
+
+                    productColor,
+
+                    size,
+
+                    side,
+
+                    customerDescription,
+
+                    customerNote,
+
+                    savedAt:
+                      new Date().toISOString(),
+                  })
+                );
+
+                alert(
+                  "Design saved successfully!"
+                );
+              } catch (error) {
+                console.error(
+                  "Design save error:",
+                  error
+                );
+
+                alert(
+                  "Design save nahi ho paya."
+                );
+              }
+            }}
+          >
+            <Heart size={20} />
 
             Save Design
           </button>
@@ -2168,7 +2767,7 @@ function Customizer() {
       </main>
 
       {/* =================================================
-          BOTTOM FEATURES
+          FOOTER
       ================================================= */}
 
       <footer className="features-footer">

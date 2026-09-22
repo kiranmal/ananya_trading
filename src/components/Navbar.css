@@ -2178,3 +2178,166 @@ body {
   }
 
 }
+
+/* =====================================================
+   MY ACCOUNT - DROPDOWN
+===================================================== */
+
+.account-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.my-account-btn {
+  min-width: 184px;
+  height: 54px;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e4e8ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #202733;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.my-account-btn:hover,
+.account-open .my-account-btn {
+  border-color: #d5dce7;
+  background: #fafbfd;
+}
+
+.account-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  border: 1.5px solid #526173;
+  border-radius: 50%;
+  color: #40516a;
+}
+
+.account-icon .nav-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.account-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.account-chevron {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: #4b5563;
+  font-size: 18px;
+  line-height: 1;
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.account-chevron-up {
+  transform: rotate(0deg);
+}
+
+.account-dropdown {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: 0;
+  z-index: 9999;
+  width: 184px;
+  padding: 8px 0;
+  background: #fff;
+  border: 1px solid #e5e8ed;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(22, 34, 51, 0.14);
+  overflow: hidden;
+}
+
+.account-menu-item {
+  min-height: 50px;
+  padding: 0 17px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: #252a33;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 400;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.account-menu-item:hover {
+  background: #f5f8fc;
+  color: #155bb5;
+}
+
+.account-menu-icon {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  color: #202a36;
+  flex: 0 0 25px;
+}
+
+.account-menu-icon .nav-svg {
+  width: 21px;
+  height: 21px;
+}
+
+.account-add-icon small {
+  position: absolute;
+  right: -3px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  line-height: 10px;
+  background: #fff;
+}
+
+.account-menu-divider {
+  height: 1px;
+  margin: 7px 14px;
+  background: #e7e9ed;
+}
+
+/* Keep the account dropdown usable on smaller screens */
+@media (max-width: 1100px) {
+  .my-account-btn {
+    min-width: 52px;
+    width: 52px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .account-label {
+    display: none;
+  }
+
+  .account-dropdown {
+    width: 184px;
+  }
+}
+
+@media (max-width: 768px) {
+  .account-dropdown {
+    right: 0;
+  }
+}
