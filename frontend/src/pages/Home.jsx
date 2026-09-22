@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import "./Home.css";
+import heroImage from "../assets/hero-visual.jpg";
 import defaultProducts from "../data/products";
 import CustomizeProducts from "../components/CustomizeProducts";
 import { fetchProducts } from "../services/productApi";
@@ -811,19 +812,12 @@ function Home() {
 
         <div className="hero-visual">
 
-          <div className="hero-card hero-card-one">
+          <div className="hero-image-card">
 
-            <span>
-              PREMIUM
-            </span>
-
-            <strong>
-              BRAND
-            </strong>
-
-            <small>
-              YOUR IDENTITY
-            </small>
+            <img
+              src={heroImage}
+              alt="Premium business card printing"
+            />
 
           </div>
 

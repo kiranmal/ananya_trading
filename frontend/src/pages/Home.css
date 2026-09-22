@@ -182,6 +182,26 @@
     0 12px 30px rgba(0, 0, 0, 0.12);
 }
 
+.hero-image-card {
+  position: absolute;
+  top: 15px;
+  left: 10px;
+  width: 262px;
+  height: 255px;
+  border-radius: 16px;
+  overflow: hidden;
+  transform: rotate(-5deg);
+  box-shadow:
+    0 22px 45px rgba(23, 35, 55, 0.28);
+}
+
+.hero-image-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .hero-card-one {
   top: 25px;
   left: 5px;
