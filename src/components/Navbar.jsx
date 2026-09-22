@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
 import "./Navbar.css";
 import ananyaLogo from "../assets/ananya-logo.png";
+
+import { getProducts } from "../data/productStorage";
 
 /* =====================================================
    CATEGORIES
@@ -98,17 +101,7 @@ const categories = [
       "Custom T-Shirts",
     ],
   },
-
-  // {
-  //   name: "Umbrellas & Rainwear",
-  //   items: [
-  //     "Corporate Umbrellas",
-  //     "Raincoats",
-  //     "Custom Umbrellas",
-  //   ],
-  // },
 ];
-
 
 /* =====================================================
    SEARCH ICON
@@ -123,17 +116,11 @@ function SearchIcon() {
       stroke="currentColor"
       strokeWidth="2"
     >
-      <circle
-        cx="11"
-        cy="11"
-        r="7"
-      />
-
+      <circle cx="11" cy="11" r="7" />
       <path d="M20 20l-4-4" />
     </svg>
   );
 }
-
 
 /* =====================================================
    USER ICON
@@ -148,19 +135,11 @@ function UserIcon() {
       stroke="currentColor"
       strokeWidth="2"
     >
-      <circle
-        cx="12"
-        cy="7"
-        r="4"
-      />
-
-      <path
-        d="M4 21c.7-4.2 3.3-6.5 8-6.5s7.3 2.3 8 6.5"
-      />
+      <circle cx="12" cy="7" r="4" />
+      <path d="M4 21c.7-4.2 3.3-6.5 8-6.5s7.3 2.3 8 6.5" />
     </svg>
   );
 }
-
 
 /* =====================================================
    HEART ICON
@@ -180,7 +159,6 @@ function HeartIcon() {
   );
 }
 
-
 /* =====================================================
    CART ICON
 ===================================================== */
@@ -196,21 +174,11 @@ function CartIcon() {
     >
       <path d="M3 4h2l2.1 11h10.7L21 7H6" />
 
-      <circle
-        cx="9"
-        cy="20"
-        r="1.5"
-      />
-
-      <circle
-        cx="18"
-        cy="20"
-        r="1.5"
-      />
+      <circle cx="9" cy="20" r="1.5" />
+      <circle cx="18" cy="20" r="1.5" />
     </svg>
   );
 }
-
 
 /* =====================================================
    MENU ICON
@@ -230,91 +198,219 @@ function MenuIcon() {
   );
 }
 
-
 /* =====================================================
    NAVBAR
 ===================================================== */
 
 function Navbar() {
-
   const navigate = useNavigate();
 
-
   /* =====================================================
-     STATES
+     CATEGORY STATES
   ===================================================== */
 
-  const [openCategory, setOpenCategory] =
-    useState(null);
+  const [openCategory, setOpenCategory] = useState(null);
 
-  const [mobileMenu, setMobileMenu] =
+  const [mobileMenu, setMobileMenu] = useState(false);
+
+  /* =====================================================
+     SEARCH STATES
+  ===================================================== */
+
+  const [searchText, setSearchText] = useState("");
+
+  const [products, setProducts] = useState([]);
+
+  const [showSearchResults, setShowSearchResults] =
     useState(false);
-
 
   /* =====================================================
      CART COUNT
   ===================================================== */
 
-  const [cartCount, setCartCount] =
-    useState(0);
-
+  const [cartCount, setCartCount] = useState(0);
 
   /* =====================================================
-     FAVORITES COUNT
+     FAVORITE COUNT
   ===================================================== */
 
   const [favoriteCount, setFavoriteCount] =
     useState(0);
 
+  /* =====================================================
+     LOAD PRODUCTS
+  ===================================================== */
+
+  const loadProducts = () => {
+    try {
+      const allProducts = getProducts();
+
+      setProducts(
+        Array.isArray(allProducts)
+          ? allProducts
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Search products loading error:",
+        error
+      );
+
+      setProducts([]);
+    }
+  };
 
   /* =====================================================
-     UPDATE CART COUNT
+     INITIAL LOAD
+  ===================================================== */
+
+  useEffect(() => {
+    loadProducts();
+
+    const handleProductsUpdate = () => {
+      loadProducts();
+    };
+
+    window.addEventListener(
+      "ananyaProductsUpdated",
+      handleProductsUpdate
+    );
+
+    return () => {
+      window.removeEventListener(
+        "ananyaProductsUpdated",
+        handleProductsUpdate
+      );
+    };
+  }, []);
+
+  /* =====================================================
+     SEARCH RESULTS
+  ===================================================== */
+
+  const searchResults =
+    searchText.trim().length === 0
+      ? []
+      : products
+          .filter((product) => {
+            const search =
+              searchText
+                .trim()
+                .toLowerCase();
+
+            const name =
+              String(
+                product.name || ""
+              ).toLowerCase();
+
+            const category =
+              String(
+                product.category || ""
+              ).toLowerCase();
+
+            const description =
+              String(
+                product.description || ""
+              ).toLowerCase();
+
+            const badge =
+              String(
+                product.badge || ""
+              ).toLowerCase();
+
+            return (
+              name.includes(search) ||
+              category.includes(search) ||
+              description.includes(search) ||
+              badge.includes(search)
+            );
+          })
+          .slice(0, 8);
+
+  /* =====================================================
+     SEARCH INPUT
+  ===================================================== */
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+
+    setSearchText(value);
+
+    setShowSearchResults(
+      value.trim().length > 0
+    );
+  };
+
+  /* =====================================================
+     SEARCH SUBMIT
+  ===================================================== */
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+
+    const query = searchText.trim();
+
+    if (!query) return;
+
+    setShowSearchResults(false);
+
+    navigate(
+      `/category?search=${encodeURIComponent(
+        query
+      )}`
+    );
+  };
+
+  /* =====================================================
+     OPEN PRODUCT
+  ===================================================== */
+
+  const handleProductClick = (product) => {
+    setSearchText("");
+
+    setShowSearchResults(false);
+
+    navigate(
+      `/product/${product.id}`
+    );
+  };
+
+  /* =====================================================
+     CART COUNT
   ===================================================== */
 
   const updateCartCount = () => {
-
     try {
-
       const savedCart =
         localStorage.getItem(
           "ananyaCart"
         );
 
-      const cart =
-        savedCart
-          ? JSON.parse(savedCart)
-          : [];
-
-      const totalItems =
-        Array.isArray(cart)
-          ? cart.length
-          : 0;
+      const cart = savedCart
+        ? JSON.parse(savedCart)
+        : [];
 
       setCartCount(
-        totalItems
+        Array.isArray(cart)
+          ? cart.length
+          : 0
       );
-
     } catch (error) {
-
       console.error(
         "Cart count error:",
         error
       );
 
       setCartCount(0);
-
     }
   };
 
-
   /* =====================================================
-     UPDATE FAVORITES COUNT
+     FAVORITE COUNT
   ===================================================== */
 
   const updateFavoriteCount = () => {
-
     try {
-
       const savedFavorites =
         localStorage.getItem(
           "ananyaFavorites"
@@ -325,52 +421,37 @@ function Navbar() {
           ? JSON.parse(savedFavorites)
           : [];
 
-      const totalFavorites =
+      setFavoriteCount(
         Array.isArray(favorites)
           ? favorites.length
-          : 0;
-
-      setFavoriteCount(
-        totalFavorites
+          : 0
       );
-
     } catch (error) {
-
       console.error(
         "Favorite count error:",
         error
       );
 
       setFavoriteCount(0);
-
     }
   };
 
-
   /* =====================================================
-     CART + FAVORITES LISTENER
+     CART + FAVORITE LISTENERS
   ===================================================== */
 
   useEffect(() => {
-
     updateCartCount();
 
     updateFavoriteCount();
 
-
     const handleCartUpdate = () => {
-
       updateCartCount();
-
     };
-
 
     const handleFavoriteUpdate = () => {
-
       updateFavoriteCount();
-
     };
-
 
     window.addEventListener(
       "ananyaCartUpdated",
@@ -397,9 +478,7 @@ function Navbar() {
       handleFavoriteUpdate
     );
 
-
     return () => {
-
       window.removeEventListener(
         "ananyaCartUpdated",
         handleCartUpdate
@@ -424,112 +503,104 @@ function Navbar() {
         "storage",
         handleFavoriteUpdate
       );
-
     };
-
   }, []);
 
+  /* =====================================================
+     CLOSE SEARCH ON OUTSIDE CLICK
+  ===================================================== */
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (
+        !e.target.closest(
+          ".search-wrapper"
+        )
+      ) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
+    };
+  }, []);
 
   /* =====================================================
-     DESKTOP HOVER
+     DESKTOP CATEGORY
   ===================================================== */
 
   const handleCategoryMouseEnter = (
     index
   ) => {
-
     if (window.innerWidth > 768) {
-
       setOpenCategory(index);
-
     }
-
   };
-
-
-  /* =====================================================
-     DESKTOP MOUSE LEAVE
-  ===================================================== */
 
   const handleCategoryMouseLeave = () => {
-
     if (window.innerWidth > 768) {
-
       setOpenCategory(null);
-
     }
-
   };
 
-
   /* =====================================================
-     MOBILE CATEGORY CLICK
+     MOBILE CATEGORY
   ===================================================== */
 
   const handleCategoryClick = (
     index
   ) => {
-
     if (window.innerWidth <= 768) {
-
       setOpenCategory(
         openCategory === index
           ? null
           : index
       );
-
     }
-
   };
-
 
   /* =====================================================
      CART
   ===================================================== */
 
   const handleCartClick = () => {
-
     navigate("/cart");
-
   };
-
 
   /* =====================================================
      FAVORITES
   ===================================================== */
 
   const handleFavoritesClick = () => {
-
     navigate("/favorites");
-
   };
-
 
   /* =====================================================
      PROFILE
   ===================================================== */
 
   const handleProfileClick = () => {
-
     navigate("/profile");
-
   };
-
 
   /* =====================================================
      PRODUCT LINK
   ===================================================== */
 
-  const getProductLink = (
-    item
-  ) => {
-
+  const getProductLink = (item) => {
     return `/category?type=${encodeURIComponent(
       item
     )}`;
-
   };
-
 
   /* =====================================================
      RETURN
@@ -537,77 +608,51 @@ function Navbar() {
 
   return (
     <>
-
       {/* =================================================
           TOP BAR
       ================================================= */}
 
       <div className="top-bar">
-
         <div className="top-left">
-
-          <span>
-            ☎ +91 9123456789
-          </span>
+          <span>☎ +91 9123456789</span>
 
           <span className="top-divider"></span>
 
           <span>
             ✉ support@ananyatrading.com
           </span>
-
         </div>
-
 
         <div className="top-right">
+          <span>♧ Help & Support</span>
 
-          <span>
-            ♧ Help & Support
-          </span>
+          <span>🚚 Track Order</span>
 
-          <span>
-            🚚 Track Order
-          </span>
-
-          <span>
-            ♧ Bulk Order
-          </span>
-
+          <span>♧ Bulk Order</span>
         </div>
-
       </div>
-
 
       {/* =================================================
           MAIN NAVBAR
       ================================================= */}
 
       <header className="main-navbar">
-
         <div className="nav-main">
 
-
-          {/* =================================================
-              LOGO
-          ================================================= */}
+          {/* LOGO */}
 
           <Link
             to="/"
             className="brand"
           >
-
             <img
               src={ananyaLogo}
               alt="Ananya Trading Company Logo"
               className="brand-logo"
             />
 
-
             <div className="brand-content">
-
-              <h1>
-                ANANYA
-              </h1>
+              <h1>ANANYA</h1>
 
               <h2>
                 TRADING COMPANY
@@ -616,33 +661,174 @@ function Navbar() {
               <span>
                 Solution Of Uniqueness
               </span>
-
             </div>
-
           </Link>
-
 
           {/* =================================================
               SEARCH
           ================================================= */}
 
-          <div className="search-box">
+          <div className="search-wrapper">
 
-            <input
-              type="text"
-              placeholder="Search for products, categories and more..."
-            />
-
-            <button
-              type="button"
+            <form
+              className="search-box"
+              onSubmit={
+                handleSearchSubmit
+              }
             >
+              <input
+                type="text"
+                value={searchText}
+                onChange={
+                  handleSearchChange
+                }
+                onFocus={() => {
+                  if (
+                    searchText.trim()
+                  ) {
+                    setShowSearchResults(
+                      true
+                    );
+                  }
+                }}
+                placeholder="Search for products, categories and more..."
+                autoComplete="off"
+              />
 
-              <SearchIcon />
+              <button
+                type="submit"
+                aria-label="Search"
+              >
+                <SearchIcon />
+              </button>
+            </form>
 
-            </button>
+            {/* =================================================
+                SEARCH RESULTS
+            ================================================= */}
 
+            {showSearchResults &&
+              searchText.trim() && (
+                <div className="search-results-dropdown">
+
+                  {searchResults.length >
+                  0 ? (
+                    <>
+                      <div className="search-results-header">
+                        <span>
+                          Related Products
+                        </span>
+
+                        <small>
+                          {
+                            searchResults.length
+                          } found
+                        </small>
+                      </div>
+
+                      {searchResults.map(
+                        (product) => (
+                          <button
+                            type="button"
+                            className="search-product-item"
+                            key={
+                              product.id
+                            }
+                            onClick={() =>
+                              handleProductClick(
+                                product
+                              )
+                            }
+                          >
+
+                            <div className="search-product-image">
+                              <img
+                                src={
+                                  product
+                                    .images
+                                    ?.length
+                                    ? product
+                                        .images[0]
+                                    : product.image ||
+                                      "https://via.placeholder.com/80x80?text=Product"
+                                }
+                                alt={
+                                  product.name
+                                }
+                              />
+                            </div>
+
+                            <div className="search-product-info">
+
+                              <strong>
+                                {
+                                  product.name
+                                }
+                              </strong>
+
+                              <span>
+                                {
+                                  product.category ||
+                                  "General"
+                                }
+                              </span>
+
+                              <b>
+                                ₹
+                                {Number(
+                                  product.price ||
+                                    0
+                                ).toLocaleString(
+                                  "en-IN"
+                                )}
+                              </b>
+
+                            </div>
+
+                          </button>
+                        )
+                      )}
+
+                      <button
+                        type="button"
+                        className="search-view-all"
+                        onClick={() => {
+                          setShowSearchResults(
+                            false
+                          );
+
+                          navigate(
+                            `/category?search=${encodeURIComponent(
+                              searchText.trim()
+                            )}`
+                          );
+                        }}
+                      >
+                        View all search results →
+                      </button>
+                    </>
+                  ) : (
+                    <div className="search-no-results">
+
+                      <div className="search-no-results-icon">
+                        🔍
+                      </div>
+
+                      <strong>
+                        No products found
+                      </strong>
+
+                      <span>
+                        Try another product
+                        name or category.
+                      </span>
+
+                    </div>
+                  )}
+
+                </div>
+              )}
           </div>
-
 
           {/* =================================================
               ACTIONS
@@ -650,170 +836,117 @@ function Navbar() {
 
           <div className="nav-actions">
 
-
-            {/* =================================================
-                FAVORITES
-            ================================================= */}
+            {/* FAVORITES */}
 
             <button
               type="button"
-
               className="nav-action favorite-nav-btn"
-
               onClick={
                 handleFavoritesClick
               }
-
-              aria-label={
-                `Favorites with ${favoriteCount} items`
-              }
+              aria-label={`Favorites with ${favoriteCount} items`}
             >
-
               <HeartIcon />
 
               <span>
                 Favorites
               </span>
 
-
               {favoriteCount > 0 && (
-
                 <b className="favorite-badge">
-
                   {favoriteCount}
-
                 </b>
-
               )}
-
             </button>
 
-
-            {/* =================================================
-                SIGN IN
-            ================================================= */}
+            {/* SIGN IN */}
 
             <Link
               to="/login"
               className="nav-action signup-link"
             >
-
               <UserIcon />
 
               <span>
                 Sign In
               </span>
-
             </Link>
 
-
-            {/* =================================================
-                SIGN UP
-            ================================================= */}
+            {/* SIGN UP */}
 
             <Link
               to="/signup"
               className="nav-action signup-link"
             >
-
               <UserIcon />
 
               <span>
                 Sign Up
               </span>
-
             </Link>
 
-
-            {/* =================================================
-                CART
-            ================================================= */}
+            {/* CART */}
 
             <button
               type="button"
-
               className="nav-action cart-btn"
-
               onClick={
                 handleCartClick
               }
-
-              aria-label={
-                `Cart with ${cartCount} items`
-              }
+              aria-label={`Cart with ${cartCount} items`}
             >
-
               <CartIcon />
 
               <span>
                 Cart
               </span>
 
-
               {cartCount > 0 && (
-
                 <b className="cart-badge">
-
                   {cartCount}
-
                 </b>
-
               )}
-
             </button>
 
-
-            {/* =================================================
-                PROFILE
-            ================================================= */}
+            {/* PROFILE */}
 
             <button
               type="button"
-
               className="nav-action profile-nav-btn"
-
               onClick={
                 handleProfileClick
               }
-
               aria-label="Open Profile"
             >
-
               <UserIcon />
 
               <span>
                 Profile
               </span>
-
             </button>
 
           </div>
 
-
-          {/* =================================================
-              MOBILE MENU
-          ================================================= */}
+          {/* MOBILE MENU */}
 
           <button
             type="button"
-
             className="mobile-menu-btn"
-
-            onClick={() =>
+            onClick={() => {
               setMobileMenu(
                 !mobileMenu
-              )
-            }
+              );
 
+              setShowSearchResults(
+                false
+              );
+            }}
             aria-label="Open menu"
           >
-
             <MenuIcon />
-
           </button>
 
         </div>
-
 
         {/* =================================================
             CATEGORY NAVBAR
@@ -827,11 +960,6 @@ function Navbar() {
           }`}
         >
 
-
-          {/* =================================================
-              CATEGORY LIST
-          ================================================= */}
-
           <div className="category-list">
 
             {categories.map(
@@ -839,102 +967,74 @@ function Navbar() {
                 category,
                 index
               ) => (
-
                 <div
                   key={
                     category.name
                   }
-
                   className={`category-item ${
-                    openCategory === index
+                    openCategory ===
+                    index
                       ? "category-active"
                       : ""
                   }`}
-
                   onMouseEnter={() =>
                     handleCategoryMouseEnter(
                       index
                     )
                   }
-
                   onMouseLeave={
                     handleCategoryMouseLeave
                   }
                 >
 
-
-                  {/* =================================================
-                      CATEGORY BUTTON
-                  ================================================= */}
-
                   <button
                     type="button"
-
                     className="category-button"
-
                     onClick={() =>
                       handleCategoryClick(
                         index
                       )
                     }
                   >
-
                     <span>
-                      {category.name}
+                      {
+                        category.name
+                      }
                     </span>
 
                     <span className="category-arrow">
                       ⌄
                     </span>
-
                   </button>
 
-
-                  {/* =================================================
-                      DROPDOWN
-                  ================================================= */}
-
-                  {openCategory === index && (
-
+                  {openCategory ===
+                    index && (
                     <div
                       className="category-dropdown"
-
                       onMouseEnter={() =>
                         setOpenCategory(
                           index
                         )
                       }
-
                       onMouseLeave={
                         handleCategoryMouseLeave
                       }
                     >
 
                       <div className="dropdown-title">
-
-                        {category.name}
-
+                        {
+                          category.name
+                        }
                       </div>
-
-
-                      {/* =================================================
-                          PRODUCTS
-                      ================================================= */}
 
                       {category.items.map(
                         (item) => (
-
                           <Link
                             key={item}
-
-                            to={
-                              getProductLink(
-                                item
-                              )
-                            }
-
+                            to={getProductLink(
+                              item
+                            )}
                             onClick={() => {
-
                               setOpenCategory(
                                 null
                               );
@@ -942,31 +1042,19 @@ function Navbar() {
                               setMobileMenu(
                                 false
                               );
-
                             }}
                           >
-
                             {item}
-
                           </Link>
-
                         )
                       )}
-
-
-                      {/* =================================================
-                          VIEW ALL
-                      ================================================= */}
 
                       <Link
                         to={`/category?category=${encodeURIComponent(
                           category.name
                         )}`}
-
                         className="view-all"
-
                         onClick={() => {
-
                           setOpenCategory(
                             null
                           );
@@ -974,29 +1062,22 @@ function Navbar() {
                           setMobileMenu(
                             false
                           );
-
                         }}
                       >
-
                         View All →
-
                       </Link>
 
                     </div>
-
                   )}
 
                 </div>
-
               )
             )}
 
           </div>
 
         </div>
-
       </header>
-
 
       {/* =================================================
           OFFER BAR
@@ -1017,35 +1098,24 @@ function Navbar() {
         </span>
 
         <span>
-
           Use Code:
-
-          <b>
-            SAVE5
-          </b>
-
+          <b>SAVE5</b>
         </span>
-
 
         <button
           type="button"
-
           onClick={() =>
             navigator.clipboard?.writeText(
               "SAVE5"
             )
           }
         >
-
           Copy
-
         </button>
 
       </div>
-
     </>
   );
 }
-
 
 export default Navbar;
