@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import "./Navbar.css";
@@ -221,6 +221,12 @@ function Navbar() {
   const [categories, setCategories] =
     useState(defaultCategories);
 
+  /* Overflow — jo categories fit na hon wo More menu mein jaati hain */
+  const listRef = useRef(null);
+  const [visibleCount, setVisibleCount] = useState(
+    defaultCategories.length
+  );
+
   /* =====================================================
      SEARCH STATES
   ===================================================== */
@@ -307,6 +313,71 @@ function Navbar() {
       );
     };
   }, []);
+
+  /* =====================================================
+     CATEGORY OVERFLOW — fit hone wale count ko measure karo
+  ===================================================== */
+
+  useEffect(() => {
+    const computeVisible = () => {
+      const list = listRef.current;
+      if (!list) return;
+
+      /* Tablet/mobile menu mein sab dikhte hain */
+      if (window.innerWidth <= 1200) {
+        setVisibleCount(categories.length);
+        return;
+      }
+
+      const items =
+        list.querySelectorAll("[data-cat]");
+      const containerWidth = list.clientWidth;
+      const MORE_WIDTH = 120;
+
+      const fits = (limit) => {
+        let used = 0;
+        for (let i = 0; i < items.length; i++) {
+          if (i >= limit) break;
+          used += items[i].offsetWidth;
+        }
+        return used <= containerWidth;
+      };
+
+      if (fits(items.length)) {
+        setVisibleCount(items.length);
+        return;
+      }
+
+      let count = 0;
+      let used = 0;
+      for (let i = 0; i < items.length; i++) {
+        used += items[i].offsetWidth;
+        if (used > containerWidth - MORE_WIDTH) {
+          break;
+        }
+        count = i + 1;
+      }
+      setVisibleCount(count);
+    };
+
+    computeVisible();
+
+    const observer = new ResizeObserver(
+      computeVisible
+    );
+    if (listRef.current) {
+      observer.observe(listRef.current);
+    }
+    window.addEventListener("resize", computeVisible);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener(
+        "resize",
+        computeVisible
+      );
+    };
+  }, [categories]);
 
   /* =====================================================
      SEARCH RESULTS
@@ -1198,7 +1269,10 @@ function Navbar() {
           }`}
         >
 
-          <div className="category-list">
+          <div
+            className="category-list"
+            ref={listRef}
+          >
 
             {categories.map(
               (
@@ -1209,7 +1283,12 @@ function Navbar() {
                   key={
                     category.name
                   }
+                  data-cat
                   className={`category-item ${
+                    index >= visibleCount
+                      ? "cat-hidden"
+                      : ""
+                  } ${
                     openCategory ===
                     index
                       ? "category-active"
@@ -1310,6 +1389,84 @@ function Navbar() {
 
                 </div>
               )
+            )}
+
+            {/* MORE — jo categories fit na hon */}
+            {visibleCount <
+              categories.length && (
+              <div
+                className={`category-item more-item ${
+                  openCategory === "more"
+                    ? "category-active"
+                    : ""
+                }`}
+                onMouseEnter={() =>
+                  handleCategoryMouseEnter(
+                    "more"
+                  )
+                }
+                onMouseLeave={
+                  handleCategoryMouseLeave
+                }
+              >
+
+                <button
+                  type="button"
+                  className="category-button"
+                  onClick={() =>
+                    setOpenCategory(
+                      openCategory === "more"
+                        ? null
+                        : "more"
+                    )
+                  }
+                >
+                  <span>More</span>
+                  <span className="category-arrow">
+                    ⌄
+                  </span>
+                </button>
+
+                {openCategory === "more" && (
+                  <div
+                    className="category-dropdown more-dropdown"
+                    onMouseEnter={() =>
+                      setOpenCategory("more")
+                    }
+                    onMouseLeave={
+                      handleCategoryMouseLeave
+                    }
+                  >
+
+                    <div className="dropdown-title">
+                      More Categories
+                    </div>
+
+                    {categories
+                      .slice(visibleCount)
+                      .map((category) => (
+                        <Link
+                          key={category.name}
+                          to={`/category?category=${encodeURIComponent(
+                            category.name
+                          )}`}
+                          onClick={() => {
+                            setOpenCategory(
+                              null
+                            );
+                            setMobileMenu(
+                              false
+                            );
+                          }}
+                        >
+                          {category.name}
+                        </Link>
+                      ))}
+
+                  </div>
+                )}
+
+              </div>
             )}
 
           </div>

@@ -252,11 +252,29 @@ body {
   display: flex;
   align-items: stretch;
   overflow: visible;
+  justify-content: space-between;
+  position: relative;
+  min-width: 0;
 }
 
 .category-item {
   position: relative;
-  flex: 1;
+  flex: 0 0 auto;
+}
+
+/* Fit na hone wali categories — More menu mein jaati hain */
+.category-item.cat-hidden {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.category-dropdown.more-dropdown {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .category-button {
