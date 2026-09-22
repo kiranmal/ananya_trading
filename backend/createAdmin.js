@@ -3,9 +3,7 @@ require("dotenv").config();
 const bcrypt =
   require("bcryptjs");
 
-const {
-  pool,
-} =
+const pool =
   require("./config/db");
 
 

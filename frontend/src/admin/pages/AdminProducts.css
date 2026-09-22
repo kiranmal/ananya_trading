@@ -1,0 +1,489 @@
+/* =====================================================
+   ADMIN PRODUCTS — LIGHT THEME
+   ANANYA TRADING COMPANY
+   (Scoped under .admin-products)
+===================================================== */
+
+.admin-products {
+  width: 100%;
+}
+
+/* =====================================================
+   PAGE HEADING
+===================================================== */
+
+.admin-products .page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  margin-bottom: 28px;
+  padding: 5px 0;
+}
+
+.admin-products .page-heading h2 {
+  margin: 0;
+
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+
+  color: #111827;
+}
+
+.admin-products .page-heading p {
+  margin: 7px 0 0;
+
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.admin-products .primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 44px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #111827;
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  text-decoration: none;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.admin-products .primary-btn:hover {
+  background: #1f2937;
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 10px 25px
+    rgba(15, 23, 42, 0.18);
+}
+
+/* =====================================================
+   PANEL
+===================================================== */
+
+.admin-products .panel {
+  padding: 22px;
+
+  border: 1px solid #e9edf2;
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 6px 20px
+    rgba(15, 23, 42, 0.05);
+}
+
+/* =====================================================
+   TOOLBAR
+===================================================== */
+
+.admin-products .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 18px;
+}
+
+.admin-products .search-input {
+  flex: 1;
+
+  min-width: 220px;
+  max-width: 420px;
+
+  height: 42px;
+  padding: 0 14px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+
+  background: #f9fafb;
+
+  color: #111827;
+  font-size: 13px;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.admin-products .search-input::placeholder {
+  color: #9ca3af;
+}
+
+.admin-products .search-input:focus {
+  border-color: #93c5fd;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(37, 99, 235, 0.08);
+}
+
+.admin-products .filter {
+  height: 42px;
+
+  padding: 0 12px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #374151;
+  font-size: 13px;
+
+  outline: none;
+
+  cursor: pointer;
+}
+
+/* =====================================================
+   TABLE
+===================================================== */
+
+.admin-products .table-wrap {
+  width: 100%;
+
+  overflow-x: auto;
+
+  border: 1px solid #f0f2f5;
+  border-radius: 12px;
+}
+
+.admin-products .admin-table {
+  width: 100%;
+
+  border-collapse: collapse;
+
+  min-width: 700px;
+}
+
+.admin-products .admin-table thead {
+  background: #f9fafb;
+}
+
+.admin-products .admin-table th {
+  padding: 13px 16px;
+
+  color: #6b7280;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-align: left;
+
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+
+  border-bottom: 1px solid #e5e7eb;
+
+  white-space: nowrap;
+}
+
+.admin-products .admin-table td {
+  padding: 14px 16px;
+
+  color: #374151;
+
+  font-size: 13px;
+
+  border-bottom: 1px solid #f0f2f5;
+
+  vertical-align: middle;
+
+  white-space: nowrap;
+}
+
+.admin-products .admin-table tbody tr {
+  transition:
+    background 0.2s ease;
+}
+
+.admin-products .admin-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.admin-products .admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* =====================================================
+   PRODUCT CELL
+===================================================== */
+
+.admin-products .product-cell {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.admin-products .product-thumb {
+  width: 48px;
+  height: 48px;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+
+  border: 1px solid #eef1f4;
+  border-radius: 11px;
+
+  background: #f6f8fa;
+
+  font-size: 20px;
+}
+
+.admin-products .product-thumb img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.admin-products .product-name {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-products .product-name strong {
+  color: #111827;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-products .product-name small {
+  margin-top: 3px;
+
+  color: #9ca3af;
+
+  font-size: 11px;
+}
+
+/* =====================================================
+   CATEGORY PILL
+===================================================== */
+
+.admin-products .category-pill {
+  display: inline-block;
+
+  padding: 5px 11px;
+
+  border-radius: 999px;
+
+  background: #eef2ff;
+
+  color: #4f46e5;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* =====================================================
+   PRICE
+===================================================== */
+
+.admin-products .price-cell {
+  color: #111827;
+
+  font-weight: 700;
+}
+
+/* =====================================================
+   STOCK PILL
+===================================================== */
+
+.admin-products .stock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 4px 11px;
+
+  border-radius: 999px;
+
+  background: #f1f5f9;
+
+  color: #475569;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-products .stock-pill.low {
+  background: #fee2e2;
+
+  color: #b91c1c;
+}
+
+.admin-products .stock-pill.ok {
+  background: #dcfce7;
+
+  color: #166534;
+}
+
+/* =====================================================
+   STATUS
+===================================================== */
+
+.admin-products .status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 80px;
+
+  padding: 5px 11px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-products .status.delivered {
+  background: #dcfce7;
+
+  color: #166534;
+}
+
+.admin-products .status.pending {
+  background: #fef3c7;
+
+  color: #b45309;
+}
+
+.admin-products .status.cancelled {
+  background: #fee2e2;
+
+  color: #b91c1c;
+}
+
+/* =====================================================
+   ACTIONS
+===================================================== */
+
+.admin-products .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-products .action-btn {
+  width: 34px;
+  height: 34px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  color: #374151;
+
+  font-size: 14px;
+
+  text-decoration: none;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.admin-products .action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.admin-products .action-btn.edit-btn:hover {
+  border-color: #bfdbfe;
+
+  background: #eff6ff;
+}
+
+.admin-products .action-btn.delete-btn:hover {
+  border-color: #fecaca;
+
+  background: #fef2f2;
+}
+
+/* =====================================================
+   EMPTY STATE
+===================================================== */
+
+.admin-products .empty-state {
+  padding: 45px 20px;
+
+  text-align: center;
+
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 768px) {
+
+  .admin-products .page-heading {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .admin-products .primary-btn {
+    width: 100%;
+  }
+
+  .admin-products .toolbar {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+  .admin-products .search-input {
+    max-width: none;
+
+    width: 100%;
+  }
+
+  .admin-products .filter {
+    width: 100%;
+  }
+
+}
