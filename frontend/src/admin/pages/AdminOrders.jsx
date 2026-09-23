@@ -591,6 +591,8 @@ export default function AdminOrders() {
 ===================================================== */
 
 function OrderDrawer({ order, onClose }) {
+  const [lightbox, setLightbox] = useState(null);
+
   const items = Array.isArray(order.cart)
     ? order.cart
     : Array.isArray(order.items)
@@ -599,6 +601,17 @@ function OrderDrawer({ order, onClose }) {
 
   const formatPrice = (price) =>
     Number(price || 0).toLocaleString("en-IN");
+
+  const ZoomableImg = ({ src, className }) =>
+    src ? (
+      <img
+        src={src}
+        alt=""
+        className={`${className} od-zoomable`}
+        title="Click to enlarge"
+        onClick={() => setLightbox(src)}
+      />
+    ) : null;
 
   const renderElement = (el, side) => {
     if (el.hidden) return null;
@@ -611,9 +624,8 @@ function OrderDrawer({ order, onClose }) {
             {el.label || "Logo / Image"}
           </span>
           {el.src && (
-            <img
+            <ZoomableImg
               src={el.src}
-              alt=""
               className="od-el-img"
             />
           )}
@@ -739,9 +751,8 @@ function OrderDrawer({ order, onClose }) {
 
               <div className="od-item-head">
                 {item.image && (
-                  <img
+                  <ZoomableImg
                     src={item.image}
-                    alt=""
                     className="od-item-img"
                   />
                 )}
@@ -848,6 +859,19 @@ function OrderDrawer({ order, onClose }) {
             </strong>
           </div>
         </div>
+
+        {/* LIGHTBOX — full-size image */}
+        {lightbox && (
+          <div
+            className="od-lightbox"
+            onClick={() => setLightbox(null)}
+          >
+            <img src={lightbox} alt="" />
+            <span className="od-lightbox-hint">
+              Click anywhere to close
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
