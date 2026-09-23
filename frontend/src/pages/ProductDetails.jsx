@@ -491,8 +491,15 @@ function ProductDetails() {
 
 
   /* =====================================================
-     CUSTOMIZE
+     CUSTOMIZE — sirf customizable products pe
   ===================================================== */
+
+  const isCustomizableProduct = Boolean(
+    product?.customizable ||
+      product?.isCustomizable ||
+      product?.customizationType ||
+      product?.type
+  );
 
   const handleCustomize = () => {
     const selectedProduct = {
@@ -1412,17 +1419,19 @@ function ProductDetails() {
           <div className="product-actions">
 
 
-            <button
-              type="button"
-              className="customize-btn"
-              onClick={
-                handleCustomize
-              }
-            >
+            {isCustomizableProduct && (
+              <button
+                type="button"
+                className="customize-btn"
+                onClick={
+                  handleCustomize
+                }
+              >
 
-              Customize Now
+                Customize Now
 
-            </button>
+              </button>
+            )}
 
 
             <button

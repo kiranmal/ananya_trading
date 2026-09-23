@@ -54,6 +54,12 @@ export default function AddProduct() {
   const [quantityStep, setQuantityStep] =
     useState("1");
 
+  const [customizable, setCustomizable] =
+    useState(false);
+
+  const [customizationType, setCustomizationType] =
+    useState("tshirt");
+
   const [images, setImages] = useState([]);
 
   const [description, setDescription] = useState("");
@@ -212,6 +218,12 @@ export default function AddProduct() {
         1,
         Math.floor(Number(quantityStep)) || 1
       ),
+
+      customizable,
+
+      customizationType: customizable
+        ? customizationType
+        : null,
 
       discount: productDiscount,
 
@@ -518,6 +530,113 @@ export default function AddProduct() {
                 Min order + step. e.g. 100 for
                 business cards, 1 for normal
                 products.
+              </small>
+            </div>
+
+            {/* CUSTOMIZATION */}
+
+            <div className="form-group">
+              <label>Customization</label>
+
+              <div
+                className="input-wrapper"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  border: "1px solid #d7dce3",
+                  borderRadius: "7px",
+                  padding: "11px 13px",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setCustomizable(!customizable)
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={customizable}
+                  onChange={(e) =>
+                    setCustomizable(e.target.checked)
+                  }
+                  style={{
+                    width: "17px",
+                    height: "17px",
+                    accentColor: "#123d70",
+                    cursor: "pointer",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#17233a",
+                  }}
+                >
+                  Enable Customization (customer
+                  editor)
+                </span>
+              </div>
+
+              {customizable && (
+                <div
+                  className="input-wrapper"
+                  style={{ marginTop: "10px" }}
+                >
+                  <select
+                    value={customizationType}
+                    onChange={(e) =>
+                      setCustomizationType(
+                        e.target.value
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      height: "42px",
+                      border: "1px solid #d7dce3",
+                      borderRadius: "7px",
+                      padding: "0 12px",
+                      fontSize: "13px",
+                      background: "white",
+                    }}
+                  >
+                    <option value="tshirt">
+                      T-Shirt / Apparel
+                    </option>
+                    <option value="hoodie">
+                      Hoodie
+                    </option>
+                    <option value="spiral-notebook">
+                      Spiral Notebook
+                    </option>
+                    <option value="business-card">
+                      Business Card
+                    </option>
+                    <option value="mug">
+                      Mug
+                    </option>
+                    <option value="letterhead">
+                      Letterhead
+                    </option>
+                    <option value="envelope">
+                      Envelope
+                    </option>
+                    <option value="other">
+                      Other
+                    </option>
+                  </select>
+                </div>
+              )}
+
+              <small
+                style={{
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                Enabled hone par product detail
+                page pe "Customize Now" button
+                dikhega.
               </small>
             </div>
 

@@ -1371,6 +1371,22 @@ function Category() {
                         </div>
 
 
+                        {/* CUSTOMIZABLE badge */}
+
+                        {(product.customizable ||
+                          product.isCustomizable ||
+                          product.customizationType ||
+                          product.type) && (
+
+                          <div className="customizable-badge">
+
+                            ✦ Customizable
+
+                          </div>
+
+                        )}
+
+
                         {/* VIEW DETAILS */}
 
                         <Link

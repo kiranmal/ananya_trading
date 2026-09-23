@@ -742,4 +742,34 @@ const products = [
   }
 ];
 
+/* =========================================================
+   CUSTOMIZATION CONFIG
+   Sirf ye products customization editor mein khulte hain.
+   Admin panel se bhi enable/type change ho sakta hai.
+========================================================= */
+
+const customizationMap = {
+  1: "business-card",
+  2: "business-card",
+  3: "business-card",
+  4: "business-card",
+  5: "business-card",
+  6: "business-card",
+  7: "business-card",
+  8: "business-card",
+  10: "spiral-notebook",
+  19: "tshirt",
+  28: "tshirt",
+  29: "tshirt",
+  30: "tshirt",
+};
+
+products.forEach((p) => {
+  const type = customizationMap[p.id];
+  if (type) {
+    p.customizable = true;
+    p.customizationType = type;
+  }
+});
+
 export default products;

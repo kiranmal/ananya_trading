@@ -54,6 +54,8 @@ const createProductsTable = async () => {
       paper_types TEXT DEFAULT NULL,
       sizes TEXT DEFAULT NULL,
       features TEXT DEFAULT NULL,
+      customizable TINYINT(1) NOT NULL DEFAULT 0,
+      customization_type VARCHAR(50) DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id)
@@ -112,8 +114,8 @@ const seedProducts = async () => {
   for (const p of products) {
     await pool.execute(
       `INSERT INTO products
-        (name, category, subcategory, price, old_price, stock, status, badge, rating, reviews, discount, description, images, paper_types, sizes, features)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (name, category, subcategory, price, old_price, stock, status, badge, rating, reviews, discount, description, images, paper_types, sizes, features, customizable, customization_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         p.name,
         p.category || "General",
@@ -131,6 +133,8 @@ const seedProducts = async () => {
         JSON.stringify(p.paperTypes || []),
         JSON.stringify(p.sizes || []),
         JSON.stringify(p.features || []),
+        p.customizable ? 1 : 0,
+        p.customizationType || null,
       ]
     );
   }

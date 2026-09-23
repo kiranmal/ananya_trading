@@ -1113,6 +1113,8 @@ async function ensureProductsTable() {
       sizes TEXT DEFAULT NULL,
       features TEXT DEFAULT NULL,
       quantity_step INT NOT NULL DEFAULT 1,
+      customizable TINYINT(1) NOT NULL DEFAULT 0,
+      customization_type VARCHAR(50) DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id)
@@ -1123,6 +1125,22 @@ async function ensureProductsTable() {
   try {
     await db.execute(
       "ALTER TABLE products ADD COLUMN quantity_step INT NOT NULL DEFAULT 1"
+    );
+  } catch {
+    /* column already exists */
+  }
+
+  try {
+    await db.execute(
+      "ALTER TABLE products ADD COLUMN customizable TINYINT(1) NOT NULL DEFAULT 0"
+    );
+  } catch {
+    /* column already exists */
+  }
+
+  try {
+    await db.execute(
+      "ALTER TABLE products ADD COLUMN customization_type VARCHAR(50) DEFAULT NULL"
     );
   } catch {
     /* column already exists */
@@ -1169,6 +1187,11 @@ function mapProduct(row) {
       1,
       Number(row.quantity_step || 1)
     ),
+    customizable:
+      row.customizable === 1 ||
+      row.customizable === true,
+    customizationType:
+      row.customization_type || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1213,6 +1236,17 @@ function getProductPayload(body) {
       1,
       Math.floor(Number(body.quantityStep ?? 1)) || 1
     ),
+    customizable:
+      body.customizable === true ||
+      body.customizable === 1 ||
+      body.isCustomizable === true ||
+      body.isCustomizable === 1,
+    customizationType:
+      String(
+        body.customizationType ||
+          body.customization_type ||
+          ""
+      ).trim() || null,
   };
 }
 
@@ -1306,8 +1340,9 @@ app.post(
           `INSERT INTO products
             (name, category, subcategory, price, old_price, stock, status,
              badge, rating, reviews, discount, description, images,
-             paper_types, sizes, features, quantity_step)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             paper_types, sizes, features, quantity_step,
+             customizable, customization_type)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             product.name,
             product.category,
@@ -1326,6 +1361,8 @@ app.post(
             JSON.stringify(product.sizes),
             JSON.stringify(product.features),
             product.quantityStep,
+            product.customizable ? 1 : 0,
+            product.customizationType,
           ]
         );
       }
@@ -1373,8 +1410,9 @@ app.post(
         `INSERT INTO products
           (name, category, subcategory, price, old_price, stock, status,
            badge, rating, reviews, discount, description, images,
-           paper_types, sizes, features, quantity_step)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           paper_types, sizes, features, quantity_step,
+           customizable, customization_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           product.name,
           product.category,
@@ -1393,6 +1431,8 @@ app.post(
           JSON.stringify(product.sizes),
           JSON.stringify(product.features),
           product.quantityStep,
+          product.customizable ? 1 : 0,
+          product.customizationType,
         ]
       );
 
@@ -1437,7 +1477,8 @@ app.put(
           name = ?, category = ?, subcategory = ?, price = ?, old_price = ?,
           stock = ?, status = ?, badge = ?, rating = ?, reviews = ?,
           discount = ?, description = ?, images = ?, paper_types = ?,
-          sizes = ?, features = ?, quantity_step = ?
+          sizes = ?, features = ?, quantity_step = ?,
+          customizable = ?, customization_type = ?
          WHERE id = ?`,
         [
           product.name,
@@ -1457,6 +1498,8 @@ app.put(
           JSON.stringify(product.sizes),
           JSON.stringify(product.features),
           product.quantityStep,
+          product.customizable ? 1 : 0,
+          product.customizationType,
           req.params.id,
         ]
       );

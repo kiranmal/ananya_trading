@@ -1086,12 +1086,17 @@ function Customizer() {
       }
 
       const isNb =
+        ["spiral-notebook", "notebook"].includes(
+          String(
+            product?.customizationType ||
+              product?.type ||
+              ""
+          ).toLowerCase()
+        ) ||
         /notebook/i.test(product?.name || "") ||
         /notebook/i.test(
           product?.category || ""
-        ) ||
-        String(product?.type || "")
-          .toLowerCase() === "notebook";
+        );
 
       /* per-product saved design restore */
       let restored = null;
@@ -1174,13 +1179,22 @@ function Customizer() {
     selectedProduct?.name ||
     "Custom Product";
 
-  const isApparel = ["tshirt", "hoodie"].includes(
-    String(productType).toLowerCase()
-  );
+  const customizationType = String(
+    selectedProduct?.customizationType ||
+      productType ||
+      ""
+  ).toLowerCase();
+
+  const isApparel = [
+    "tshirt",
+    "hoodie",
+    "apparel",
+  ].includes(customizationType);
 
   const isNotebook =
-    String(productType).toLowerCase() ===
-      "notebook" ||
+    ["spiral-notebook", "notebook"].includes(
+      customizationType
+    ) ||
     /notebook/i.test(productName) ||
     /notebook/i.test(
       selectedProduct?.category || ""
