@@ -1412,6 +1412,11 @@ function Customizer() {
     setOrderSuccess(true);
 
     setIsPlacingOrder(false);
+
+    /* Order book hua — My Orders pe le jao */
+    setTimeout(() => {
+      navigate("/orders");
+    }, 1500);
   };
 
   /* =====================================================
