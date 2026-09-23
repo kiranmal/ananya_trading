@@ -521,6 +521,14 @@
   aspect-ratio: 380 / 480 !important;
 }
 
+/* pen mockup — halka tilt; print-area + elements
+   iske saath rotate hote hain (text pen ke angle
+   ko follow karta hai) */
+.pen-preview {
+  aspect-ratio: 600 / 500;
+  transform: rotate(-7deg);
+}
+
 /* spiral rings — design layer ke UPAR, clicks block nahi karte */
 .spiral-overlay {
   position: absolute;

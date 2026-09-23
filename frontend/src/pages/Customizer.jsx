@@ -72,6 +72,25 @@ const isDarkColor = (hex) => {
 const printColorFor = (shirtColor) =>
   isDarkColor(shirtColor) ? "#f5f7fa" : "#102a4c";
 
+/* hex color ko lighten (+amt) / darken (-amt) karta hai */
+const shadeHex = (hex, amt) => {
+  const c = String(hex || "#123d70").replace("#", "");
+
+  if (c.length < 6) return hex;
+
+  const f = (v) =>
+    Math.max(
+      0,
+      Math.min(255, v + Math.round(255 * amt))
+    );
+
+  const r = f(parseInt(c.slice(0, 2), 16));
+  const g = f(parseInt(c.slice(2, 4), 16));
+  const b = f(parseInt(c.slice(4, 6), 16));
+
+  return `rgb(${r},${g},${b})`;
+};
+
 const FONT_OPTIONS = [
   "Poppins",
   "Arial",
@@ -458,13 +477,134 @@ function QrPattern() {
 ===================================================== */
 
 /* =========================================================
+   BALL PEN MOCKUP (vector — barrel color changeable)
+   Pen horizontal — CSS tilt print-area ke saath rotate hota
+   hai, isliye text/logo pen ke angle ko follow karte hain.
+========================================================= */
+
+function PenSvg({ color }) {
+  const c = color || "#123d70";
+  const top = shadeHex(c, 0.3);
+  const bot = shadeHex(c, -0.32);
+
+  return (
+    <svg
+      className="garment-svg"
+      viewBox="0 0 600 500"
+    >
+      <defs>
+        <linearGradient
+          id="penBarrel"
+          x1="0" y1="0" x2="0" y2="1"
+        >
+          <stop offset="0" stopColor={top} />
+          <stop offset=".45" stopColor={c} />
+          <stop offset="1" stopColor={bot} />
+        </linearGradient>
+        <linearGradient
+          id="penMetal"
+          x1="0" y1="0" x2="0" y2="1"
+        >
+          <stop offset="0" stopColor="#f4f7fa" />
+          <stop offset=".5" stopColor="#c2cad4" />
+          <stop offset="1" stopColor="#8d97a4" />
+        </linearGradient>
+      </defs>
+
+      {/* soft shadow */}
+      <ellipse
+        cx="300" cy="302"
+        rx="200" ry="14"
+        fill="#000" opacity=".12"
+      />
+
+      {/* click button (left end) */}
+      <rect
+        x="92" y="238" width="26" height="24"
+        rx="8" fill="url(#penMetal)"
+      />
+      <rect
+        x="92" y="240" width="26" height="7"
+        rx="3.5" fill="#ffffff" opacity=".35"
+      />
+
+      {/* end cap */}
+      <rect
+        x="116" y="230" width="18" height="40"
+        rx="6" fill={bot}
+      />
+
+      {/* pocket clip — barrel ke upar, print area
+          se alag */}
+      <path
+        d="M150 224 Q144 206 158 206 L238 206 L238 216 L162 216 Q158 216 160 224 Z"
+        fill="#39424f"
+      />
+      <rect
+        x="150" y="214" width="92" height="7"
+        rx="3.5" fill="#2b323d"
+      />
+
+      {/* BARREL — printable zone yahan hoti hai */}
+      <rect
+        x="132" y="228" width="288" height="44"
+        rx="9" fill="url(#penBarrel)"
+        stroke="#00000018"
+      />
+
+      {/* cylinder sheen + bottom shade */}
+      <rect
+        x="140" y="233" width="270" height="7"
+        rx="3.5" fill="#ffffff" opacity=".28"
+      />
+      <rect
+        x="140" y="263" width="270" height="5"
+        rx="2.5" fill="#000000" opacity=".12"
+      />
+
+      {/* grip rings near tip */}
+      {[0, 1, 2, 3].map((i) => (
+        <rect
+          key={i}
+          x={390 + i * 7}
+          y="228"
+          width="3.5"
+          height="44"
+          fill="#000000"
+          opacity=".13"
+        />
+      ))}
+
+      {/* tip cone */}
+      <path
+        d="M420 228 L484 244 Q494 250 484 256 L420 272 Z"
+        fill="url(#penMetal)"
+      />
+      <path
+        d="M420 228 L484 244 L484 248 L420 234 Z"
+        fill="#ffffff" opacity=".3"
+      />
+
+      {/* nib point */}
+      <path
+        d="M484 244 L498 250 L484 256 Z"
+        fill="#4a5462"
+      />
+    </svg>
+  );
+}
+
+
+
+/* =========================================================
    PRINT AREA per customization type
    (% of preview box — product mockup ke upar safe zone)
 ========================================================= */
 
 const PRINT_AREAS = {
   mug: { left: 30, top: 36, width: 40, height: 36 },
-  pen: { left: 24, top: 44, width: 52, height: 12 },
+  /* pen barrel — clip aur tip se door, sirf body pe */
+  pen: { left: 26, top: 44, width: 42, height: 12 },
   bottle: { left: 33, top: 44, width: 34, height: 24 },
   letterhead: { left: 28, top: 20, width: 44, height: 62 },
   flyer: { left: 32, top: 38, width: 36, height: 48 },
@@ -907,6 +1047,54 @@ const makeNotebookDefaults = (shirtColor) => {
   };
 };
 
+const makePenDefaults = (penColor) => {
+  const ink = printColorFor(penColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 38,
+        fontSize: 15,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Website",
+        text: "www.ananyatrading.com",
+        x: 50,
+        y: 68,
+        fontSize: 9,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
 const makeDefaultDesigns = (shirtColor) => {
   const ink = printColorFor(shirtColor);
 
@@ -1166,6 +1354,13 @@ function Customizer() {
         setDesigns(
           isNb
             ? makeNotebookDefaults(shirtColor)
+            : String(
+                product?.customizationType ||
+                  product?.type ||
+                  ""
+              ).toLowerCase() === "pen" ||
+              /pen/i.test(product?.name || "")
+            ? makePenDefaults(shirtColor)
             : makeDefaultDesigns(shirtColor)
         );
       }
@@ -1222,7 +1417,12 @@ function Customizer() {
       selectedProduct?.category || ""
     );
 
-  /* image-based products ka type-specific print area */
+  const isPen =
+    customizationType === "pen" ||
+    (/pen/i.test(productName) &&
+      !/bottle|open/i.test(productName));
+
+  /* image/pen products ka type-specific print area */
   const typePrintArea =
     !isNotebook &&
     !isApparel &&
@@ -1418,12 +1618,17 @@ function Customizer() {
         85,
         42 + sameKind * 14
       ),
-      fontSize:
-        kind === "company"
-          ? 26
+      fontSize: isPen
+        ? kind === "company"
+          ? 15
           : kind === "designation"
-          ? 14
-          : 20,
+          ? 9
+          : 11
+        : kind === "company"
+        ? 26
+        : kind === "designation"
+        ? 14
+        : 20,
       fontFamily: "Poppins",
       color: printColorFor(productColor),
       bold: kind === "company",
@@ -1641,6 +1846,8 @@ function Customizer() {
     setDesigns(
       isNotebook
         ? makeNotebookDefaults(shirtColor)
+        : isPen
+        ? makePenDefaults(shirtColor)
         : makeDefaultDesigns(shirtColor)
     );
 
@@ -2249,13 +2456,21 @@ function Customizer() {
      COLORS
   ===================================================== */
 
-  const productColors = [
-    "#ffffff",
-    "#17191f",
-    "#112b4c",
-    "#d92132",
-    "#075c51",
-  ];
+  const productColors = isPen
+    ? [
+        "#17191f",
+        "#f5f5f5",
+        "#123d70",
+        "#d92132",
+        "#075c51",
+      ]
+    : [
+        "#ffffff",
+        "#17191f",
+        "#112b4c",
+        "#d92132",
+        "#075c51",
+      ];
 
   const textColors = [
     "#111827",
@@ -2282,6 +2497,8 @@ function Customizer() {
         className={
           isNotebook
             ? "real-product-preview notebook-preview"
+            : isPen
+            ? "real-product-preview pen-preview"
             : !isApparel && productImage
             ? "real-product-preview has-image"
             : "real-product-preview"
@@ -2292,6 +2509,8 @@ function Customizer() {
             color={productColor}
             back={side === "back"}
           />
+        ) : isPen ? (
+          <PenSvg color={productColor} />
         ) : isApparel ? (
           <GarmentSvg
             color={productColor}
@@ -2602,7 +2821,12 @@ function Customizer() {
 
           <div className="title-center">
             <h1>
-              {productName} — {side === "front" ? "Front" : "Back"} Preview
+              {productName} —{" "}
+              {isPen
+                ? "Preview"
+                : side === "front"
+                ? "Front Preview"
+                : "Back Preview"}
             </h1>
 
             <p>
@@ -2611,25 +2835,27 @@ function Customizer() {
             </p>
           </div>
 
-          <div className="side-switch">
-            <button
-              className={
-                side === "front" ? "selected" : ""
-              }
-              onClick={() => setSide("front")}
-            >
-              Front
-            </button>
+          {!isPen && (
+            <div className="side-switch">
+              <button
+                className={
+                  side === "front" ? "selected" : ""
+                }
+                onClick={() => setSide("front")}
+              >
+                Front
+              </button>
 
-            <button
-              className={
-                side === "back" ? "selected" : ""
-              }
-              onClick={() => setSide("back")}
-            >
-              Back
-            </button>
-          </div>
+              <button
+                className={
+                  side === "back" ? "selected" : ""
+                }
+                onClick={() => setSide("back")}
+              >
+                Back
+              </button>
+            </div>
+          )}
         </section>
 
         <main className="preview-main">
@@ -2700,37 +2926,39 @@ function Customizer() {
 
         </div>
 
-        <div className="side-switch">
+        {!isPen && (
+          <div className="side-switch">
 
-          <button
-            className={
-              side === "front"
-                ? "selected"
-                : ""
-            }
-            onClick={() => {
-              setSide("front");
-              setSelectedId(null);
-            }}
-          >
-            Front
-          </button>
+            <button
+              className={
+                side === "front"
+                  ? "selected"
+                  : ""
+              }
+              onClick={() => {
+                setSide("front");
+                setSelectedId(null);
+              }}
+            >
+              Front
+            </button>
 
-          <button
-            className={
-              side === "back"
-                ? "selected"
-                : ""
-            }
-            onClick={() => {
-              setSide("back");
-              setSelectedId(null);
-            }}
-          >
-            Back
-          </button>
+            <button
+              className={
+                side === "back"
+                  ? "selected"
+                  : ""
+              }
+              onClick={() => {
+                setSide("back");
+                setSelectedId(null);
+              }}
+            >
+              Back
+            </button>
 
-        </div>
+          </div>
+        )}
 
       </section>
 
@@ -3075,8 +3303,8 @@ function Customizer() {
 
                     <input
                       type="range"
-                      min="12"
-                      max="70"
+                      min={isPen ? 8 : 12}
+                      max={isPen ? 30 : 70}
                       value={selectedElement.fontSize}
                       onChange={(event) =>
                         moveElementLive(
@@ -3755,7 +3983,12 @@ function Customizer() {
             <div className="settings-content">
 
               <h3>
-                Layers — {side === "front" ? "Front" : "Back"}
+                Layers —{" "}
+                {isPen
+                  ? "Barrel"
+                  : side === "front"
+                  ? "Front"
+                  : "Back"}
               </h3>
 
               {elements.length === 0 && (
@@ -3989,10 +4222,14 @@ function Customizer() {
 
           {/* PRODUCT COLOR — sirf vector products pe */}
 
-          {(isApparel || isNotebook) && (
+          {(isApparel || isNotebook || isPen) && (
             <>
               <h3>
-                Choose Product Color
+                {isPen
+                  ? "Choose Pen Color"
+                  : isNotebook
+                  ? "Notebook Cover"
+                  : "Choose Product Color"}
               </h3>
 
               <div className="product-colors">
