@@ -2868,14 +2868,6 @@ app.post("/api/coupons/validate", async (req, res) => {
   }
 });
 
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "API route not found.",
-    path: req.originalUrl,
-  });
-});
-
 /* =========================================================
    CONTACT INQUIRIES — customer "Get a Quote" form
 ========================================================= */
@@ -3193,6 +3185,18 @@ app.delete(
     }
   }
 );
+
+/* =========================================================
+   404 HANDLER — sabse aakhir mein
+========================================================= */
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "API route not found.",
+    path: req.originalUrl,
+  });
+});
 
 /* =========================================================
    GLOBAL ERROR HANDLER
