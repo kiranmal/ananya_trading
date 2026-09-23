@@ -457,6 +457,28 @@ function QrPattern() {
    NOTEBOOK TEMPLATES — sab elements editable rehte hain
 ===================================================== */
 
+/* =========================================================
+   PRINT AREA per customization type
+   (% of preview box — product mockup ke upar safe zone)
+========================================================= */
+
+const PRINT_AREAS = {
+  mug: { left: 30, top: 36, width: 40, height: 36 },
+  pen: { left: 24, top: 44, width: 52, height: 12 },
+  bottle: { left: 33, top: 44, width: 34, height: 24 },
+  letterhead: { left: 28, top: 20, width: 44, height: 62 },
+  flyer: { left: 32, top: 38, width: 36, height: 48 },
+  brochure: { left: 24, top: 24, width: 52, height: 52 },
+  poster: { left: 30, top: 38, width: 40, height: 48 },
+  sticker: { left: 28, top: 24, width: 44, height: 52 },
+  envelope: { left: 24, top: 52, width: 52, height: 32 },
+  "paper-bag": { left: 30, top: 38, width: 40, height: 46 },
+  box: { left: 26, top: 42, width: 32, height: 42 },
+  "tote-bag": { left: 30, top: 38, width: 40, height: 46 },
+  cap: { left: 34, top: 28, width: 32, height: 22 },
+  giftset: { left: 28, top: 38, width: 44, height: 46 },
+};
+
 const NOTEBOOK_TEMPLATES = [
   {
     id: "minimal",
@@ -1200,6 +1222,21 @@ function Customizer() {
       selectedProduct?.category || ""
     );
 
+  /* image-based products ka type-specific print area */
+  const typePrintArea =
+    !isNotebook &&
+    !isApparel &&
+    PRINT_AREAS[customizationType];
+
+  const printAreaStyle = typePrintArea
+    ? {
+        left: `${typePrintArea.left}%`,
+        top: `${typePrintArea.top}%`,
+        width: `${typePrintArea.width}%`,
+        height: `${typePrintArea.height}%`,
+      }
+    : undefined;
+
   /* product sizes — DB/product data se; fallback type-wise */
   const sizeOptions =
     selectedProduct?.sizes?.length
@@ -1220,6 +1257,7 @@ function Customizer() {
     selectedProduct?.img ||
     selectedProduct?.productImage ||
     selectedProduct?.thumbnail ||
+    selectedProduct?.images?.[0] ||
     "";
 
   /* =====================================================
@@ -2244,6 +2282,8 @@ function Customizer() {
         className={
           isNotebook
             ? "real-product-preview notebook-preview"
+            : !isApparel && productImage
+            ? "real-product-preview has-image"
             : "real-product-preview"
         }
       >
@@ -2274,6 +2314,7 @@ function Customizer() {
         {/* PRINTABLE AREA — design clipped inside */}
         <div
           ref={printAreaRef}
+          style={printAreaStyle}
           className={`print-area${
             isNotebook
               ? " print-area-notebook"
@@ -3946,41 +3987,45 @@ function Customizer() {
 
           </div>
 
-          {/* PRODUCT COLOR */}
+          {/* PRODUCT COLOR — sirf vector products pe */}
 
-          <h3>
-            Choose Product Color
-          </h3>
+          {(isApparel || isNotebook) && (
+            <>
+              <h3>
+                Choose Product Color
+              </h3>
 
-          <div className="product-colors">
+              <div className="product-colors">
 
-            {productColors.map(
-              (color) => (
-                <button
-                  key={color}
-                  className={
-                    productColor === color
-                      ? "product-color selected-product-color"
-                      : "product-color"
-                  }
-                  style={{
-                    background:
-                      color,
-                  }}
-                  onClick={() => {
-                    saveHistory();
+                {productColors.map(
+                  (color) => (
+                    <button
+                      key={color}
+                      className={
+                        productColor === color
+                          ? "product-color selected-product-color"
+                          : "product-color"
+                      }
+                      style={{
+                        background:
+                          color,
+                      }}
+                      onClick={() => {
+                        saveHistory();
 
-                    setProductColor(
-                      color
-                    );
-                  }}
-                />
-              )
-            )}
+                        setProductColor(
+                          color
+                        );
+                      }}
+                    />
+                  )
+                )}
 
-          </div>
+              </div>
 
-          <div className="setting-divider" />
+              <div className="setting-divider" />
+            </>
+          )}
 
           {/* SIZE */}
 

@@ -399,6 +399,23 @@
   text-transform: uppercase;
 }
 
+.card-customize-link {
+  display: block;
+  text-align: center;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid #1263bd;
+  color: #1263bd;
+  border-radius: 7px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.card-customize-link:hover {
+  background: #eaf2fc;
+}
+
 @media (max-width: 1100px) {
 
   .product-grid {

@@ -491,6 +491,11 @@
    REAL PRODUCT IMAGE
 ========================================================= */
 
+/* image-based products — mockup 600x500, print-area % align */
+.real-product-preview.has-image {
+  aspect-ratio: 600 / 500;
+}
+
 .selected-product-image {
   width: 100%;
   height: 100%;

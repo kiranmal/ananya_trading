@@ -1398,6 +1398,30 @@ function Category() {
 
                         </Link>
 
+                        {/* CUSTOMIZE — direct editor */}
+
+                        {(product.customizable ||
+                          product.isCustomizable ||
+                          product.customizationType ||
+                          product.type) && (
+
+                          <Link
+                            to="/customize"
+                            className="card-customize-link"
+                            onClick={() =>
+                              localStorage.setItem(
+                                "selectedCustomizeProduct",
+                                JSON.stringify(product)
+                              )
+                            }
+                          >
+
+                            ✦ Customize Now
+
+                          </Link>
+
+                        )}
+
 
                       </div>
 
