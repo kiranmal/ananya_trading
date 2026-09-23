@@ -2877,6 +2877,324 @@ app.use((req, res) => {
 });
 
 /* =========================================================
+   CONTACT INQUIRIES — customer "Get a Quote" form
+========================================================= */
+
+async function ensureContactInquiriesTable() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS contact_inquiries (
+      id INT NOT NULL AUTO_INCREMENT,
+      name VARCHAR(150) NOT NULL,
+      company_name VARCHAR(200) DEFAULT NULL,
+      email VARCHAR(200) NOT NULL,
+      phone VARCHAR(30) NOT NULL,
+      product_id VARCHAR(50) DEFAULT NULL,
+      product_name VARCHAR(255) DEFAULT NULL,
+      product_options VARCHAR(255) DEFAULT NULL,
+      quantity INT DEFAULT NULL,
+      message TEXT NOT NULL,
+      source VARCHAR(50) DEFAULT 'website',
+      status VARCHAR(20) NOT NULL DEFAULT 'new',
+      admin_notes TEXT DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_status (status),
+      INDEX idx_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+}
+
+/* lightweight spam guard — per-IP, min 20s between submissions,
+   max 8 submissions per hour */
+const inquiryRateMap = new Map();
+
+function inquiryRateOk(ip) {
+  const now = Date.now();
+  const list = (inquiryRateMap.get(ip) || []).filter(
+    (t) => now - t < 60 * 60 * 1000
+  );
+
+  if (list.length >= 8) return false;
+  if (list.length && now - list[list.length - 1] < 20000)
+    return false;
+
+  list.push(now);
+  inquiryRateMap.set(ip, list);
+  return true;
+}
+
+const VALID_INQUIRY_STATUS = [
+  "new",
+  "contacted",
+  "in_progress",
+  "resolved",
+];
+
+app.post("/api/contact-inquiries", async (req, res) => {
+  try {
+    await ensureContactInquiriesTable();
+
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0] ||
+      req.socket?.remoteAddress ||
+      "unknown";
+
+    if (!inquiryRateOk(ip)) {
+      return res.status(429).json({
+        success: false,
+        message:
+          "Too many submissions. Please wait a moment and try again.",
+      });
+    }
+
+    const body = req.body || {};
+
+    const name = String(body.name || "").trim().slice(0, 150);
+    const companyName = String(body.companyName || "")
+      .trim()
+      .slice(0, 200);
+    const email = String(body.email || "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 200);
+    const phone = String(body.phone || "")
+      .trim()
+      .replace(/[^\d+]/g, "")
+      .slice(0, 30);
+    const productId = String(body.productId || "")
+      .trim()
+      .slice(0, 50);
+    const productName = String(body.productName || "")
+      .trim()
+      .slice(0, 255);
+    const productOptions = String(body.productOptions || "")
+      .trim()
+      .slice(0, 255);
+    const message = String(body.message || "").trim();
+    const source = String(body.source || "website")
+      .trim()
+      .slice(0, 50);
+    const quantity = Math.max(
+      0,
+      Math.floor(Number(body.quantity || 0)) || null
+    );
+
+    /* validation */
+    if (name.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter your name.",
+      });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address.",
+      });
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please enter a valid 10 digit phone number.",
+      });
+    }
+
+    if (message.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please tell us a bit more about your requirement.",
+      });
+    }
+
+    const [result] = await db.execute(
+      `INSERT INTO contact_inquiries
+        (name, company_name, email, phone, product_id,
+         product_name, product_options, quantity, message, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        name,
+        companyName || null,
+        email,
+        phone,
+        productId || null,
+        productName || null,
+        productOptions || null,
+        quantity,
+        message,
+        source,
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Inquiry received. Our team will contact you shortly.",
+      id: result.insertId,
+    });
+  } catch (error) {
+    console.error("CONTACT INQUIRY ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to submit inquiry right now.",
+    });
+  }
+});
+
+app.get(
+  "/api/contact-inquiries",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureContactInquiriesTable();
+
+      const status = String(req.query.status || "")
+        .trim()
+        .toLowerCase();
+      const q = String(req.query.q || "").trim();
+      const sort =
+        String(req.query.sort || "newest") === "oldest"
+          ? "ASC"
+          : "DESC";
+
+      let sql = "SELECT * FROM contact_inquiries";
+      const params = [];
+      const where = [];
+
+      if (VALID_INQUIRY_STATUS.includes(status)) {
+        where.push("status = ?");
+        params.push(status);
+      }
+
+      if (q) {
+        where.push(
+          "(name LIKE ? OR email LIKE ? OR phone LIKE ? OR company_name LIKE ? OR product_name LIKE ?)"
+        );
+        const like = `%${q}%`;
+        params.push(like, like, like, like, like);
+      }
+
+      if (where.length) {
+        sql += ` WHERE ${where.join(" AND ")}`;
+      }
+
+      sql += ` ORDER BY created_at ${sort} LIMIT 500`;
+
+      const [rows] = await db.execute(sql, params);
+
+      const [counts] = await db.execute(
+        "SELECT status, COUNT(*) AS total FROM contact_inquiries GROUP BY status"
+      );
+
+      return res.json({
+        success: true,
+        inquiries: rows,
+        counts: Object.fromEntries(
+          counts.map((c) => [c.status, Number(c.total)])
+        ),
+      });
+    } catch (error) {
+      console.error("GET INQUIRIES ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load inquiries.",
+      });
+    }
+  }
+);
+
+app.patch(
+  "/api/contact-inquiries/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureContactInquiriesTable();
+
+      const status = String(req.body.status || "")
+        .trim()
+        .toLowerCase();
+      const adminNotes = String(req.body.adminNotes || "")
+        .trim();
+
+      if (
+        status &&
+        !VALID_INQUIRY_STATUS.includes(status)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status.",
+        });
+      }
+
+      const sets = [];
+      const params = [];
+
+      if (status) {
+        sets.push("status = ?");
+        params.push(status);
+      }
+
+      sets.push("admin_notes = ?");
+      params.push(adminNotes || null);
+
+      params.push(req.params.id);
+
+      await db.execute(
+        `UPDATE contact_inquiries SET ${sets.join(
+          ", "
+        )} WHERE id = ?`,
+        params
+      );
+
+      return res.json({
+        success: true,
+        message: "Inquiry updated.",
+      });
+    } catch (error) {
+      console.error("UPDATE INQUIRY ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update inquiry.",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/contact-inquiries/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureContactInquiriesTable();
+
+      await db.execute(
+        "DELETE FROM contact_inquiries WHERE id = ?",
+        [req.params.id]
+      );
+
+      return res.json({
+        success: true,
+        message: "Inquiry deleted.",
+      });
+    } catch (error) {
+      console.error("DELETE INQUIRY ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete inquiry.",
+      });
+    }
+  }
+);
+
+/* =========================================================
    GLOBAL ERROR HANDLER
 ========================================================= */
 

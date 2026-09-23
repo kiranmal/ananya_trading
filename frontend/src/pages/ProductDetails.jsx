@@ -24,6 +24,7 @@ import {
   getProductById,
 } from "../data/productStorage";
 import { fetchProductById } from "../services/productApi";
+import { saveInquiryContext } from "../services/inquiryApi";
 
 import "../styles/ProductDetails.css";
 
@@ -1497,10 +1498,39 @@ function ProductDetails() {
               BULK MESSAGE
           ================================================= */}
 
-          <div className="bulk-message">
+          <div
+            className="bulk-message"
+            role="button"
+            tabIndex={0}
+            style={{ cursor: "pointer" }}
+            onClick={() => {
+              saveInquiryContext({
+                productId: product.id,
+                productName: product.name,
+                size,
+                quantity,
+                source: "product-detail",
+              });
+
+              navigate("/#contact-inquiry");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                saveInquiryContext({
+                  productId: product.id,
+                  productName: product.name,
+                  size,
+                  quantity,
+                  source: "product-detail",
+                });
+
+                navigate("/#contact-inquiry");
+              }
+            }}
+          >
 
             💼 Bulk orders get additional discounts.
-            Contact us for custom pricing.
+            Contact us for custom pricing →
 
           </div>
 

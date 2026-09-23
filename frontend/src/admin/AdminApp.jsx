@@ -16,6 +16,7 @@ import AdminOrders from "./pages/AdminOrders";
 import AdminDelivery from "./pages/AdminDelivery";
 import AdminReviews from "./pages/AdminReviews";
 import AdminMessages from "./pages/AdminMessages";
+import AdminInquiries from "./pages/AdminInquiries";
 import AdminCoupons from "./pages/AdminCoupons";
 
 // Product Pages
@@ -185,6 +186,17 @@ export default function AdminApp() {
         <Route
           path="messages"
           element={<AdminMessages />}
+        />
+
+
+        {/* =================================================
+            CONTACT INQUIRIES — "Get a Quote" form
+            URL: /admin/inquiries
+        ================================================= */}
+
+        <Route
+          path="inquiries"
+          element={<AdminInquiries />}
         />
 
 

@@ -45,6 +45,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { saveOrderToServer } from "../services/orderApi";
+import { saveInquiryContext } from "../services/inquiryApi";
 
 import "./Customizer.css";
 
@@ -4660,6 +4661,29 @@ function Customizer() {
             </span>
 
           </div>
+
+          {/* NEED HELP — inquiry form with product context */}
+
+          <button
+            type="button"
+            className="need-help-link"
+            onClick={() => {
+              saveInquiryContext({
+                productId: selectedProduct?.id,
+                productName:
+                  selectedProduct?.name,
+                size,
+                color: productColor,
+                quantity: null,
+                source: "customizer",
+              });
+
+              navigate("/#contact-inquiry");
+            }}
+          >
+            <MessageSquare size={15} />
+            Need help with this product?
+          </button>
 
           <div className="setting-divider" />
 

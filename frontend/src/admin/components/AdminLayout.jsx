@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Star,
   Mail,
+  MailQuestion,
   TicketPercent,
 } from "lucide-react";
 
@@ -37,6 +38,8 @@ function AdminLayout() {
   const [authChecking, setAuthChecking] = useState(true);
 
   const [search, setSearch] = useState("");
+  const [inquiryCount, setInquiryCount] =
+    useState(0);
 
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
@@ -111,6 +114,13 @@ function AdminLayout() {
       name: "Contact Messages",
       path: "/admin/messages",
       icon: Mail,
+    },
+
+    {
+      name: "Inquiries",
+      path: "/admin/inquiries",
+      icon: MailQuestion,
+      badge: "inquiries",
     },
   ];
 
@@ -208,6 +218,41 @@ function AdminLayout() {
 
     return () => controller.abort();
   }, [navigate]);
+
+  /* =====================================================
+     NEW INQUIRY COUNT (sidebar badge)
+  ===================================================== */
+
+  useEffect(() => {
+    if (authChecking) return;
+
+    const loadCount = async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/contact-inquiries?status=new`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem(
+                "authToken"
+              )}`,
+            },
+          }
+        );
+        const data = await res.json();
+
+        if (res.ok && Array.isArray(data.inquiries)) {
+          setInquiryCount(data.inquiries.length);
+        }
+      } catch {
+        /* badge optional — ignore */
+      }
+    };
+
+    loadCount();
+
+    const interval = setInterval(loadCount, 60000);
+    return () => clearInterval(interval);
+  }, [authChecking]);
 
   /* =====================================================
      CLOSE MOBILE SIDEBAR ON ROUTE CLICK
@@ -457,6 +502,13 @@ function AdminLayout() {
                   <span>
                     {item.name}
                   </span>
+
+                  {item.badge === "inquiries" &&
+                    inquiryCount > 0 && (
+                      <span className="nav-inquiry-badge">
+                        {inquiryCount}
+                      </span>
+                    )}
 
                 </NavLink>
               );

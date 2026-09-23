@@ -11,6 +11,7 @@ import {
 import "./Home.css";
 import defaultProducts from "../data/products";
 import CustomizeProducts from "../components/CustomizeProducts";
+import ContactSection from "../components/ContactSection";
 import { fetchProducts } from "../services/productApi";
 
 function Home() {
@@ -1227,6 +1228,13 @@ function Home() {
         </div>
 
       </section>
+
+
+      {/* =================================================
+          CONTACT / GET A QUOTE
+      ================================================= */}
+
+      <ContactSection source="homepage" />
 
     </main>
   );
