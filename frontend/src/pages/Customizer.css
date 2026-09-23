@@ -477,8 +477,10 @@
 }
 
 .real-product-preview {
-  width: 100%;
+  /* garment SVG (400x430) ke saath align — print-area % sahi banti hai */
   height: 100%;
+  aspect-ratio: 400 / 430;
+  max-width: 100%;
   position: relative;
   display: flex;
   align-items: center;
@@ -498,132 +500,244 @@
 }
 
 /* =========================================================
-   FALLBACK SHIRT
+   GARMENT MOCKUP (vector t-shirt)
 ========================================================= */
 
-.product-image-fallback {
+.garment-svg {
   width: 100%;
   height: 100%;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tshirt {
-  width: 350px;
-  height: 390px;
-  background: var(--shirt-color);
-  position: relative;
-  border-radius: 45px 45px 25px 25px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-}
-
-.hoodie {
-  width: 350px;
-  height: 420px;
-  background: var(--shirt-color);
-  position: relative;
-  border-radius: 45px 45px 25px 25px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-}
-
-.shirt-collar {
-  width: 90px;
-  height: 45px;
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-radius: 0 0 50px 50px;
-  background: #e7e7e7;
-}
-
-.shirt-left-sleeve,
-.shirt-right-sleeve {
-  width: 115px;
-  height: 155px;
-  background: var(--shirt-color);
-  position: absolute;
-  top: 20px;
-}
-
-.shirt-left-sleeve {
-  left: -90px;
-  transform: rotate(16deg);
-  border-radius: 35px 20px 35px 45px;
-}
-
-.shirt-right-sleeve {
-  right: -90px;
-  transform: rotate(-16deg);
-  border-radius: 20px 35px 45px 35px;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.18));
 }
 
 /* =========================================================
-   PRINT AREA
+   PRINT AREA — design yahan clipped rehta hai
 ========================================================= */
 
 .print-area {
   position: absolute;
-  width: 42%;
-  height: 55%;
-  top: 22%;
-  left: 29%;
-  pointer-events: none;
+  width: 46%;
+  height: 38%;
+  top: 20%;
+  left: 27%;
+  overflow: hidden;
+  pointer-events: auto;
 }
 
-.design-logo,
-.design-text {
+/* editing mein printable boundary dikhti hai */
+.print-area.editing {
+  border: 1.5px dashed rgba(37, 99, 235, 0.55);
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.03);
+}
+
+.print-area.preview-clean {
+  border: 0;
+  background: transparent;
+}
+
+.design-el {
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: move;
   user-select: none;
+  touch-action: none;
 }
 
-.design-logo img {
+.design-text {
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+.design-image-el img {
   width: 100%;
   height: auto;
   display: block;
   object-fit: contain;
 }
 
-.delete-design {
+/* selected element box */
+.design-el.el-selected {
+  outline: 1.5px solid #2563eb;
+  outline-offset: 3px;
+}
+
+.el-delete,
+.el-resize {
   position: absolute;
-  top: -9px;
-  right: -9px;
-  width: 21px;
-  height: 21px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 0;
-  background: #e12432;
   color: white;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
   z-index: 10;
+  font-size: 12px;
+  line-height: 1;
 }
 
-.resize-handle {
-  position: absolute;
-  right: -10px;
-  bottom: -10px;
-  width: 23px;
-  height: 23px;
-  border: 0;
-  border-radius: 50%;
+.el-delete {
+  top: -12px;
+  right: -12px;
+  background: #e12432;
+}
+
+.el-resize {
+  right: -12px;
+  bottom: -12px;
   background: #123d70;
-  color: white;
   cursor: nwse-resize;
-  z-index: 10;
 }
 
-.design-text {
+/* =========================================================
+   QUICK ADD (company/person/designation)
+========================================================= */
+
+.quick-add-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quick-add-btn {
+  min-height: 42px;
+  border: 1px solid #d6dce5;
+  background: white;
+  border-radius: 7px;
+  color: #1d3252;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px;
+  text-align: left;
+}
+
+.quick-add-btn:hover {
+  background: #eaf2ff;
+  border-color: #8eacd0;
+}
+
+.quick-add-btn svg {
+  color: #173f70;
+}
+
+/* =========================================================
+   LAYERS PANEL
+========================================================= */
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+  border: 1px solid #e1e5ea;
+  border-radius: 7px;
+  color: #26364d;
+  cursor: pointer;
+}
+
+.layer-item.layer-selected {
+  border-color: #2563eb;
+  background: #eef4ff;
+}
+
+.layer-item img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.layer-label {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
-  line-height: 1.1;
+}
+
+.layer-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.layer-actions button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #4b5d75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.layer-actions button:hover {
+  background: #dde8f5;
+}
+
+.layer-actions button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* =========================================================
+   PREVIEW MODE
+========================================================= */
+
+.preview-main {
+  min-height: 720px;
+  background: #f4f6f9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 20px 45px;
+}
+
+.preview-stage {
+  width: min(560px, 92vw);
+  aspect-ratio: 400 / 430;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-stage .product-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.preview-stage .real-product-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.preview-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.preview-actions .add-cart-btn,
+.preview-actions .save-design-btn {
+  width: auto;
+  min-width: 210px;
+  padding: 0 26px;
+  margin-top: 0;
 }
 
 /* =========================================================
@@ -1052,6 +1166,36 @@
 }
 
 /* =========================================================
+   PLACE ORDER
+========================================================= */
+
+.place-order-btn {
+  width: 100%;
+  height: 45px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: #15803d;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.place-order-btn:hover {
+  background: #116a34;
+}
+
+.place-order-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================
    SAVE DESIGN
 ========================================================= */
 
@@ -1258,7 +1402,29 @@
     height: 450px;
   }
 
+  /* canvas tools — bottom horizontal bar */
   .canvas-tools {
+    top: auto;
+    right: 50%;
+    bottom: 10px;
+    transform: translateX(50%);
+    width: auto;
+    display: flex;
+    border-radius: 24px;
+  }
+
+  .canvas-tools button {
+    min-height: 48px;
+    min-width: 56px;
+    border-bottom: 0;
+    border-right: 1px solid #edf0f3;
+  }
+
+  .canvas-tools button:last-child {
+    border-right: 0;
+  }
+
+  .canvas-tools span {
     display: none;
   }
 

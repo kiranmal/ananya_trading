@@ -32,6 +32,14 @@ import {
   Info,
   PackageCheck,
   ClipboardList,
+  Building2,
+  User,
+  Briefcase,
+  Eye,
+  EyeOff,
+  ChevronUp,
+  ChevronDown,
+  Image,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -40,10 +48,263 @@ import { saveOrderToServer } from "../services/orderApi";
 
 import "./Customizer.css";
 
+/* =====================================================
+   HELPERS
+===================================================== */
+
+const uid = () =>
+  `el-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}`;
+
+const isDarkColor = (hex) => {
+  const c = String(hex || "#ffffff").replace("#", "");
+
+  if (c.length < 6) return false;
+
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55;
+};
+
+const printColorFor = (shirtColor) =>
+  isDarkColor(shirtColor) ? "#f5f7fa" : "#102a4c";
+
+const FONT_OPTIONS = [
+  "Poppins",
+  "Arial",
+  "Montserrat",
+  "Georgia",
+  "Roboto",
+];
+
+const TEXT_KINDS = [
+  { key: "company", label: "Company Name", placeholder: "ANANYA TRADING" },
+  { key: "person", label: "Person Name", placeholder: "ARUN RAJ" },
+  { key: "designation", label: "Designation", placeholder: "SALES EXECUTIVE" },
+  { key: "custom", label: "Custom Text", placeholder: "YOUR TEXT" },
+];
+
+/* =====================================================
+   GARMENT MOCKUP (vector T-shirt — color changeable)
+===================================================== */
+
+function GarmentSvg({ color, back }) {
+  const dark = isDarkColor(color);
+  const seam = dark
+    ? "rgba(0,0,0,0.35)"
+    : "rgba(0,0,0,0.12)";
+  const shade = dark
+    ? "rgba(0,0,0,0.28)"
+    : "rgba(0,0,0,0.10)";
+  const light = dark
+    ? "rgba(255,255,255,0.10)"
+    : "rgba(255,255,255,0.45)";
+
+  const body =
+    "M150 32 " +
+    "C162 50 238 50 250 32 " +
+    "L296 46 L372 120 L330 207 L298 181 " +
+    "L301 384 C301 400 292 406 277 406 " +
+    "L123 406 C108 406 99 400 99 384 " +
+    "L102 181 L70 207 L28 120 L104 46 Z";
+
+  return (
+    <svg
+      viewBox="0 0 400 430"
+      className="garment-svg"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient
+          id="gshade"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop offset="0%" stopColor={light} />
+          <stop offset="35%" stopColor="rgba(0,0,0,0)" />
+          <stop offset="100%" stopColor={shade} />
+        </linearGradient>
+      </defs>
+
+      {/* shirt silhouette */}
+      <path d={body} fill={color} />
+      <path d={body} fill="url(#gshade)" />
+
+      {/* sleeve seams */}
+      <path
+        d="M104 46 L70 207 M296 46 L330 207"
+        stroke={seam}
+        strokeWidth="2"
+        fill="none"
+        opacity="0.5"
+      />
+
+      {/* sleeve hems */}
+      <path
+        d="M33 132 L75 218 M367 132 L325 218"
+        stroke={seam}
+        strokeWidth="2"
+        fill="none"
+        opacity="0.35"
+      />
+
+      {/* fabric folds */}
+      <path
+        d="M130 240 Q200 255 270 240"
+        stroke={seam}
+        strokeWidth="2.5"
+        fill="none"
+        opacity="0.28"
+      />
+      <path
+        d="M135 300 Q200 315 265 300"
+        stroke={seam}
+        strokeWidth="2.5"
+        fill="none"
+        opacity="0.22"
+      />
+
+      {/* bottom hem */}
+      <path
+        d="M101 388 Q200 396 299 388"
+        stroke={seam}
+        strokeWidth="2.5"
+        fill="none"
+        opacity="0.45"
+      />
+
+      {/* collar */}
+      {back ? (
+        <path
+          d="M152 32 C165 42 235 42 248 32"
+          stroke={seam}
+          strokeWidth="9"
+          fill="none"
+          strokeLinecap="round"
+        />
+      ) : (
+        <>
+          <path
+            d="M150 32 C162 50 238 50 250 32"
+            stroke={seam}
+            strokeWidth="9"
+            fill="none"
+            strokeLinecap="round"
+          />
+          <path
+            d="M156 34 C168 49 232 49 244 34"
+            stroke={shade}
+            strokeWidth="4"
+            fill="none"
+            opacity="0.6"
+          />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/* =====================================================
+   DEFAULT DESIGN
+===================================================== */
+
+const makeDefaultDesigns = (shirtColor) => {
+  const ink = printColorFor(shirtColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 42,
+        fontSize: 26,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 28,
+        fontSize: 32,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "person",
+        label: "Person Name",
+        text: "ARUN RAJ",
+        x: 50,
+        y: 48,
+        fontSize: 20,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "designation",
+        label: "Designation",
+        text: "SALES EXECUTIVE",
+        x: 50,
+        y: 62,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+  };
+};
+
 function Customizer() {
   const navigate = useNavigate();
 
   const fileInputRef = useRef(null);
+  const printAreaRef = useRef(null);
 
   /* =====================================================
      SELECTED PRODUCT
@@ -71,23 +332,26 @@ function Customizer() {
   const [zoom, setZoom] =
     useState(1);
 
-  useEffect(() => {
-    const savedProduct = localStorage.getItem("selectedCustomizeProduct");
+  const [preview, setPreview] =
+    useState(false);
 
-    if (!savedProduct) return;
+  /* =====================================================
+     DESIGN ELEMENTS (front + back independent)
+  ===================================================== */
 
-    try {
-      const product = JSON.parse(savedProduct);
+  const [designs, setDesigns] = useState({
+    front: [],
+    back: [],
+  });
 
-      setSelectedProduct(product);
+  const [selectedId, setSelectedId] =
+    useState(null);
 
-      if (product?.color) {
-        setProductColor(product.color);
-      }
-    } catch (error) {
-      console.error("Selected product load error:", error);
-    }
-  }, []);
+  const elements = designs[side] || [];
+
+  const selectedElement =
+    elements.find((e) => e.id === selectedId) ||
+    null;
 
   /* =====================================================
      CUSTOMER DESCRIPTION / NOTE
@@ -113,53 +377,6 @@ function Customizer() {
     useState(false);
 
   /* =====================================================
-     LOGO
-  ===================================================== */
-
-  const [logo, setLogo] =
-    useState(null);
-
-  const [logoPosition, setLogoPosition] =
-    useState({
-      x: 50,
-      y: 31,
-    });
-
-  const [logoSize, setLogoSize] =
-    useState(115);
-
-  /* =====================================================
-     TEXT
-  ===================================================== */
-
-  const [text, setText] =
-    useState("ANANYA TRADING");
-
-  const [textPosition, setTextPosition] =
-    useState({
-      x: 50,
-      y: 55,
-    });
-
-  const [fontSize, setFontSize] =
-    useState(25);
-
-  const [fontFamily, setFontFamily] =
-    useState("Poppins");
-
-  const [textColor, setTextColor] =
-    useState("#102a4c");
-
-  const [bold, setBold] =
-    useState(true);
-
-  const [italic, setItalic] =
-    useState(false);
-
-  const [underline, setUnderline] =
-    useState(false);
-
-  /* =====================================================
      HISTORY
   ===================================================== */
 
@@ -168,6 +385,71 @@ function Customizer() {
 
   const [future, setFuture] =
     useState([]);
+
+  /* =====================================================
+     LOAD PRODUCT + SAVED DESIGN
+  ===================================================== */
+
+  useEffect(() => {
+    const savedProduct = localStorage.getItem("selectedCustomizeProduct");
+
+    if (!savedProduct) return;
+
+    try {
+      const product = JSON.parse(savedProduct);
+
+      setSelectedProduct(product);
+
+      const shirtColor =
+        product?.color || "#ffffff";
+
+      setProductColor(shirtColor);
+
+      /* per-product saved design restore */
+      let restored = null;
+
+      try {
+        const raw = localStorage.getItem(
+          `savedDesign_${product.id}`
+        );
+
+        if (raw) {
+          restored = JSON.parse(raw);
+        }
+      } catch {
+        restored = null;
+      }
+
+      if (
+        restored &&
+        restored.designs &&
+        (restored.designs.front?.length ||
+          restored.designs.back?.length)
+      ) {
+        setDesigns(restored.designs);
+
+        if (restored.productColor) {
+          setProductColor(restored.productColor);
+        }
+
+        if (restored.size) {
+          setSize(restored.size);
+        }
+
+        setCustomerDescription(
+          restored.customerDescription || ""
+        );
+
+        setCustomerNote(
+          restored.customerNote || ""
+        );
+      } else {
+        setDesigns(makeDefaultDesigns(shirtColor));
+      }
+    } catch (error) {
+      console.error("Selected product load error:", error);
+    }
+  }, []);
 
   /* =====================================================
      PRICE
@@ -192,9 +474,9 @@ function Customizer() {
     selectedProduct?.type ||
     "tshirt";
 
-  const isHoodie =
-    productType
-      .toLowerCase() === "hoodie";
+  const isApparel = ["tshirt", "hoodie"].includes(
+    String(productType).toLowerCase()
+  );
 
   const productName =
     selectedProduct?.name ||
@@ -208,52 +490,19 @@ function Customizer() {
     "";
 
   /* =====================================================
-     CURRENT DESIGN STATE
+     CURRENT STATE / HISTORY
   ===================================================== */
 
-  const getCurrentState = () => {
-    return {
-      logo,
-
-      logoPosition: {
-        ...logoPosition,
-      },
-
-      logoSize,
-
-      text,
-
-      textPosition: {
-        ...textPosition,
-      },
-
-      fontSize,
-
-      fontFamily,
-
-      textColor,
-
-      bold,
-
-      italic,
-
-      underline,
-
-      productColor,
-
-      size,
-
-      side,
-    };
-  };
-
-  /* =====================================================
-     HISTORY
-  ===================================================== */
+  const getCurrentState = () => ({
+    designs: JSON.parse(JSON.stringify(designs)),
+    productColor,
+    size,
+    side,
+  });
 
   const saveHistory = () => {
     setHistory((prev) => [
-      ...prev.slice(-20),
+      ...prev.slice(-25),
       getCurrentState(),
     ]);
 
@@ -261,75 +510,25 @@ function Customizer() {
   };
 
   const restoreState = (state) => {
-    if (!state) {
-      return;
-    }
+    if (!state) return;
 
-    setLogo(state.logo || null);
-
-    setLogoPosition(
-      state.logoPosition || {
-        x: 50,
-        y: 31,
-      }
-    );
-
-    setLogoSize(
-      state.logoSize || 115
-    );
-
-    setText(
-      state.text ?? ""
-    );
-
-    setTextPosition(
-      state.textPosition || {
-        x: 50,
-        y: 55,
-      }
-    );
-
-    setFontSize(
-      state.fontSize || 25
-    );
-
-    setFontFamily(
-      state.fontFamily || "Poppins"
-    );
-
-    setTextColor(
-      state.textColor || "#102a4c"
-    );
-
-    setBold(
-      state.bold ?? true
-    );
-
-    setItalic(
-      state.italic ?? false
-    );
-
-    setUnderline(
-      state.underline ?? false
+    setDesigns(
+      state.designs || { front: [], back: [] }
     );
 
     setProductColor(
       state.productColor || "#ffffff"
     );
 
-    setSize(
-      state.size || "M"
-    );
+    setSize(state.size || "M");
 
-    setSide(
-      state.side || "front"
-    );
+    setSide(state.side || "front");
+
+    setSelectedId(null);
   };
 
   const undo = () => {
-    if (history.length === 0) {
-      return;
-    }
+    if (history.length === 0) return;
 
     const previous =
       history[history.length - 1];
@@ -339,17 +538,13 @@ function Customizer() {
       getCurrentState(),
     ]);
 
-    setHistory((prev) =>
-      prev.slice(0, -1)
-    );
+    setHistory((prev) => prev.slice(0, -1));
 
     restoreState(previous);
   };
 
   const redo = () => {
-    if (future.length === 0) {
-      return;
-    }
+    if (future.length === 0) return;
 
     const next =
       future[future.length - 1];
@@ -359,15 +554,127 @@ function Customizer() {
       getCurrentState(),
     ]);
 
-    setFuture((prev) =>
-      prev.slice(0, -1)
-    );
+    setFuture((prev) => prev.slice(0, -1));
 
     restoreState(next);
   };
 
   /* =====================================================
-     LOGO UPLOAD
+     ELEMENT OPERATIONS
+  ===================================================== */
+
+  const updateElement = (id, patch, record = true) => {
+    if (record) saveHistory();
+
+    setDesigns((prev) => ({
+      ...prev,
+      [side]: prev[side].map((e) =>
+        e.id === id ? { ...e, ...patch } : e
+      ),
+    }));
+  };
+
+  /* drag ke dauran history spam na ho — move bina record */
+  const moveElementLive = (id, patch) => {
+    setDesigns((prev) => ({
+      ...prev,
+      [side]: prev[side].map((e) =>
+        e.id === id ? { ...e, ...patch } : e
+      ),
+    }));
+  };
+
+  const deleteElement = (id) => {
+    saveHistory();
+
+    setDesigns((prev) => ({
+      ...prev,
+      [side]: prev[side].filter(
+        (e) => e.id !== id
+      ),
+    }));
+
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  const reorderElement = (id, dir) => {
+    saveHistory();
+
+    setDesigns((prev) => {
+      const list = [...prev[side]];
+      const idx = list.findIndex(
+        (e) => e.id === id
+      );
+      const swap = idx + dir;
+
+      if (
+        idx < 0 ||
+        swap < 0 ||
+        swap >= list.length
+      ) {
+        return prev;
+      }
+
+      [list[idx], list[swap]] = [
+        list[swap],
+        list[idx],
+      ];
+
+      return { ...prev, [side]: list };
+    });
+  };
+
+  const addTextElement = (kind) => {
+    saveHistory();
+
+    const preset = TEXT_KINDS.find(
+      (k) => k.key === kind
+    );
+
+    /* same kind dobara add ho toh y thoda neeche */
+    const sameKind = elements.filter(
+      (e) => e.kind === kind
+    ).length;
+
+    const newEl = {
+      id: uid(),
+      type: "text",
+      kind,
+      label: preset.label,
+      text: preset.placeholder,
+      x: 50,
+      y: Math.min(
+        85,
+        42 + sameKind * 14
+      ),
+      fontSize:
+        kind === "company"
+          ? 26
+          : kind === "designation"
+          ? 14
+          : 20,
+      fontFamily: "Poppins",
+      color: printColorFor(productColor),
+      bold: kind === "company",
+      italic: false,
+      underline: false,
+      align: "center",
+      letterSpacing: 1,
+      rotation: 0,
+      hidden: false,
+    };
+
+    setDesigns((prev) => ({
+      ...prev,
+      [side]: [...prev[side], newEl],
+    }));
+
+    setSelectedId(newEl.id);
+    setActiveTool("text");
+  };
+
+  /* =====================================================
+     LOGO / IMAGE UPLOAD
   ===================================================== */
 
   const handleLogoUpload = (event) => {
@@ -378,34 +685,37 @@ function Customizer() {
       return;
     }
 
-    if (
-      !file.type.startsWith("image/")
-    ) {
-      alert(
-        "Please select a valid image."
-      );
-
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image.");
       event.target.value = "";
-
       return;
     }
 
-    saveHistory();
-
-    const reader =
-      new FileReader();
+    const reader = new FileReader();
 
     reader.onload = (e) => {
-      setLogo(
-        e.target.result
-      );
+      saveHistory();
 
-      setLogoPosition({
+      const newEl = {
+        id: uid(),
+        type: "image",
+        kind: "logo",
+        label: file.name || "Logo",
+        src: e.target.result,
         x: 50,
-        y: 31,
-      });
+        y: 32,
+        width: 38,
+        rotation: 0,
+        opacity: 1,
+        hidden: false,
+      };
 
-      setLogoSize(115);
+      setDesigns((prev) => ({
+        ...prev,
+        [side]: [...prev[side], newEl],
+      }));
+
+      setSelectedId(newEl.id);
     };
 
     reader.readAsDataURL(file);
@@ -413,254 +723,137 @@ function Customizer() {
     event.target.value = "";
   };
 
-  const deleteLogo = () => {
-    if (!logo) {
-      return;
-    }
-
-    saveHistory();
-
-    setLogo(null);
-  };
-
   /* =====================================================
-     LOGO DRAG
+     DRAG (pointer — mouse + touch)
   ===================================================== */
 
-  const handleLogoMouseDown = (
-    event
-  ) => {
-    event.preventDefault();
-
-    const printArea =
-      event.currentTarget.closest(
-        ".print-area"
-      );
-
-    if (!printArea) {
-      return;
-    }
-
-    const container =
-      printArea.getBoundingClientRect();
-
-    const startX =
-      event.clientX;
-
-    const startY =
-      event.clientY;
-
-    const initialX =
-      logoPosition.x;
-
-    const initialY =
-      logoPosition.y;
-
-    const handleMove = (
-      moveEvent
-    ) => {
-      const dx =
-        ((moveEvent.clientX -
-          startX) /
-          container.width) *
-        100;
-
-      const dy =
-        ((moveEvent.clientY -
-          startY) /
-          container.height) *
-        100;
-
-      setLogoPosition({
-        x: Math.max(
-          10,
-          Math.min(
-            90,
-            initialX + dx
-          )
-        ),
-
-        y: Math.max(
-          5,
-          Math.min(
-            90,
-            initialY + dy
-          )
-        ),
-      });
-    };
-
-    const handleUp = () => {
-      window.removeEventListener(
-        "mousemove",
-        handleMove
-      );
-
-      window.removeEventListener(
-        "mouseup",
-        handleUp
-      );
-    };
-
-    window.addEventListener(
-      "mousemove",
-      handleMove
-    );
-
-    window.addEventListener(
-      "mouseup",
-      handleUp
-    );
-  };
-
-  /* =====================================================
-     LOGO RESIZE
-  ===================================================== */
-
-  const handleLogoResize = (
-    event
-  ) => {
+  const startDrag = (el) => (event) => {
     event.preventDefault();
     event.stopPropagation();
 
-    const startX =
-      event.clientX;
+    setSelectedId(el.id);
+    saveHistory();
 
-    const initialSize =
-      logoSize;
+    const area = printAreaRef.current;
+    if (!area) return;
 
-    const handleMove = (
-      moveEvent
-    ) => {
-      const difference =
-        moveEvent.clientX -
-        startX;
+    const rect =
+      area.getBoundingClientRect();
 
-      const newSize =
-        initialSize +
-        difference;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initX = el.x;
+    const initY = el.y;
 
-      setLogoSize(
-        Math.max(
-          50,
-          Math.min(
-            240,
-            newSize
-          )
-        )
-      );
-    };
-
-    const handleUp = () => {
-      window.removeEventListener(
-        "mousemove",
-        handleMove
-      );
-
-      window.removeEventListener(
-        "mouseup",
-        handleUp
-      );
-    };
-
-    window.addEventListener(
-      "mousemove",
-      handleMove
-    );
-
-    window.addEventListener(
-      "mouseup",
-      handleUp
-    );
-  };
-
-  /* =====================================================
-     TEXT DRAG
-  ===================================================== */
-
-  const handleTextMouseDown = (
-    event
-  ) => {
-    event.preventDefault();
-
-    const printArea =
-      event.currentTarget.closest(
-        ".print-area"
-      );
-
-    if (!printArea) {
-      return;
-    }
-
-    const container =
-      printArea.getBoundingClientRect();
-
-    const startX =
-      event.clientX;
-
-    const startY =
-      event.clientY;
-
-    const initialX =
-      textPosition.x;
-
-    const initialY =
-      textPosition.y;
-
-    const handleMove = (
-      moveEvent
-    ) => {
+    const onMove = (ev) => {
       const dx =
-        ((moveEvent.clientX -
-          startX) /
-          container.width) *
+        ((ev.clientX - startX) / rect.width) *
         100;
-
       const dy =
-        ((moveEvent.clientY -
-          startY) /
-          container.height) *
+        ((ev.clientY - startY) / rect.height) *
         100;
 
-      setTextPosition({
+      moveElementLive(el.id, {
         x: Math.max(
-          5,
-          Math.min(
-            95,
-            initialX + dx
-          )
+          0,
+          Math.min(100, initX + dx)
         ),
-
         y: Math.max(
-          5,
-          Math.min(
-            95,
-            initialY + dy
-          )
+          0,
+          Math.min(100, initY + dy)
         ),
       });
     };
 
-    const handleUp = () => {
+    const onUp = () => {
       window.removeEventListener(
-        "mousemove",
-        handleMove
+        "pointermove",
+        onMove
       );
-
       window.removeEventListener(
-        "mouseup",
-        handleUp
+        "pointerup",
+        onUp
       );
     };
 
     window.addEventListener(
-      "mousemove",
-      handleMove
+      "pointermove",
+      onMove
     );
+    window.addEventListener(
+      "pointerup",
+      onUp
+    );
+  };
+
+  /* =====================================================
+     RESIZE HANDLE
+  ===================================================== */
+
+  const startResize = (el) => (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    saveHistory();
+
+    const area = printAreaRef.current;
+    const rect = area
+      ? area.getBoundingClientRect()
+      : { width: 200 };
+
+    const startX = event.clientX;
+    const initSize =
+      el.type === "image"
+        ? el.width
+        : el.fontSize;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+
+      if (el.type === "image") {
+        const delta =
+          (dx / rect.width) * 100;
+
+        moveElementLive(el.id, {
+          width: Math.max(
+            10,
+            Math.min(
+              100,
+              initSize + delta
+            )
+          ),
+        });
+      } else {
+        moveElementLive(el.id, {
+          fontSize: Math.max(
+            10,
+            Math.min(
+              80,
+              initSize + dx / 4
+            )
+          ),
+        });
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener(
+        "pointermove",
+        onMove
+      );
+      window.removeEventListener(
+        "pointerup",
+        onUp
+      );
+    };
 
     window.addEventListener(
-      "mouseup",
-      handleUp
+      "pointermove",
+      onMove
+    );
+    window.addEventListener(
+      "pointerup",
+      onUp
     );
   };
 
@@ -671,50 +864,20 @@ function Customizer() {
   const resetDesign = () => {
     saveHistory();
 
-    setLogo(null);
+    const shirtColor =
+      selectedProduct?.color || "#ffffff";
 
-    setLogoPosition({
-      x: 50,
-      y: 31,
-    });
+    setDesigns(makeDefaultDesigns(shirtColor));
 
-    setLogoSize(115);
-
-    setText(
-      "ANANYA TRADING"
-    );
-
-    setTextPosition({
-      x: 50,
-      y: 55,
-    });
-
-    setFontSize(25);
-
-    setFontFamily(
-      "Poppins"
-    );
-
-    setTextColor(
-      "#102a4c"
-    );
-
-    setBold(true);
-
-    setItalic(false);
-
-    setUnderline(false);
-
-    setProductColor(
-      selectedProduct?.color ||
-        "#ffffff"
-    );
+    setProductColor(shirtColor);
 
     setSize("M");
 
     setZoom(1);
 
     setSide("front");
+
+    setSelectedId(null);
 
     setCustomerDescription("");
 
@@ -730,6 +893,33 @@ function Customizer() {
 
   const createCustomProduct = () => {
     const now = Date.now();
+
+    const firstText =
+      designs.front.find(
+        (e) => e.type === "text"
+      ) ||
+      designs.back.find(
+        (e) => e.type === "text"
+      ) ||
+      null;
+
+    const firstImage =
+      designs.front.find(
+        (e) => e.type === "image"
+      ) ||
+      designs.back.find(
+        (e) => e.type === "image"
+      ) ||
+      null;
+
+    const findText = (kind) =>
+      designs.front.find(
+        (e) => e.kind === kind
+      )?.text ||
+      designs.back.find(
+        (e) => e.kind === kind
+      )?.text ||
+      "";
 
     return {
       id:
@@ -785,31 +975,53 @@ function Customizer() {
 
       side,
 
-      logo,
+      /* full design data */
+      designs,
 
-      logoPosition: {
-        ...logoPosition,
-      },
+      companyName:
+        findText("company"),
 
-      logoSize,
+      personName:
+        findText("person"),
 
-      text,
+      designation:
+        findText("designation"),
 
-      textPosition: {
-        ...textPosition,
-      },
+      /* legacy fields (cart/orders compatibility) */
+      logo:
+        firstImage?.src || null,
 
-      textColor,
+      logoPosition: firstImage
+        ? { x: firstImage.x, y: firstImage.y }
+        : { x: 50, y: 31 },
 
-      fontSize,
+      logoSize:
+        firstImage?.width || 0,
 
-      fontFamily,
+      text:
+        firstText?.text || "",
 
-      bold,
+      textPosition: firstText
+        ? { x: firstText.x, y: firstText.y }
+        : { x: 50, y: 55 },
 
-      italic,
+      textColor:
+        firstText?.color || "#102a4c",
 
-      underline,
+      fontSize:
+        firstText?.fontSize || 25,
+
+      fontFamily:
+        firstText?.fontFamily || "Poppins",
+
+      bold:
+        firstText?.bold ?? true,
+
+      italic:
+        firstText?.italic ?? false,
+
+      underline:
+        firstText?.underline ?? false,
 
       createdAt:
         new Date().toISOString(),
@@ -958,11 +1170,6 @@ function Customizer() {
 
   /* =====================================================
      PLACE ORDER
-     
-     IMPORTANT:
-     YAHAN /orders PAR AUTOMATIC NAVIGATE NAHI HOGA.
-     Order save hone ke baad My Orders me event ke
-     through data refresh hoga.
   ===================================================== */
 
   const placeOrder = () => {
@@ -970,16 +1177,8 @@ function Customizer() {
       return;
     }
 
-    /* -----------------------------------------------
-       CURRENT USER
-    ----------------------------------------------- */
-
     const currentUser =
       getCurrentUser();
-
-    /* -----------------------------------------------
-       LOGIN CHECK
-    ----------------------------------------------- */
 
     if (!currentUser) {
       alert(
@@ -997,23 +1196,11 @@ function Customizer() {
 
     setIsPlacingOrder(true);
 
-    /* -----------------------------------------------
-       CREATE CUSTOM PRODUCT
-    ----------------------------------------------- */
-
     const customProduct =
       createCustomProduct();
 
-    /* -----------------------------------------------
-       EXISTING ORDERS
-    ----------------------------------------------- */
-
     const existingOrders =
       getExistingOrders();
-
-    /* -----------------------------------------------
-       UNIQUE IDs
-    ----------------------------------------------- */
 
     const timestamp =
       Date.now();
@@ -1029,19 +1216,11 @@ function Customizer() {
     const now =
       new Date().toISOString();
 
-    /* -----------------------------------------------
-       USER ID
-    ----------------------------------------------- */
-
     const userId =
       currentUser?.id ||
       currentUser?.email ||
       currentUser?.phone ||
       null;
-
-    /* -----------------------------------------------
-       ORDER ITEM
-    ----------------------------------------------- */
 
     const orderItem = {
       ...customProduct,
@@ -1071,10 +1250,6 @@ function Customizer() {
         totalPrice,
     };
 
-    /* -----------------------------------------------
-       NEW ORDER
-    ----------------------------------------------- */
-
     const newOrder = {
       id: orderId,
 
@@ -1099,15 +1274,11 @@ function Customizer() {
 
       date: now,
 
-      /* IMPORTANT FOR ORDERS PAGE */
-
       items: [orderItem],
 
       products: [orderItem],
 
       cart: [orderItem],
-
-      /* ORDER LEVEL CUSTOM DATA */
 
       customerDescription:
         customerDescription.trim(),
@@ -1126,8 +1297,6 @@ function Customizer() {
 
       instructions:
         customerNote.trim(),
-
-      /* PRODUCT DESCRIPTION */
 
       productDescription:
         selectedProduct?.description ||
@@ -1150,8 +1319,6 @@ function Customizer() {
       total:
         totalPrice,
 
-      /* SHIPPING / PAYMENT */
-
       shipping: 0,
 
       currency: "INR",
@@ -1160,10 +1327,6 @@ function Customizer() {
 
       isCustomized: true,
     };
-
-    /* -----------------------------------------------
-       SAVE ORDER
-    ----------------------------------------------- */
 
     const updatedOrders = [
       newOrder,
@@ -1178,7 +1341,6 @@ function Customizer() {
         )
       );
 
-      /* DB mein bhi save — background mein */
       saveOrderToServer(newOrder);
     } catch (error) {
       console.error(
@@ -1194,10 +1356,6 @@ function Customizer() {
 
       return;
     }
-
-    /* -----------------------------------------------
-       VERIFY ORDER
-    ----------------------------------------------- */
 
     let verifyOrders = [];
 
@@ -1239,10 +1397,6 @@ function Customizer() {
       return;
     }
 
-    /* -----------------------------------------------
-       NOTIFY ALL ORDER COMPONENTS
-    ----------------------------------------------- */
-
     window.dispatchEvent(
       new Event(
         "ananyaOrdersUpdated"
@@ -1255,27 +1409,9 @@ function Customizer() {
       )
     );
 
-    /* -----------------------------------------------
-       SUCCESS
-    ----------------------------------------------- */
-
     setOrderSuccess(true);
 
     setIsPlacingOrder(false);
-
-    /*
-      IMPORTANT:
-      Pehle yahan automatically:
-      
-      navigate("/orders")
-      
-      ho raha tha.
-
-      Ab remove kar diya hai.
-
-      Isliye order place karne ke baad
-      user current Customizer page par rahega.
-    */
   };
 
   /* =====================================================
@@ -1284,6 +1420,44 @@ function Customizer() {
 
   const goToMyOrders = () => {
     navigate("/orders");
+  };
+
+  /* =====================================================
+     SAVE DESIGN (per product)
+  ===================================================== */
+
+  const saveDesign = () => {
+    try {
+      const payload = {
+        product: selectedProduct,
+        designs,
+        productColor,
+        size,
+        side,
+        customerDescription,
+        customerNote,
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(
+        `savedDesign_${selectedProduct?.id}`,
+        JSON.stringify(payload)
+      );
+
+      localStorage.setItem(
+        "savedCustomDesign",
+        JSON.stringify(payload)
+      );
+
+      alert("Design saved successfully!");
+    } catch (error) {
+      console.error(
+        "Design save error:",
+        error
+      );
+
+      alert("Design save nahi ho paya.");
+    }
   };
 
   /* =====================================================
@@ -1307,6 +1481,169 @@ function Customizer() {
     "#7434d1",
     "#ff7a00",
   ];
+
+  /* =====================================================
+     CANVAS (shared by editor + preview)
+  ===================================================== */
+
+  const renderCanvas = () => (
+    <div
+      className="product-canvas"
+      style={{
+        transform: `scale(${zoom})`,
+      }}
+    >
+      <div className="real-product-preview">
+        {isApparel ? (
+          <GarmentSvg
+            color={productColor}
+            back={side === "back"}
+          />
+        ) : productImage ? (
+          <img
+            className="selected-product-image"
+            src={productImage}
+            alt={productName}
+            draggable="false"
+          />
+        ) : (
+          <GarmentSvg
+            color={productColor}
+            back={side === "back"}
+          />
+        )}
+
+        {/* PRINTABLE AREA — design clipped inside */}
+        <div
+          ref={printAreaRef}
+          className={
+            preview
+              ? "print-area preview-clean"
+              : "print-area editing"
+          }
+          onPointerDown={() =>
+            setSelectedId(null)
+          }
+        >
+          {elements
+            .filter((el) => !el.hidden)
+            .map((el) =>
+              el.type === "image" ? (
+                <div
+                  key={el.id}
+                  className={`design-el design-image-el${
+                    selectedId === el.id &&
+                    !preview
+                      ? " el-selected"
+                      : ""
+                  }`}
+                  style={{
+                    left: `${el.x}%`,
+                    top: `${el.y}%`,
+                    width: `${el.width}%`,
+                    opacity: el.opacity ?? 1,
+                    transform: `translate(-50%,-50%) rotate(${el.rotation || 0}deg)`,
+                  }}
+                  onPointerDown={
+                    preview
+                      ? undefined
+                      : startDrag(el)
+                  }
+                >
+                  <img
+                    src={el.src}
+                    alt={el.label}
+                    draggable="false"
+                  />
+
+                  {selectedId === el.id &&
+                    !preview && (
+                      <>
+                        <button
+                          type="button"
+                          className="el-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteElement(el.id);
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="el-resize"
+                          onPointerDown={startResize(el)}
+                        >
+                          ↘
+                        </button>
+                      </>
+                    )}
+                </div>
+              ) : (
+                <div
+                  key={el.id}
+                  className={`design-el design-text${
+                    selectedId === el.id &&
+                    !preview
+                      ? " el-selected"
+                      : ""
+                  }`}
+                  style={{
+                    left: `${el.x}%`,
+                    top: `${el.y}%`,
+                    fontSize: `${el.fontSize}px`,
+                    fontFamily: el.fontFamily,
+                    color: el.color,
+                    fontWeight: el.bold ? 700 : 400,
+                    fontStyle: el.italic
+                      ? "italic"
+                      : "normal",
+                    textDecoration: el.underline
+                      ? "underline"
+                      : "none",
+                    letterSpacing: `${el.letterSpacing || 0}px`,
+                    textAlign: el.align || "center",
+                    transform: `translate(-50%,-50%) rotate(${el.rotation || 0}deg)`,
+                  }}
+                  onPointerDown={
+                    preview
+                      ? undefined
+                      : startDrag(el)
+                  }
+                >
+                  {el.text}
+
+                  {selectedId === el.id &&
+                    !preview && (
+                      <>
+                        <button
+                          type="button"
+                          className="el-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteElement(el.id);
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="el-resize"
+                          onPointerDown={startResize(el)}
+                        >
+                          ↘
+                        </button>
+                      </>
+                    )}
+                </div>
+              )
+            )}
+        </div>
+      </div>
+    </div>
+  );
 
   /* =====================================================
      LOADING
@@ -1338,7 +1675,85 @@ function Customizer() {
   }
 
   /* =====================================================
-     RETURN
+     PREVIEW MODE
+  ===================================================== */
+
+  if (preview) {
+    return (
+      <div className="customizer-page">
+        <section className="customizer-title">
+          <button
+            className="back-product"
+            onClick={() => setPreview(false)}
+          >
+            <ArrowLeft size={18} />
+
+            <span>Edit Design</span>
+          </button>
+
+          <div className="title-center">
+            <h1>
+              {productName} — {side === "front" ? "Front" : "Back"} Preview
+            </h1>
+
+            <p>
+              This is how your print will
+              look on the product
+            </p>
+          </div>
+
+          <div className="side-switch">
+            <button
+              className={
+                side === "front" ? "selected" : ""
+              }
+              onClick={() => setSide("front")}
+            >
+              Front
+            </button>
+
+            <button
+              className={
+                side === "back" ? "selected" : ""
+              }
+              onClick={() => setSide("back")}
+            >
+              Back
+            </button>
+          </div>
+        </section>
+
+        <main className="preview-main">
+          <div className="preview-stage">
+            {renderCanvas()}
+          </div>
+
+          <div className="preview-actions">
+            <button
+              type="button"
+              className="save-design-btn"
+              onClick={() => setPreview(false)}
+            >
+              <Type size={18} />
+              Edit Design
+            </button>
+
+            <button
+              type="button"
+              className="add-cart-btn"
+              onClick={addToCart}
+            >
+              <ShoppingCart size={18} />
+              Add to Cart — ₹{totalPrice.toLocaleString("en-IN")}
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  /* =====================================================
+     RETURN (EDITOR)
   ===================================================== */
 
   return (
@@ -1384,9 +1799,10 @@ function Customizer() {
                 ? "selected"
                 : ""
             }
-            onClick={() =>
-              setSide("front")
-            }
+            onClick={() => {
+              setSide("front");
+              setSelectedId(null);
+            }}
           >
             Front
           </button>
@@ -1397,9 +1813,10 @@ function Customizer() {
                 ? "selected"
                 : ""
             }
-            onClick={() =>
-              setSide("back")
-            }
+            onClick={() => {
+              setSide("back");
+              setSelectedId(null);
+            }}
           >
             Back
           </button>
@@ -1445,14 +1862,13 @@ function Customizer() {
             }
             onClick={() => {
               setActiveTool("upload");
-
               fileInputRef.current?.click();
             }}
           >
             <UploadCloud />
 
             <span>
-              Upload Logo
+              Add Logo
             </span>
           </button>
 
@@ -1470,40 +1886,6 @@ function Customizer() {
 
             <span>
               Text Color
-            </span>
-          </button>
-
-          <button
-            className={
-              activeTool === "font"
-                ? "tool-active"
-                : ""
-            }
-            onClick={() =>
-              setActiveTool("font")
-            }
-          >
-            <Type />
-
-            <span>
-              Font Style
-            </span>
-          </button>
-
-          <button
-            className={
-              activeTool === "fontSize"
-                ? "tool-active"
-                : ""
-            }
-            onClick={() =>
-              setActiveTool("fontSize")
-            }
-          >
-            <Type />
-
-            <span>
-              Font Size
             </span>
           </button>
 
@@ -1542,7 +1924,13 @@ function Customizer() {
           </button>
 
           <button
-            onClick={deleteLogo}
+            onClick={() => {
+              if (selectedElement) {
+                deleteElement(
+                  selectedElement.id
+                );
+              }
+            }}
           >
             <Trash2 />
 
@@ -1559,219 +1947,336 @@ function Customizer() {
 
         <section className="settings-panel">
 
-          {/* TEXT */}
+          {/* TEXT TOOL — quick add + selected text controls */}
 
           {activeTool === "text" && (
             <div className="settings-content">
 
               <h3>
-                Add Your Text
+                Add to Design
               </h3>
 
-              <input
-                className="text-input"
-                value={text}
-                onChange={(event) =>
-                  setText(
-                    event.target.value
-                  )
-                }
-                placeholder="Enter your text"
-              />
-
-              <select
-                className="font-select"
-                value={fontFamily}
-                onChange={(event) => {
-                  saveHistory();
-
-                  setFontFamily(
-                    event.target.value
-                  );
-                }}
-              >
-                <option value="Poppins">
-                  Poppins
-                </option>
-
-                <option value="Arial">
-                  Arial
-                </option>
-
-                <option value="Montserrat">
-                  Montserrat
-                </option>
-
-                <option value="Georgia">
-                  Georgia
-                </option>
-
-                <option value="Roboto">
-                  Roboto
-                </option>
-              </select>
-
-              <div className="format-buttons">
-
-                <button
-                  className={
-                    bold
-                      ? "active-format"
-                      : ""
-                  }
-                  onClick={() => {
-                    saveHistory();
-
-                    setBold(
-                      !bold
-                    );
-                  }}
-                >
-                  <Bold size={18} />
-                </button>
-
-                <button
-                  className={
-                    italic
-                      ? "active-format"
-                      : ""
-                  }
-                  onClick={() => {
-                    saveHistory();
-
-                    setItalic(
-                      !italic
-                    );
-                  }}
-                >
-                  <Italic size={18} />
-                </button>
-
-                <button
-                  className={
-                    underline
-                      ? "active-format"
-                      : ""
-                  }
-                  onClick={() => {
-                    saveHistory();
-
-                    setUnderline(
-                      !underline
-                    );
-                  }}
-                >
-                  <Underline size={18} />
-                </button>
-
-                <button>
-                  Aa
-                </button>
-
+              <div className="quick-add-list">
+                {TEXT_KINDS.map((kind) => (
+                  <button
+                    key={kind.key}
+                    type="button"
+                    className="quick-add-btn"
+                    onClick={() =>
+                      addTextElement(kind.key)
+                    }
+                  >
+                    {kind.key === "company" && (
+                      <Building2 size={16} />
+                    )}
+                    {kind.key === "person" && (
+                      <User size={16} />
+                    )}
+                    {kind.key === "designation" && (
+                      <Briefcase size={16} />
+                    )}
+                    {kind.key === "custom" && (
+                      <Type size={16} />
+                    )}
+                    + {kind.label}
+                  </button>
+                ))}
               </div>
 
-              <h4>
-                Text Color
-              </h4>
+              {selectedElement?.type ===
+                "text" && (
+                <>
+                  <h4>
+                    {selectedElement.label}
+                  </h4>
 
-              <div className="color-row">
-
-                {textColors.map(
-                  (color) => (
-                    <button
-                      key={color}
-                      className={
-                        textColor === color
-                          ? "text-color selected-text-color"
-                          : "text-color"
-                      }
-                      style={{
-                        background:
-                          color,
-                      }}
-                      onClick={() => {
-                        saveHistory();
-
-                        setTextColor(
-                          color
-                        );
-                      }}
-                    />
-                  )
-                )}
-
-              </div>
-
-              <h4>
-                Font Size
-              </h4>
-
-              <div className="range-row">
-
-                <span>
-                  12
-                </span>
-
-                <input
-                  type="range"
-                  min="12"
-                  max="55"
-                  value={fontSize}
-                  onChange={(event) =>
-                    setFontSize(
-                      Number(
-                        event.target.value
+                  <input
+                    className="text-input"
+                    value={selectedElement.text}
+                    onChange={(event) =>
+                      moveElementLive(
+                        selectedElement.id,
+                        {
+                          text:
+                            event.target.value,
+                        }
                       )
-                    )
-                  }
-                />
+                    }
+                    onBlur={() => saveHistory()}
+                    placeholder="Enter your text"
+                  />
 
-                <span>
-                  {fontSize}
-                </span>
+                  <h4>Font</h4>
 
-              </div>
+                  <select
+                    className="font-select"
+                    value={selectedElement.fontFamily}
+                    onChange={(event) =>
+                      updateElement(
+                        selectedElement.id,
+                        {
+                          fontFamily:
+                            event.target.value,
+                        }
+                      )
+                    }
+                  >
+                    {FONT_OPTIONS.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
 
-              <h4>
-                Text Position
-              </h4>
+                  <div className="format-buttons">
+                    <button
+                      className={
+                        selectedElement.bold
+                          ? "active-format"
+                          : ""
+                      }
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          {
+                            bold: !selectedElement.bold,
+                          }
+                        )
+                      }
+                    >
+                      <Bold size={18} />
+                    </button>
 
-              <div className="alignment-buttons">
+                    <button
+                      className={
+                        selectedElement.italic
+                          ? "active-format"
+                          : ""
+                      }
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          {
+                            italic:
+                              !selectedElement.italic,
+                          }
+                        )
+                      }
+                    >
+                      <Italic size={18} />
+                    </button>
 
-                <button
-                  onClick={() =>
-                    setTextPosition({
-                      ...textPosition,
-                      x: 32,
-                    })
-                  }
-                >
-                  <AlignLeft />
-                </button>
+                    <button
+                      className={
+                        selectedElement.underline
+                          ? "active-format"
+                          : ""
+                      }
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          {
+                            underline:
+                              !selectedElement.underline,
+                          }
+                        )
+                      }
+                    >
+                      <Underline size={18} />
+                    </button>
 
-                <button
-                  onClick={() =>
-                    setTextPosition({
-                      ...textPosition,
-                      x: 50,
-                    })
-                  }
-                >
-                  <AlignCenter />
-                </button>
+                    <button
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          {
+                            text:
+                              selectedElement.text ===
+                              selectedElement.text.toUpperCase()
+                                ? selectedElement.text
+                                    .toLowerCase()
+                                    .replace(
+                                      /(^|\s)\S/g,
+                                      (c) =>
+                                        c.toUpperCase()
+                                    )
+                                : selectedElement.text.toUpperCase(),
+                          }
+                        )
+                      }
+                    >
+                      Aa
+                    </button>
+                  </div>
 
-                <button
-                  onClick={() =>
-                    setTextPosition({
-                      ...textPosition,
-                      x: 68,
-                    })
-                  }
-                >
-                  <AlignRight />
-                </button>
+                  <h4>Text Color</h4>
 
-              </div>
+                  <div className="color-row">
+                    {textColors.map((color) => (
+                      <button
+                        key={color}
+                        className={
+                          selectedElement.color ===
+                          color
+                            ? "text-color selected-text-color"
+                            : "text-color"
+                        }
+                        style={{
+                          background: color,
+                        }}
+                        onClick={() =>
+                          updateElement(
+                            selectedElement.id,
+                            { color }
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <h4>Font Size</h4>
+
+                  <div className="range-row">
+                    <span>12</span>
+
+                    <input
+                      type="range"
+                      min="12"
+                      max="70"
+                      value={selectedElement.fontSize}
+                      onChange={(event) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            fontSize: Number(
+                              event.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+
+                    <span>
+                      {Math.round(
+                        selectedElement.fontSize
+                      )}
+                    </span>
+                  </div>
+
+                  <h4>Letter Spacing</h4>
+
+                  <div className="range-row">
+                    <span>0</span>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max="12"
+                      value={
+                        selectedElement.letterSpacing || 0
+                      }
+                      onChange={(event) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            letterSpacing: Number(
+                              event.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+
+                    <span>
+                      {selectedElement.letterSpacing || 0}
+                    </span>
+                  </div>
+
+                  <h4>Rotation</h4>
+
+                  <div className="range-row">
+                    <span>-90°</span>
+
+                    <input
+                      type="range"
+                      min="-90"
+                      max="90"
+                      value={selectedElement.rotation || 0}
+                      onChange={(event) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            rotation: Number(
+                              event.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+
+                    <span>
+                      {selectedElement.rotation || 0}°
+                    </span>
+                  </div>
+
+                  <h4>Alignment</h4>
+
+                  <div className="alignment-buttons">
+                    <button
+                      className={
+                        selectedElement.align === "left"
+                          ? "selected-align"
+                          : ""
+                      }
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { align: "left" }
+                        )
+                      }
+                    >
+                      <AlignLeft />
+                    </button>
+
+                    <button
+                      className={
+                        selectedElement.align ===
+                          "center" ||
+                        !selectedElement.align
+                          ? "selected-align"
+                          : ""
+                      }
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { align: "center" }
+                        )
+                      }
+                    >
+                      <AlignCenter />
+                    </button>
+
+                    <button
+                      className={
+                        selectedElement.align === "right"
+                          ? "selected-align"
+                          : ""
+                      }
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { align: "right" }
+                        )
+                      }
+                    >
+                      <AlignRight />
+                    </button>
+                  </div>
+                </>
+              )}
 
             </div>
           )}
@@ -1782,7 +2287,7 @@ function Customizer() {
             <div className="settings-content">
 
               <h3>
-                Upload Your Logo
+                Upload Logo / Image
               </h3>
 
               <div
@@ -1798,7 +2303,8 @@ function Customizer() {
                 </strong>
 
                 <span>
-                  PNG, JPG, WEBP, SVG
+                  PNG, JPG, WEBP, SVG —
+                  transparent PNG recommended
                 </span>
               </div>
 
@@ -1812,55 +2318,115 @@ function Customizer() {
                 }
               />
 
-              {logo && (
+              {selectedElement?.type ===
+                "image" && (
                 <>
                   <div className="uploaded-preview">
-
                     <img
-                      src={logo}
-                      alt="Uploaded logo"
+                      src={selectedElement.src}
+                      alt="Uploaded"
                     />
-
                   </div>
 
-                  <h4>
-                    Logo Size
-                  </h4>
+                  <h4>Logo Size</h4>
 
                   <div className="range-row">
-
-                    <span>
-                      50
-                    </span>
+                    <span>10%</span>
 
                     <input
                       type="range"
-                      min="50"
-                      max="240"
-                      value={logoSize}
+                      min="10"
+                      max="100"
+                      value={selectedElement.width}
                       onChange={(event) =>
-                        setLogoSize(
-                          Number(
-                            event.target.value
-                          )
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            width: Number(
+                              event.target.value
+                            ),
+                          }
                         )
                       }
+                      onMouseUp={() => saveHistory()}
                     />
 
                     <span>
-                      {logoSize}
+                      {Math.round(
+                        selectedElement.width
+                      )}
+                      %
                     </span>
+                  </div>
 
+                  <h4>Rotation</h4>
+
+                  <div className="range-row">
+                    <span>-90°</span>
+
+                    <input
+                      type="range"
+                      min="-90"
+                      max="90"
+                      value={selectedElement.rotation || 0}
+                      onChange={(event) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            rotation: Number(
+                              event.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+
+                    <span>
+                      {selectedElement.rotation || 0}°
+                    </span>
+                  </div>
+
+                  <h4>Opacity</h4>
+
+                  <div className="range-row">
+                    <span>0.3</span>
+
+                    <input
+                      type="range"
+                      min="0.3"
+                      max="1"
+                      step="0.05"
+                      value={selectedElement.opacity ?? 1}
+                      onChange={(event) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            opacity: Number(
+                              event.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+
+                    <span>
+                      {(
+                        selectedElement.opacity ?? 1
+                      ).toFixed(2)}
+                    </span>
                   </div>
 
                   <button
                     className="delete-logo-btn"
-                    onClick={
-                      deleteLogo
+                    onClick={() =>
+                      deleteElement(
+                        selectedElement.id
+                      )
                     }
                   >
                     <Trash2 size={17} />
-
                     Remove Logo
                   </button>
                 </>
@@ -1878,112 +2444,35 @@ function Customizer() {
                 Text Color
               </h3>
 
-              <div className="large-color-grid">
-
-                {textColors.map(
-                  (color) => (
+              {selectedElement?.type === "text" ? (
+                <div className="large-color-grid">
+                  {textColors.map((color) => (
                     <button
                       key={color}
                       style={{
-                        background:
-                          color,
+                        background: color,
                       }}
                       className={
-                        textColor === color
+                        selectedElement.color === color
                           ? "color-selected"
                           : ""
                       }
-                      onClick={() => {
-                        saveHistory();
-
-                        setTextColor(
-                          color
-                        );
-                      }}
-                    />
-                  )
-                )}
-
-              </div>
-
-            </div>
-          )}
-
-          {/* FONT */}
-
-          {activeTool === "font" && (
-            <div className="settings-content">
-
-              <h3>
-                Font Style
-              </h3>
-
-              <div className="font-options">
-
-                {[
-                  "Poppins",
-                  "Arial",
-                  "Montserrat",
-                  "Georgia",
-                  "Roboto",
-                ].map(
-                  (font) => (
-                    <button
-                      key={font}
-                      style={{
-                        fontFamily:
-                          font,
-                      }}
-                      className={
-                        fontFamily === font
-                          ? "font-selected"
-                          : ""
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { color }
+                        )
                       }
-                      onClick={() => {
-                        saveHistory();
-
-                        setFontFamily(
-                          font
-                        );
-                      }}
-                    >
-                      {font}
-                    </button>
-                  )
-                )}
-
-              </div>
-
-            </div>
-          )}
-
-          {/* FONT SIZE */}
-
-          {activeTool === "fontSize" && (
-            <div className="settings-content">
-
-              <h3>
-                Font Size
-              </h3>
-
-              <input
-                className="big-range"
-                type="range"
-                min="12"
-                max="60"
-                value={fontSize}
-                onChange={(event) =>
-                  setFontSize(
-                    Number(
-                      event.target.value
-                    )
-                  )
-                }
-              />
-
-              <div className="font-size-number">
-                {fontSize}px
-              </div>
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="position-info">
+                  Pehle shirt par kisi text ko
+                  select karein, phir color
+                  choose karein.
+                </p>
+              )}
 
             </div>
           )}
@@ -1998,36 +2487,64 @@ function Customizer() {
               </h3>
 
               <p className="position-info">
-                Logo ya text ko mouse se
-                directly product par
-                drag karke move karein.
+                Shirt par element ko directly
+                drag karke move karein. Ya
+                quick position buttons use karein.
               </p>
 
-              <div className="position-buttons">
+              {selectedElement ? (
+                <div className="position-buttons">
+                  <button
+                    onClick={() =>
+                      updateElement(
+                        selectedElement.id,
+                        { x: 50, y: 30 }
+                      )
+                    }
+                  >
+                    Top Center
+                  </button>
 
-                <button
-                  onClick={() =>
-                    setLogoPosition({
-                      x: 50,
-                      y: 28,
-                    })
-                  }
-                >
-                  Logo Center
-                </button>
+                  <button
+                    onClick={() =>
+                      updateElement(
+                        selectedElement.id,
+                        { x: 50, y: 50 }
+                      )
+                    }
+                  >
+                    Center
+                  </button>
 
-                <button
-                  onClick={() =>
-                    setTextPosition({
-                      x: 50,
-                      y: 55,
-                    })
-                  }
-                >
-                  Text Center
-                </button>
+                  <button
+                    onClick={() =>
+                      updateElement(
+                        selectedElement.id,
+                        { x: 50, y: 70 }
+                      )
+                    }
+                  >
+                    Bottom Center
+                  </button>
 
-              </div>
+                  <button
+                    onClick={() =>
+                      updateElement(
+                        selectedElement.id,
+                        { x: 18, y: 22 }
+                      )
+                    }
+                  >
+                    Left Chest
+                  </button>
+                </div>
+              ) : (
+                <p className="position-info">
+                  Koi element select nahi hai.
+                  Shirt par click karke select
+                  karein.
+                </p>
+              )}
 
             </div>
           )}
@@ -2038,45 +2555,104 @@ function Customizer() {
             <div className="settings-content">
 
               <h3>
-                Layers
+                Layers — {side === "front" ? "Front" : "Back"}
               </h3>
 
-              <div className="layer-item">
-
-                <Layers size={17} />
-
-                <span>
-                  {productName}
-                </span>
-
-              </div>
-
-              {logo && (
-                <div className="layer-item">
-
-                  <img
-                    src={logo}
-                    alt=""
-                  />
-
-                  <span>
-                    Logo
-                  </span>
-
-                </div>
+              {elements.length === 0 && (
+                <p className="position-info">
+                  Is side par koi design element
+                  nahi hai. Text ya logo add
+                  karein.
+                </p>
               )}
 
-              {text && (
-                <div className="layer-item">
+              {[...elements]
+                .reverse()
+                .map((el, i, arr) => {
+                  const realIndex =
+                    elements.indexOf(el);
 
-                  <Type size={17} />
+                  return (
+                    <div
+                      key={el.id}
+                      className={`layer-item${
+                        selectedId === el.id
+                          ? " layer-selected"
+                          : ""
+                      }`}
+                      onClick={() =>
+                        setSelectedId(el.id)
+                      }
+                    >
+                      {el.type === "image" ? (
+                        <img src={el.src} alt="" />
+                      ) : (
+                        <Type size={17} />
+                      )}
 
-                  <span>
-                    {text}
-                  </span>
+                      <span className="layer-label">
+                        {el.type === "image"
+                          ? "Image"
+                          : el.text ||
+                            el.label}
+                      </span>
 
-                </div>
-              )}
+                      <div className="layer-actions">
+                        <button
+                          type="button"
+                          title="Move up"
+                          disabled={i === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reorderElement(el.id, 1);
+                          }}
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Move down"
+                          disabled={i === arr.length - 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reorderElement(el.id, -1);
+                          }}
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          title={el.hidden ? "Show" : "Hide"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateElement(el.id, {
+                              hidden: !el.hidden,
+                            });
+                          }}
+                        >
+                          {el.hidden ? (
+                            <EyeOff size={14} />
+                          ) : (
+                            <Eye size={14} />
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteElement(el.id);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
 
             </div>
           )}
@@ -2091,160 +2667,7 @@ function Customizer() {
 
           <div className="product-canvas-wrapper">
 
-            <div
-              className="product-canvas"
-              style={{
-                transform:
-                  `scale(${zoom})`,
-              }}
-            >
-
-              <div
-                className="real-product-preview"
-                style={{
-                  "--shirt-color":
-                    productColor,
-                }}
-              >
-
-                {productImage ? (
-                  <img
-                    className="selected-product-image"
-                    src={productImage}
-                    alt={productName}
-                    draggable="false"
-                  />
-                ) : (
-                  <div className="product-image-fallback">
-
-                    <div
-                      className={
-                        isHoodie
-                          ? "hoodie"
-                          : "tshirt"
-                      }
-                      style={{
-                        "--shirt-color":
-                          productColor,
-                      }}
-                    >
-
-                      <div className="shirt-collar" />
-
-                      <div className="shirt-left-sleeve" />
-
-                      <div className="shirt-right-sleeve" />
-
-                    </div>
-
-                  </div>
-                )}
-
-                <div className="print-area">
-
-                  {logo &&
-                    side === "front" && (
-                    <div
-                      className="design-logo"
-                      style={{
-                        left:
-                          `${logoPosition.x}%`,
-
-                        top:
-                          `${logoPosition.y}%`,
-
-                        width:
-                          `${logoSize}px`,
-                      }}
-                      onMouseDown={
-                        handleLogoMouseDown
-                      }
-                    >
-
-                      <button
-                        type="button"
-                        className="delete-design"
-                        onClick={(event) => {
-                          event.stopPropagation();
-
-                          deleteLogo();
-                        }}
-                      >
-                        <X size={12} />
-                      </button>
-
-                      <img
-                        src={logo}
-                        alt="Customer Logo"
-                        draggable="false"
-                      />
-
-                      <button
-                        type="button"
-                        className="resize-handle"
-                        onMouseDown={
-                          handleLogoResize
-                        }
-                      >
-                        ↘
-                      </button>
-
-                    </div>
-                  )}
-
-                  {text &&
-                    side === "front" && (
-                    <div
-                      className="design-text"
-                      style={{
-                        left:
-                          `${textPosition.x}%`,
-
-                        top:
-                          `${textPosition.y}%`,
-
-                        fontSize:
-                          `${fontSize}px`,
-
-                        fontFamily,
-
-                        color:
-                          textColor,
-
-                        fontWeight:
-                          bold
-                            ? 700
-                            : 400,
-
-                        fontStyle:
-                          italic
-                            ? "italic"
-                            : "normal",
-
-                        textDecoration:
-                          underline
-                            ? "underline"
-                            : "none",
-                      }}
-                      onMouseDown={
-                        handleTextMouseDown
-                      }
-                    >
-                      {text}
-                    </div>
-                  )}
-
-                  {side === "back" && (
-                    <div className="back-preview-text">
-                      BACK
-                    </div>
-                  )}
-
-                </div>
-
-              </div>
-
-            </div>
+            {renderCanvas()}
 
             {/* CANVAS TOOLS */}
 
@@ -2280,7 +2703,7 @@ function Customizer() {
                 onClick={() =>
                   setZoom(
                     Math.min(
-                      1.35,
+                      1.4,
                       zoom + 0.1
                     )
                   )
@@ -2307,6 +2730,18 @@ function Customizer() {
 
                 <span>
                   Zoom Out
+                </span>
+              </button>
+
+              <button
+                onClick={() =>
+                  setPreview(true)
+                }
+              >
+                <Eye />
+
+                <span>
+                  Preview
                 </span>
               </button>
 
@@ -2693,65 +3128,7 @@ function Customizer() {
           <button
             type="button"
             className="save-design-btn"
-            onClick={() => {
-              try {
-                localStorage.setItem(
-                  "savedCustomDesign",
-                  JSON.stringify({
-                    product:
-                      selectedProduct,
-
-                    logo,
-
-                    logoPosition,
-
-                    logoSize,
-
-                    text,
-
-                    textPosition,
-
-                    textColor,
-
-                    fontSize,
-
-                    fontFamily,
-
-                    bold,
-
-                    italic,
-
-                    underline,
-
-                    productColor,
-
-                    size,
-
-                    side,
-
-                    customerDescription,
-
-                    customerNote,
-
-                    savedAt:
-                      new Date().toISOString(),
-                  })
-                );
-
-                alert(
-                  "Design saved successfully!"
-                );
-              } catch (error) {
-                console.error(
-                  "Design save error:",
-                  error
-                );
-
-                alert(
-                  "Design save nahi ho paya."
-                );
-              }
-            }}
+            onClick={saveDesign}
           >
             <Heart size={20} />
 
