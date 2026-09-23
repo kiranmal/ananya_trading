@@ -683,6 +683,99 @@
   border: 1px solid #e5e7eb;
 }
 
+/* =========================================================
+   TAB CONTENTS (specs / guidelines / reviews)
+========================================================= */
+
+.spec-tab-content {
+  grid-column: 1 / -1;
+}
+
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.spec-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #eef0f3;
+  color: #4b5563;
+}
+
+.spec-table td:first-child {
+  width: 200px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.spec-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.guideline-list li {
+  align-items: flex-start !important;
+  line-height: 1.55;
+}
+
+.guideline-list li span {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tab-review-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.tab-review-summary strong {
+  font-size: 34px;
+  color: #111827;
+}
+
+.summary-stars {
+  display: flex;
+  gap: 3px;
+  color: #f59e0b;
+}
+
+.tab-review-summary > span {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.tab-review-list {
+  display: grid;
+  gap: 14px;
+}
+
+.tab-review-list li {
+  display: block !important;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  padding: 13px 15px;
+}
+
+.tab-review-list li strong {
+  display: block;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.tab-review-stars {
+  color: #f59e0b;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+.tab-review-list li p {
+  margin: 6px 0 0;
+  color: #4b5563;
+  font-size: 13px;
+}
+
 
 /* =========================================================
    SERVICE BOXES

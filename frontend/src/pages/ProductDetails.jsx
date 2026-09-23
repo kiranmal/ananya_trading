@@ -141,6 +141,13 @@ function ProductDetails() {
   const [reviewText, setReviewText] =
     useState("");
 
+  /* =====================================================
+     INFO TABS
+  ===================================================== */
+
+  const [activeTab, setActiveTab] =
+    useState("details");
+
 
   /* =====================================================
      LOAD CUSTOMER REVIEWS
@@ -1517,7 +1524,14 @@ function ProductDetails() {
 
           <button
             type="button"
-            className="active"
+            className={
+              activeTab === "details"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setActiveTab("details")
+            }
           >
 
             Product Details
@@ -1525,21 +1539,51 @@ function ProductDetails() {
           </button>
 
 
-          <button type="button">
+          <button
+            type="button"
+            className={
+              activeTab === "specs"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setActiveTab("specs")
+            }
+          >
 
             Specifications
 
           </button>
 
 
-          <button type="button">
+          <button
+            type="button"
+            className={
+              activeTab === "guidelines"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setActiveTab("guidelines")
+            }
+          >
 
             Design Guidelines
 
           </button>
 
 
-          <button type="button">
+          <button
+            type="button"
+            className={
+              activeTab === "reviews"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setActiveTab("reviews")
+            }
+          >
 
             Reviews (
             {totalReviewCount}
@@ -1554,6 +1598,9 @@ function ProductDetails() {
 
         <div className="information-content">
 
+
+          {activeTab === "details" && (
+            <>
 
           <div>
 
@@ -1611,6 +1658,230 @@ function ProductDetails() {
               product.name
             }
           />
+
+            </>
+          )}
+
+
+          {/* SPECIFICATIONS */}
+
+          {activeTab === "specs" && (
+            <div className="spec-tab-content">
+
+              <h2>
+                Specifications
+              </h2>
+
+              <table className="spec-table">
+                <tbody>
+
+                  <tr>
+                    <td>Product Name</td>
+                    <td>{product.name}</td>
+                  </tr>
+
+                  <tr>
+                    <td>Category</td>
+                    <td>
+                      {product.category}
+                      {product.subcategory
+                        ? ` — ${product.subcategory}`
+                        : ""}
+                    </td>
+                  </tr>
+
+                  {sizes.length > 0 && (
+                    <tr>
+                      <td>Available Sizes</td>
+                      <td>{sizes.join(", ")}</td>
+                    </tr>
+                  )}
+
+                  {paperTypes.length > 0 && (
+                    <tr>
+                      <td>Paper / Material</td>
+                      <td>{paperTypes.join(", ")}</td>
+                    </tr>
+                  )}
+
+                  {features.length > 0 && (
+                    <tr>
+                      <td>Features</td>
+                      <td>{features.join(", ")}</td>
+                    </tr>
+                  )}
+
+                  <tr>
+                    <td>Minimum Order</td>
+                    <td>
+                      {Number(
+                        product.quantityStep || 1
+                      )}{" "}
+                      unit(s)
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>Stock</td>
+                    <td>
+                      {Number(product.stock) > 0
+                        ? `${Number(product.stock)} available`
+                        : "Available on order"}
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td>Customization</td>
+                    <td>
+                      {isCustomizableProduct
+                        ? `Yes — ${
+                            product.customizationType ||
+                            "available"
+                          }`
+                        : "Not available"}
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+
+            </div>
+          )}
+
+
+          {/* DESIGN GUIDELINES */}
+
+          {activeTab === "guidelines" && (
+            <div className="spec-tab-content">
+
+              <h2>
+                Design Guidelines
+              </h2>
+
+              <ul className="guideline-list">
+                <li>
+                  <span>✓</span>
+                  High-resolution artwork use karein
+                  (300 DPI recommended) — blurry
+                  images print mein bhi blurry
+                  aati hain.
+                </li>
+                <li>
+                  <span>✓</span>
+                  Transparent PNG logo best result
+                  deta hai. JPG white background
+                  ke saath bhi chalega.
+                </li>
+                <li>
+                  <span>✓</span>
+                  Text ko print area ke andar
+                  rakhein — edges ke paas design
+                  cut ho sakta hai.
+                </li>
+                <li>
+                  <span>✓</span>
+                  Dark product pe light colors,
+                  light product pe dark colors
+                  best contrast dete hain.
+                </li>
+                <li>
+                  <span>✓</span>
+                  Screen colors aur print colors
+                  mein thoda difference ho sakta
+                  hai (CMYK printing).
+                </li>
+                <li>
+                  <span>✓</span>
+                  Final design save karne se pehle
+                  Preview mode mein front aur
+                  back dono check karein.
+                </li>
+              </ul>
+
+            </div>
+          )}
+
+
+          {/* REVIEWS */}
+
+          {activeTab === "reviews" && (
+            <div className="spec-tab-content">
+
+              <h2>
+                Customer Reviews
+              </h2>
+
+              <div className="tab-review-summary">
+                <strong>
+                  {product.rating || "4.8"}
+                </strong>
+
+                <div className="summary-stars">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={18}
+                      fill="currentColor"
+                    />
+                  ))}
+                </div>
+
+                <span>
+                  {totalReviewCount} reviews
+                </span>
+              </div>
+
+              {customerReviews.length === 0 ? (
+                <p>
+                  Is product ke liye abhi koi
+                  customer review nahi hai.
+                  Neeche review section se pehla
+                  review likhein.
+                </p>
+              ) : (
+                <ul className="tab-review-list">
+                  {customerReviews
+                    .slice(0, 5)
+                    .map((r, i) => (
+                      <li key={i}>
+                        <strong>
+                          {r.name || "Customer"}
+                        </strong>
+                        <span className="tab-review-stars">
+                          {"★".repeat(
+                            Number(r.rating) || 5
+                          )}
+                        </span>
+                        <p>{r.text}</p>
+                      </li>
+                    ))}
+                </ul>
+              )}
+
+              <button
+                type="button"
+                className="view-details"
+                style={{
+                  display: "inline-block",
+                  width: "auto",
+                  padding: "10px 22px",
+                  marginTop: "12px",
+                }}
+                onClick={() =>
+                  document
+                    .getElementById(
+                      "customer-reviews"
+                    )
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                    })
+                }
+              >
+                See All Reviews / Write a Review
+              </button>
+
+            </div>
+          )}
 
         </div>
 
