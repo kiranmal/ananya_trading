@@ -15,7 +15,6 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminOrders from "./pages/AdminOrders";
 import AdminDelivery from "./pages/AdminDelivery";
 import AdminReviews from "./pages/AdminReviews";
-import AdminMessages from "./pages/AdminMessages";
 import AdminInquiries from "./pages/AdminInquiries";
 import AdminCoupons from "./pages/AdminCoupons";
 
@@ -179,18 +178,7 @@ export default function AdminApp() {
 
 
         {/* =================================================
-            CONTACT MESSAGES
-            URL: /admin/messages
-        ================================================= */}
-
-        <Route
-          path="messages"
-          element={<AdminMessages />}
-        />
-
-
-        {/* =================================================
-            CONTACT INQUIRIES — "Get a Quote" form
+            CONTACT INQUIRIES — "Get a Quote" + Contact Us form
             URL: /admin/inquiries
         ================================================= */}
 

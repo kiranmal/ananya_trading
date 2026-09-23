@@ -20,7 +20,6 @@ import {
   ShoppingBag,
   MessageSquare,
   Star,
-  Mail,
   MailQuestion,
   TicketPercent,
 } from "lucide-react";
@@ -108,12 +107,6 @@ function AdminLayout() {
       name: "Customer Reviews",
       path: "/admin/reviews",
       icon: Star,
-    },
-
-    {
-      name: "Contact Messages",
-      path: "/admin/messages",
-      icon: Mail,
     },
 
     {

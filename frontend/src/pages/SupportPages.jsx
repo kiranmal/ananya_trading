@@ -38,20 +38,32 @@ export function ContactUs() {
 
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const feedback = {
+    const subject = String(
+      formData.get("subject") || ""
+    );
+
+    const inquiry = {
       name: formData.get("name"),
       email: formData.get("email"),
-      subject: formData.get("subject"),
+      phone: formData.get("phone"),
+      productOptions: subject
+        ? `Topic: ${subject}`
+        : null,
       message: formData.get("message"),
-      type: "contact",
+      source: "contact-page",
     };
 
     try {
-      const response = await fetch(`${API_URL}/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(feedback),
-      });
+      const response = await fetch(
+        `${API_URL}/contact-inquiries`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(inquiry),
+        }
+      );
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -123,15 +135,29 @@ export function ContactUs() {
             </div>
           </div>
 
-          <label>Subject</label>
-          <select name="subject" required>
-            <option value="">Select a topic</option>
-            <option>Order Related</option>
-            <option>Product Question</option>
-            <option>Custom Printing / Bulk Order</option>
-            <option>Payment Issue</option>
-            <option>Other</option>
-          </select>
+          <div className="form-row">
+            <div>
+              <label>Phone</label>
+              <input
+                type="tel"
+                name="phone"
+                placeholder="+91 XXXXX XXXXX"
+                pattern="[0-9+ ]{10,15}"
+                required
+              />
+            </div>
+            <div>
+              <label>Subject</label>
+              <select name="subject" required>
+                <option value="">Select a topic</option>
+                <option>Order Related</option>
+                <option>Product Question</option>
+                <option>Custom Printing / Bulk Order</option>
+                <option>Payment Issue</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
 
           <label>Message</label>
           <textarea name="message" placeholder="Tell us how we can help..." required />
