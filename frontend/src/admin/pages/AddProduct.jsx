@@ -615,11 +615,44 @@ export default function AddProduct() {
                     <option value="mug">
                       Mug
                     </option>
+                    <option value="pen">
+                      Pen
+                    </option>
+                    <option value="bottle">
+                      Water Bottle
+                    </option>
                     <option value="letterhead">
                       Letterhead
                     </option>
                     <option value="envelope">
                       Envelope
+                    </option>
+                    <option value="flyer">
+                      Flyer
+                    </option>
+                    <option value="brochure">
+                      Brochure
+                    </option>
+                    <option value="poster">
+                      Poster
+                    </option>
+                    <option value="sticker">
+                      Sticker / Label
+                    </option>
+                    <option value="paper-bag">
+                      Paper Bag
+                    </option>
+                    <option value="tote-bag">
+                      Tote Bag
+                    </option>
+                    <option value="box">
+                      Box / Packaging
+                    </option>
+                    <option value="cap">
+                      Cap
+                    </option>
+                    <option value="giftset">
+                      Gift Set
                     </option>
                     <option value="other">
                       Other

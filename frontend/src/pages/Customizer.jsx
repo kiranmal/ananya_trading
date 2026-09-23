@@ -597,15 +597,191 @@ function PenSvg({ color }) {
 
 
 /* =========================================================
+   WATER BOTTLE MOCKUP (vector — body color changeable)
+========================================================= */
+
+function BottleSvg({ color }) {
+  const c = color || "#2878df";
+  const top = shadeHex(c, 0.28);
+  const bot = shadeHex(c, -0.3);
+
+  return (
+    <svg
+      className="garment-svg"
+      viewBox="0 0 600 500"
+    >
+      <defs>
+        <linearGradient
+          id="bottleBody"
+          x1="0" y1="0" x2="1" y2="0"
+        >
+          <stop offset="0" stopColor={top} />
+          <stop offset=".35" stopColor={c} />
+          <stop offset=".8" stopColor={bot} />
+          <stop offset="1" stopColor={top} />
+        </linearGradient>
+      </defs>
+
+      {/* shadow */}
+      <ellipse
+        cx="300" cy="445"
+        rx="110" ry="16"
+        fill="#000" opacity=".12"
+      />
+
+      {/* cap */}
+      <rect
+        x="272" y="58" width="56" height="34"
+        rx="8" fill={bot}
+        stroke="#00000022"
+      />
+      {[0, 1, 2].map((i) => (
+        <rect
+          key={i}
+          x={284 + i * 11}
+          y="58"
+          width="4"
+          height="34"
+          fill="#000"
+          opacity=".14"
+        />
+      ))}
+
+      {/* neck ring */}
+      <rect
+        x="280" y="92" width="40" height="16"
+        rx="4" fill={shadeHex(c, -0.15)}
+      />
+
+      {/* neck taper */}
+      <path
+        d="M270 108 L330 108 L345 150 L255 150 Z"
+        fill={shadeHex(c, 0.1)}
+      />
+
+      {/* BODY */}
+      <path
+        d="M255 150 L345 150 L370 195 Q378 210 378 235 L378 400 Q378 435 340 435 L260 435 Q222 435 222 400 L222 235 Q222 210 230 195 Z"
+        fill="url(#bottleBody)"
+        stroke="#0000001e"
+      />
+
+      {/* cylinder sheen */}
+      <rect
+        x="238" y="175" width="16" height="235"
+        rx="8" fill="#ffffff" opacity=".3"
+      />
+      <rect
+        x="352" y="200" width="10" height="200"
+        rx="5" fill="#000000" opacity=".1"
+      />
+
+      {/* label band — printable zone yahan hoti hai */}
+      <rect
+        x="222" y="232" width="156" height="88"
+        fill="#ffffff" opacity=".14"
+      />
+    </svg>
+  );
+}
+
+/* =========================================================
+   MUG MOCKUP (vector — mug color changeable)
+========================================================= */
+
+function MugSvg({ color }) {
+  const c = color || "#ffffff";
+  const dark = isDarkColor(c);
+  const rim = dark ? shadeHex(c, 0.15) : "#e8edf3";
+  const bot = shadeHex(c, -0.15);
+
+  return (
+    <svg
+      className="garment-svg"
+      viewBox="0 0 600 500"
+    >
+      <defs>
+        <linearGradient
+          id="mugBody"
+          x1="0" y1="0" x2="1" y2="0"
+        >
+          <stop offset="0" stopColor={shadeHex(c, 0.12)} />
+          <stop offset=".4" stopColor={c} />
+          <stop offset="1" stopColor={bot} />
+        </linearGradient>
+      </defs>
+
+      {/* shadow */}
+      <ellipse
+        cx="295" cy="415"
+        rx="150" ry="18"
+        fill="#000" opacity=".12"
+      />
+
+      {/* handle */}
+      <path
+        d="M378 195 Q465 205 455 275 Q445 340 378 350"
+        fill="none"
+        stroke={bot}
+        strokeWidth="20"
+        strokeLinecap="round"
+      />
+
+      {/* body */}
+      <path
+        d="M205 150 L205 365 Q205 405 250 405 L335 405 Q380 405 380 365 L380 150 Z"
+        fill="url(#mugBody)"
+        stroke="#00000018"
+      />
+
+      {/* rim / opening */}
+      <ellipse
+        cx="292" cy="150"
+        rx="88" ry="16"
+        fill={rim}
+        stroke="#00000012"
+      />
+      <ellipse
+        cx="292" cy="150"
+        rx="72" ry="10"
+        fill={dark ? shadeHex(c, -0.25) : "#c9d2dd"}
+      />
+
+      {/* sheen */}
+      <rect
+        x="222" y="175" width="18" height="195"
+        rx="9" fill="#ffffff" opacity=".28"
+      />
+
+      {/* print zone hint band */}
+      <rect
+        x="240" y="205" width="105" height="130"
+        fill="#ffffff" opacity={dark ? ".1" : ".05"}
+      />
+    </svg>
+  );
+}
+
+
+
+/* =========================================================
    PRINT AREA per customization type
    (% of preview box — product mockup ke upar safe zone)
 ========================================================= */
 
 const PRINT_AREAS = {
-  mug: { left: 30, top: 36, width: 40, height: 36 },
-  /* pen barrel — clip aur tip se door, sirf body pe */
+  /* mug front print zone (body center) */
+  mug: { left: 40, top: 42, width: 18, height: 26 },
+  /* pen barrel — clip aur tip se door */
   pen: { left: 26, top: 44, width: 42, height: 12 },
-  bottle: { left: 33, top: 44, width: 34, height: 24 },
+  /* bottle label band — cap/neck/base se door */
+  bottle: { left: 37, top: 46, width: 26, height: 20 },
+  "water-bottle": {
+    left: 37,
+    top: 46,
+    width: 26,
+    height: 20,
+  },
   letterhead: { left: 28, top: 20, width: 44, height: 62 },
   flyer: { left: 32, top: 38, width: 36, height: 48 },
   brochure: { left: 24, top: 24, width: 52, height: 52 },
@@ -1288,11 +1464,24 @@ function Customizer() {
       setProductColor(shirtColor);
 
       if (product?.sizes?.length) {
-        setSize(product.sizes[0]);
+        /* detail page pe selected size sync karo */
+        setSize(
+          product.size &&
+            product.sizes.includes(product.size)
+            ? product.size
+            : product.sizes[0]
+        );
       }
 
       if (product?.paperTypes?.length) {
-        setPaperType(product.paperTypes[0]);
+        setPaperType(
+          product.paperType &&
+            product.paperTypes.includes(
+              product.paperType
+            )
+            ? product.paperType
+            : product.paperTypes[0]
+        );
       }
 
       const isNb =
@@ -1351,14 +1540,21 @@ function Customizer() {
           restored.customerNote || ""
         );
       } else {
+        const ctype = String(
+          product?.customizationType ||
+            product?.type ||
+            ""
+        ).toLowerCase();
+
         setDesigns(
           isNb
             ? makeNotebookDefaults(shirtColor)
-            : String(
-                product?.customizationType ||
-                  product?.type ||
-                  ""
-              ).toLowerCase() === "pen" ||
+            : [
+                "pen",
+                "bottle",
+                "water-bottle",
+                "mug",
+              ].includes(ctype) ||
               /pen/i.test(product?.name || "")
             ? makePenDefaults(shirtColor)
             : makeDefaultDesigns(shirtColor)
@@ -1421,6 +1617,15 @@ function Customizer() {
     customizationType === "pen" ||
     (/pen/i.test(productName) &&
       !/bottle|open/i.test(productName));
+
+  const isBottle = ["bottle", "water-bottle"].includes(
+    customizationType
+  );
+
+  const isMug = customizationType === "mug";
+
+  /* single printable surface — front/back switch nahi */
+  const singleSide = isPen || isBottle || isMug;
 
   /* image/pen products ka type-specific print area */
   const typePrintArea =
@@ -1618,7 +1823,7 @@ function Customizer() {
         85,
         42 + sameKind * 14
       ),
-      fontSize: isPen
+      fontSize: singleSide
         ? kind === "company"
           ? 15
           : kind === "designation"
@@ -1846,7 +2051,7 @@ function Customizer() {
     setDesigns(
       isNotebook
         ? makeNotebookDefaults(shirtColor)
-        : isPen
+        : singleSide
         ? makePenDefaults(shirtColor)
         : makeDefaultDesigns(shirtColor)
     );
@@ -2464,6 +2669,23 @@ function Customizer() {
         "#d92132",
         "#075c51",
       ]
+    : isBottle
+    ? [
+        "#2878df",
+        "#17191f",
+        "#f5f5f5",
+        "#d92132",
+        "#075c51",
+        "#0e7490",
+      ]
+    : isMug
+    ? [
+        "#ffffff",
+        "#17191f",
+        "#123d70",
+        "#d92132",
+        "#075c51",
+      ]
     : [
         "#ffffff",
         "#17191f",
@@ -2499,6 +2721,10 @@ function Customizer() {
             ? "real-product-preview notebook-preview"
             : isPen
             ? "real-product-preview pen-preview"
+            : isBottle
+            ? "real-product-preview has-image"
+            : isMug
+            ? "real-product-preview has-image"
             : !isApparel && productImage
             ? "real-product-preview has-image"
             : "real-product-preview"
@@ -2511,6 +2737,10 @@ function Customizer() {
           />
         ) : isPen ? (
           <PenSvg color={productColor} />
+        ) : isBottle ? (
+          <BottleSvg color={productColor} />
+        ) : isMug ? (
+          <MugSvg color={productColor} />
         ) : isApparel ? (
           <GarmentSvg
             color={productColor}
@@ -2822,7 +3052,7 @@ function Customizer() {
           <div className="title-center">
             <h1>
               {productName} —{" "}
-              {isPen
+              {singleSide
                 ? "Preview"
                 : side === "front"
                 ? "Front Preview"
@@ -2835,7 +3065,7 @@ function Customizer() {
             </p>
           </div>
 
-          {!isPen && (
+          {!singleSide && (
             <div className="side-switch">
               <button
                 className={
@@ -2926,7 +3156,7 @@ function Customizer() {
 
         </div>
 
-        {!isPen && (
+        {!singleSide && (
           <div className="side-switch">
 
             <button
@@ -3303,8 +3533,8 @@ function Customizer() {
 
                     <input
                       type="range"
-                      min={isPen ? 8 : 12}
-                      max={isPen ? 30 : 70}
+                      min={singleSide ? 8 : 12}
+                      max={singleSide ? 30 : 70}
                       value={selectedElement.fontSize}
                       onChange={(event) =>
                         moveElementLive(
@@ -3986,6 +4216,10 @@ function Customizer() {
                 Layers —{" "}
                 {isPen
                   ? "Barrel"
+                  : isBottle
+                  ? "Bottle"
+                  : isMug
+                  ? "Mug"
                   : side === "front"
                   ? "Front"
                   : "Back"}
@@ -4222,11 +4456,15 @@ function Customizer() {
 
           {/* PRODUCT COLOR — sirf vector products pe */}
 
-          {(isApparel || isNotebook || isPen) && (
+          {(isApparel || isNotebook || singleSide) && (
             <>
               <h3>
                 {isPen
                   ? "Choose Pen Color"
+                  : isBottle
+                  ? "Choose Bottle Color"
+                  : isMug
+                  ? "Choose Mug Color"
                   : isNotebook
                   ? "Notebook Cover"
                   : "Choose Product Color"}
