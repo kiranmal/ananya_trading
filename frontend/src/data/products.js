@@ -772,4 +772,17 @@ products.forEach((p) => {
   }
 });
 
+/* =========================================================
+   PRODUCT MOCKUP IMAGES
+   Har product ka apna real vector mockup — /public/products
+   front = listing/detail main view, back = gallery alt view
+========================================================= */
+
+products.forEach((p) => {
+  p.images = [
+    `/products/${p.id}-front.svg`,
+    `/products/${p.id}-back.svg`,
+  ];
+});
+
 export default products;
