@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Eye, X, Palette } from "lucide-react";
 import {
   fetchAllOrders,
   updateOrderStatusRemote,
@@ -8,6 +9,8 @@ import "./AdminOrders.css";
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] =
+    useState(null);
 
   useEffect(() => {
     loadOrders();
@@ -333,6 +336,10 @@ export default function AdminOrders() {
                     Manage Status
                   </th>
 
+                  <th>
+                    View
+                  </th>
+
                 </tr>
               </thead>
 
@@ -534,6 +541,22 @@ export default function AdminOrders() {
                           </select>
                         </td>
 
+                        {/* VIEW DETAILS */}
+
+                        <td>
+                          <button
+                            className="order-view-btn"
+                            title="View order details"
+                            onClick={() =>
+                              setSelectedOrder(
+                                order
+                              )
+                            }
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </td>
+
                       </tr>
 
                     );
@@ -550,6 +573,282 @@ export default function AdminOrders() {
 
       </section>
 
+      {/* ================= ORDER DETAIL DRAWER ================= */}
+
+      {selectedOrder && (
+        <OrderDrawer
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
+
+    </div>
+  );
+}
+
+/* =====================================================
+   ORDER DETAIL DRAWER — customer kya customize kiya
+===================================================== */
+
+function OrderDrawer({ order, onClose }) {
+  const items = Array.isArray(order.cart)
+    ? order.cart
+    : Array.isArray(order.items)
+    ? order.items
+    : [];
+
+  const formatPrice = (price) =>
+    Number(price || 0).toLocaleString("en-IN");
+
+  const renderElement = (el, side) => {
+    if (el.hidden) return null;
+
+    if (el.type === "image") {
+      return (
+        <div key={el.id} className="od-el">
+          <span className="od-el-side">{side}</span>
+          <span className="od-el-label">
+            {el.label || "Logo / Image"}
+          </span>
+          {el.src && (
+            <img
+              src={el.src}
+              alt=""
+              className="od-el-img"
+            />
+          )}
+        </div>
+      );
+    }
+
+    if (el.type !== "text") return null;
+
+    return (
+      <div key={el.id} className="od-el">
+        <span className="od-el-side">{side}</span>
+        <span className="od-el-label">
+          {el.label || "Text"}
+        </span>
+        <span
+          className="od-el-text"
+          style={{
+            fontFamily: el.fontFamily,
+            fontWeight: el.bold ? 700 : 400,
+            fontStyle: el.italic ? "italic" : "normal",
+            textDecoration: el.underline
+              ? "underline"
+              : "none",
+            color: el.color,
+          }}
+        >
+          {el.text}
+        </span>
+        <small className="od-el-meta">
+          {el.fontFamily} · {el.fontSize}px ·{" "}
+          {el.color}
+        </small>
+      </div>
+    );
+  };
+
+  return (
+    <div className="od-overlay" onClick={onClose}>
+      <div
+        className="od-drawer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* HEAD */}
+        <div className="od-head">
+          <div>
+            <h3>
+              {order.orderId || order.id || "Order"}
+            </h3>
+            <span className="od-date">
+              {order.createdAt
+                ? new Date(
+                    order.createdAt
+                  ).toLocaleString("en-IN")
+                : ""}
+            </span>
+          </div>
+
+          <button
+            className="od-close"
+            onClick={onClose}
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        {/* CUSTOMER */}
+        <div className="od-section">
+          <h4>Customer</h4>
+          <div className="od-row">
+            <span>Name</span>
+            <strong>
+              {order.name ||
+                order.customerName ||
+                order.userName ||
+                "Customer"}
+            </strong>
+          </div>
+          <div className="od-row">
+            <span>Email</span>
+            <strong>
+              {order.email ||
+                order.customerEmail ||
+                "—"}
+            </strong>
+          </div>
+          <div className="od-row">
+            <span>Phone</span>
+            <strong>
+              {order.phone ||
+                order.customerPhone ||
+                "—"}
+            </strong>
+          </div>
+          {(order.address ||
+            order.shippingAddress) && (
+            <div className="od-row">
+              <span>Address</span>
+              <strong>
+                {order.address ||
+                  order.shippingAddress}
+              </strong>
+            </div>
+          )}
+        </div>
+
+        {/* ITEMS + CUSTOMIZATION */}
+        {items.map((item, idx) => {
+          const front = item.designs?.front || [];
+          const back = item.designs?.back || [];
+          const hasDesign =
+            front.length > 0 || back.length > 0;
+
+          return (
+            <div
+              className="od-section"
+              key={item.id || idx}
+            >
+              <h4>
+                <Palette size={14} />{" "}
+                {item.name || "Product"}
+              </h4>
+
+              <div className="od-item-head">
+                {item.image && (
+                  <img
+                    src={item.image}
+                    alt=""
+                    className="od-item-img"
+                  />
+                )}
+                <div className="od-item-meta">
+                  {item.size && (
+                    <span>Size: {item.size}</span>
+                  )}
+                  {item.paperType && (
+                    <span>
+                      Paper: {item.paperType}
+                    </span>
+                  )}
+                  {item.color && (
+                    <span>
+                      Color: {item.color}
+                    </span>
+                  )}
+                  <span>
+                    Qty: {item.quantity || 1}
+                  </span>
+                  <span>
+                    ₹
+                    {formatPrice(
+                      item.totalPrice || item.price
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {hasDesign ? (
+                <div className="od-design">
+                  <div className="od-design-tag">
+                    CUSTOMIZED DESIGN
+                  </div>
+                  {front.map((el) =>
+                    renderElement(el, "Front")
+                  )}
+                  {back.map((el) =>
+                    renderElement(el, "Back")
+                  )}
+                </div>
+              ) : (
+                <p className="od-no-design">
+                  No customization — standard
+                  product.
+                </p>
+              )}
+
+              {item.customerDescription && (
+                <div className="od-note">
+                  <small>
+                    Customer Description
+                  </small>
+                  <p>
+                    {item.customerDescription}
+                  </p>
+                </div>
+              )}
+
+              {(item.customerNote ||
+                item.specialNote) && (
+                <div className="od-note">
+                  <small>
+                    Special Instructions
+                  </small>
+                  <p>
+                    {item.customerNote ||
+                      item.specialNote}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* TOTAL */}
+        <div className="od-section od-total">
+          <div className="od-row">
+            <span>Items</span>
+            <strong>{items.length}</strong>
+          </div>
+          {order.customizationCharges >
+            0 && (
+            <div className="od-row">
+              <span>
+                Customization Charges
+              </span>
+              <strong>
+                ₹
+                {formatPrice(
+                  order.customizationCharges
+                )}
+              </strong>
+            </div>
+          )}
+          <div className="od-row od-grand">
+            <span>Total</span>
+            <strong>
+              ₹
+              {formatPrice(
+                order.totalPrice ||
+                  order.amount
+              )}
+            </strong>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
