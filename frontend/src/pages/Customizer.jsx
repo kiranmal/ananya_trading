@@ -39,7 +39,7 @@ import {
   EyeOff,
   ChevronUp,
   ChevronDown,
-  Image,
+  LayoutTemplate,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -210,8 +210,680 @@ function GarmentSvg({ color, back }) {
 }
 
 /* =====================================================
+   SPIRAL NOTEBOOK MOCKUP
+   (cover + pages; spiral alag overlay mein — design ke UPAR)
+===================================================== */
+
+function NotebookSvg({ color, back }) {
+  const dark = isDarkColor(color);
+  const seam = dark
+    ? "rgba(0,0,0,0.4)"
+    : "rgba(0,0,0,0.14)";
+  const shade = dark
+    ? "rgba(0,0,0,0.30)"
+    : "rgba(0,0,0,0.08)";
+  const light = dark
+    ? "rgba(255,255,255,0.10)"
+    : "rgba(255,255,255,0.5)";
+
+  return (
+    <svg
+      viewBox="0 0 380 480"
+      className="garment-svg"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient
+          id="nbshade"
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="1"
+        >
+          <stop offset="0%" stopColor={light} />
+          <stop offset="40%" stopColor="rgba(0,0,0,0)" />
+          <stop offset="100%" stopColor={shade} />
+        </linearGradient>
+      </defs>
+
+      {/* page block — cover se thoda offset (thickness) */}
+      <rect
+        x="62"
+        y="32"
+        width="292"
+        height="428"
+        rx="10"
+        fill="#f3f0ea"
+      />
+      <rect
+        x="62"
+        y="32"
+        width="292"
+        height="428"
+        rx="10"
+        fill="none"
+        stroke="#d8d3c8"
+        strokeWidth="2"
+      />
+
+      {/* page edge lines */}
+      <path
+        d="M66 48 L348 48 M66 440 L348 440 M340 36 L340 456"
+        stroke="#ddd8cc"
+        strokeWidth="1.6"
+        fill="none"
+      />
+
+      {/* front/back cover */}
+      <rect
+        x="46"
+        y="20"
+        width="300"
+        height="440"
+        rx="14"
+        fill={color}
+      />
+      <rect
+        x="46"
+        y="20"
+        width="300"
+        height="440"
+        rx="14"
+        fill="url(#nbshade)"
+      />
+      <rect
+        x="46"
+        y="20"
+        width="300"
+        height="440"
+        rx="14"
+        fill="none"
+        stroke={seam}
+        strokeWidth="2"
+      />
+
+      {/* spiral hole shadows on cover edge */}
+      {Array.from({ length: 15 }).map((_, i) => {
+        const y = 48 + i * 27;
+        return (
+          <circle
+            key={i}
+            cx="50"
+            cy={y}
+            r="4.5"
+            fill={shade}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+/* spiral rings — design layer ke UPAR render hota hai */
+function SpiralOverlay() {
+  return (
+    <svg
+      viewBox="0 0 380 480"
+      className="spiral-overlay"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient
+          id="ringmetal"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop offset="0%" stopColor="#e8ecf0" />
+          <stop offset="45%" stopColor="#9aa4b0" />
+          <stop offset="100%" stopColor="#5c6672" />
+        </linearGradient>
+      </defs>
+
+      {Array.from({ length: 15 }).map((_, i) => {
+        const y = 48 + i * 27;
+        return (
+          <g key={i}>
+            {/* ring shadow */}
+            <ellipse
+              cx="41"
+              cy={y + 2}
+              rx="17"
+              ry="8"
+              fill="none"
+              stroke="rgba(0,0,0,0.25)"
+              strokeWidth="5"
+            />
+            {/* metal ring */}
+            <ellipse
+              cx="40"
+              cy={y}
+              rx="16"
+              ry="8"
+              fill="none"
+              stroke="url(#ringmetal)"
+              strokeWidth="5"
+            />
+            {/* ring highlight */}
+            <ellipse
+              cx="40"
+              cy={y - 1.5}
+              rx="16"
+              ry="8"
+              fill="none"
+              stroke="rgba(255,255,255,0.65)"
+              strokeWidth="1.4"
+            />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/* QR placeholder element */
+function QrPattern() {
+  const cells = [];
+  const size = 21;
+  const inFinder = (x, y) =>
+    (x < 7 && y < 7) ||
+    (x >= size - 7 && y < 7) ||
+    (x < 7 && y >= size - 7);
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (inFinder(x, y)) continue;
+      if ((x * 7 + y * 13 + x * y) % 3 === 0) {
+        cells.push(
+          <rect
+            key={`${x}-${y}`}
+            x={x * 4}
+            y={y * 4}
+            width="4"
+            height="4"
+          />
+        );
+      }
+    }
+  }
+
+  const finder = (ox, oy) => (
+    <g key={`${ox}-${oy}`}>
+      <rect
+        x={ox * 4}
+        y={oy * 4}
+        width="28"
+        height="28"
+        fill="#111827"
+      />
+      <rect
+        x={(ox + 1) * 4}
+        y={(oy + 1) * 4}
+        width="20"
+        height="20"
+        fill="#fff"
+      />
+      <rect
+        x={(ox + 2) * 4}
+        y={(oy + 2) * 4}
+        width="12"
+        height="12"
+        fill="#111827"
+      />
+    </g>
+  );
+
+  return (
+    <svg
+      viewBox="0 0 84 84"
+      className="qr-pattern"
+    >
+      <rect
+        width="84"
+        height="84"
+        fill="#ffffff"
+        rx="4"
+      />
+      <g fill="#111827">{cells}</g>
+      {finder(0, 0)}
+      {finder(size - 7, 0)}
+      {finder(0, size - 7)}
+    </svg>
+  );
+}
+
+/* =====================================================
+   NOTEBOOK TEMPLATES — sab elements editable rehte hain
+===================================================== */
+
+const NOTEBOOK_TEMPLATES = [
+  {
+    id: "minimal",
+    name: "Minimal",
+    elements: (ink) => [
+      {
+        type: "shape",
+        shape: "line",
+        label: "Divider",
+        x: 50,
+        y: 30,
+        width: 40,
+        height: 2,
+        color: ink,
+        opacity: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 40,
+        fontSize: 24,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "person",
+        label: "Person Name",
+        text: "ARUN RAJ",
+        x: 50,
+        y: 58,
+        fontSize: 16,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+  },
+  {
+    id: "corporate",
+    name: "Corporate",
+    elements: (ink) => [
+      {
+        type: "shape",
+        shape: "rect",
+        label: "Header Band",
+        x: 50,
+        y: 14,
+        width: 100,
+        height: 12,
+        color: ink,
+        opacity: 0.9,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 32,
+        fontSize: 26,
+        fontFamily: "Montserrat",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "person",
+        label: "Person Name",
+        text: "ARUN RAJ",
+        x: 50,
+        y: 50,
+        fontSize: 17,
+        fontFamily: "Montserrat",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "designation",
+        label: "Designation",
+        text: "SALES EXECUTIVE",
+        x: 50,
+        y: 60,
+        fontSize: 13,
+        fontFamily: "Montserrat",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "shape",
+        shape: "line",
+        label: "Divider",
+        x: 50,
+        y: 72,
+        width: 55,
+        height: 2,
+        color: ink,
+        opacity: 0.7,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+  },
+  {
+    id: "modern",
+    name: "Modern",
+    elements: (ink) => [
+      {
+        type: "shape",
+        shape: "circle",
+        label: "Accent Circle",
+        x: 18,
+        y: 16,
+        width: 22,
+        height: 22,
+        color: ink,
+        opacity: 0.25,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA\nTRADING",
+        x: 50,
+        y: 38,
+        fontSize: 28,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 3,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "CUSTOM NOTEBOOK",
+        x: 50,
+        y: 60,
+        fontSize: 12,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 4,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+  },
+  {
+    id: "business-back",
+    name: "Business (Back)",
+    elements: (ink) => [
+      {
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 24,
+        fontSize: 22,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "custom",
+        label: "Website",
+        text: "www.ananyatrading.com",
+        x: 50,
+        y: 42,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 0,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "text",
+        kind: "custom",
+        label: "Phone",
+        text: "+91 98XXX XXXXX",
+        x: 50,
+        y: 52,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        type: "qr",
+        label: "QR Code",
+        x: 50,
+        y: 76,
+        width: 26,
+        rotation: 0,
+        opacity: 1,
+        hidden: false,
+      },
+    ],
+  },
+];
+
+/* =====================================================
    DEFAULT DESIGN
 ===================================================== */
+
+const makeNotebookDefaults = (shirtColor) => {
+  const ink = printColorFor(shirtColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 34,
+        fontSize: 26,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "CUSTOM NOTEBOOK",
+        x: 50,
+        y: 46,
+        fontSize: 12,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 4,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "person",
+        label: "Person Name",
+        text: "ARUN RAJ",
+        x: 50,
+        y: 62,
+        fontSize: 18,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "designation",
+        label: "Designation",
+        text: "SALES EXECUTIVE",
+        x: 50,
+        y: 72,
+        fontSize: 13,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "ANANYA TRADING",
+        x: 50,
+        y: 26,
+        fontSize: 22,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Website",
+        text: "www.ananyatrading.com",
+        x: 50,
+        y: 44,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 0,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Phone",
+        text: "+91 98XXX XXXXX",
+        x: 50,
+        y: 54,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "qr",
+        label: "QR Code",
+        x: 50,
+        y: 78,
+        width: 26,
+        rotation: 0,
+        opacity: 1,
+        hidden: false,
+      },
+    ],
+  };
+};
 
 const makeDefaultDesigns = (shirtColor) => {
   const ink = printColorFor(shirtColor);
@@ -405,6 +1077,22 @@ function Customizer() {
 
       setProductColor(shirtColor);
 
+      if (product?.sizes?.length) {
+        setSize(product.sizes[0]);
+      }
+
+      if (product?.paperTypes?.length) {
+        setPaperType(product.paperTypes[0]);
+      }
+
+      const isNb =
+        /notebook/i.test(product?.name || "") ||
+        /notebook/i.test(
+          product?.category || ""
+        ) ||
+        String(product?.type || "")
+          .toLowerCase() === "notebook";
+
       /* per-product saved design restore */
       let restored = null;
 
@@ -436,6 +1124,10 @@ function Customizer() {
           setSize(restored.size);
         }
 
+        if (restored.paperType) {
+          setPaperType(restored.paperType);
+        }
+
         setCustomerDescription(
           restored.customerDescription || ""
         );
@@ -444,7 +1136,11 @@ function Customizer() {
           restored.customerNote || ""
         );
       } else {
-        setDesigns(makeDefaultDesigns(shirtColor));
+        setDesigns(
+          isNb
+            ? makeNotebookDefaults(shirtColor)
+            : makeDefaultDesigns(shirtColor)
+        );
       }
     } catch (error) {
       console.error("Selected product load error:", error);
@@ -474,13 +1170,36 @@ function Customizer() {
     selectedProduct?.type ||
     "tshirt";
 
+  const productName =
+    selectedProduct?.name ||
+    "Custom Product";
+
   const isApparel = ["tshirt", "hoodie"].includes(
     String(productType).toLowerCase()
   );
 
-  const productName =
-    selectedProduct?.name ||
-    "Custom Product";
+  const isNotebook =
+    String(productType).toLowerCase() ===
+      "notebook" ||
+    /notebook/i.test(productName) ||
+    /notebook/i.test(
+      selectedProduct?.category || ""
+    );
+
+  /* product sizes — DB/product data se; fallback type-wise */
+  const sizeOptions =
+    selectedProduct?.sizes?.length
+      ? selectedProduct.sizes
+      : isNotebook
+      ? ["A5", "A4", "B5"]
+      : ["S", "M", "L", "XL", "XXL"];
+
+  /* paper options — sirf jab product support kare */
+  const paperTypes =
+    selectedProduct?.paperTypes || null;
+
+  const [paperType, setPaperType] =
+    useState("");
 
   const productImage =
     selectedProduct?.image ||
@@ -803,20 +1522,20 @@ function Customizer() {
 
     const startX = event.clientX;
     const initSize =
-      el.type === "image"
-        ? el.width
-        : el.fontSize;
+      el.type === "text"
+        ? el.fontSize
+        : el.width;
 
     const onMove = (ev) => {
       const dx = ev.clientX - startX;
 
-      if (el.type === "image") {
+      if (el.type !== "text") {
         const delta =
           (dx / rect.width) * 100;
 
         moveElementLive(el.id, {
           width: Math.max(
-            10,
+            8,
             Math.min(
               100,
               initSize + delta
@@ -867,11 +1586,17 @@ function Customizer() {
     const shirtColor =
       selectedProduct?.color || "#ffffff";
 
-    setDesigns(makeDefaultDesigns(shirtColor));
+    setDesigns(
+      isNotebook
+        ? makeNotebookDefaults(shirtColor)
+        : makeDefaultDesigns(shirtColor)
+    );
 
     setProductColor(shirtColor);
 
-    setSize("M");
+    setSize(
+      selectedProduct?.sizes?.[0] || "M"
+    );
 
     setZoom(1);
 
@@ -969,6 +1694,8 @@ function Customizer() {
       quantity: 1,
 
       size,
+
+      paperType: paperType || null,
 
       color:
         productColor,
@@ -1438,6 +2165,7 @@ function Customizer() {
         designs,
         productColor,
         size,
+        paperType,
         side,
         customerDescription,
         customerNote,
@@ -1498,8 +2226,19 @@ function Customizer() {
         transform: `scale(${zoom})`,
       }}
     >
-      <div className="real-product-preview">
-        {isApparel ? (
+      <div
+        className={
+          isNotebook
+            ? "real-product-preview notebook-preview"
+            : "real-product-preview"
+        }
+      >
+        {isNotebook ? (
+          <NotebookSvg
+            color={productColor}
+            back={side === "back"}
+          />
+        ) : isApparel ? (
           <GarmentSvg
             color={productColor}
             back={side === "back"}
@@ -1521,11 +2260,13 @@ function Customizer() {
         {/* PRINTABLE AREA — design clipped inside */}
         <div
           ref={printAreaRef}
-          className={
-            preview
-              ? "print-area preview-clean"
-              : "print-area editing"
-          }
+          className={`print-area${
+            isNotebook
+              ? " print-area-notebook"
+              : ""
+          } ${
+            preview ? "preview-clean" : "editing"
+          }`}
           onPointerDown={() =>
             setSelectedId(null)
           }
@@ -1533,7 +2274,112 @@ function Customizer() {
           {elements
             .filter((el) => !el.hidden)
             .map((el) =>
-              el.type === "image" ? (
+              el.type === "shape" ? (
+                <div
+                  key={el.id}
+                  className={`design-el design-shape${
+                    selectedId === el.id &&
+                    !preview
+                      ? " el-selected"
+                      : ""
+                  }`}
+                  style={{
+                    left: `${el.x}%`,
+                    top: `${el.y}%`,
+                    width: `${el.width}%`,
+                    height:
+                      el.shape === "line"
+                        ? `${el.height || 2}px`
+                        : `${el.height || el.width}%`,
+                    background: el.color,
+                    opacity: el.opacity ?? 1,
+                    borderRadius:
+                      el.shape === "circle"
+                        ? "50%"
+                        : el.shape === "line"
+                        ? "2px"
+                        : "6px",
+                    transform: `translate(-50%,-50%) rotate(${el.rotation || 0}deg)`,
+                  }}
+                  onPointerDown={
+                    preview
+                      ? undefined
+                      : startDrag(el)
+                  }
+                >
+                  {selectedId === el.id &&
+                    !preview && (
+                      <>
+                        <button
+                          type="button"
+                          className="el-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteElement(el.id);
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="el-resize"
+                          onPointerDown={startResize(el)}
+                        >
+                          ↘
+                        </button>
+                      </>
+                    )}
+                </div>
+              ) : el.type === "qr" ? (
+                <div
+                  key={el.id}
+                  className={`design-el design-image-el${
+                    selectedId === el.id &&
+                    !preview
+                      ? " el-selected"
+                      : ""
+                  }`}
+                  style={{
+                    left: `${el.x}%`,
+                    top: `${el.y}%`,
+                    width: `${el.width}%`,
+                    opacity: el.opacity ?? 1,
+                    transform: `translate(-50%,-50%) rotate(${el.rotation || 0}deg)`,
+                  }}
+                  onPointerDown={
+                    preview
+                      ? undefined
+                      : startDrag(el)
+                  }
+                >
+                  <QrPattern />
+
+                  {selectedId === el.id &&
+                    !preview && (
+                      <>
+                        <button
+                          type="button"
+                          className="el-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteElement(el.id);
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="el-resize"
+                          onPointerDown={startResize(el)}
+                        >
+                          ↘
+                        </button>
+                      </>
+                    )}
+                </div>
+              ) : el.type === "image" ? (
                 <div
                   key={el.id}
                   className={`design-el design-image-el${
@@ -1646,6 +2492,9 @@ function Customizer() {
               )
             )}
         </div>
+
+        {/* SPIRAL — design ke UPAR (notebook only) */}
+        {isNotebook && <SpiralOverlay />}
       </div>
     </div>
   );
@@ -1877,6 +2726,25 @@ function Customizer() {
             </span>
           </button>
 
+          {isNotebook && (
+            <button
+              className={
+                activeTool === "templates"
+                  ? "tool-active"
+                  : ""
+              }
+              onClick={() =>
+                setActiveTool("templates")
+              }
+            >
+              <LayoutTemplate />
+
+              <span>
+                Templates
+              </span>
+            </button>
+          )}
+
           <button
             className={
               activeTool === "color"
@@ -1952,41 +2820,47 @@ function Customizer() {
 
         <section className="settings-panel">
 
-          {/* TEXT TOOL — quick add + selected text controls */}
+          {/* TEXT / COLOR / POSITION — quick add + selected element controls */}
 
-          {activeTool === "text" && (
+          {["text", "color", "position"].includes(
+            activeTool
+          ) && (
             <div className="settings-content">
 
-              <h3>
-                Add to Design
-              </h3>
+              {activeTool === "text" && (
+                <>
+                  <h3>
+                    Add to Design
+                  </h3>
 
-              <div className="quick-add-list">
-                {TEXT_KINDS.map((kind) => (
-                  <button
-                    key={kind.key}
-                    type="button"
-                    className="quick-add-btn"
-                    onClick={() =>
-                      addTextElement(kind.key)
-                    }
-                  >
-                    {kind.key === "company" && (
-                      <Building2 size={16} />
-                    )}
-                    {kind.key === "person" && (
-                      <User size={16} />
-                    )}
-                    {kind.key === "designation" && (
-                      <Briefcase size={16} />
-                    )}
-                    {kind.key === "custom" && (
-                      <Type size={16} />
-                    )}
-                    + {kind.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="quick-add-list">
+                    {TEXT_KINDS.map((kind) => (
+                      <button
+                        key={kind.key}
+                        type="button"
+                        className="quick-add-btn"
+                        onClick={() =>
+                          addTextElement(kind.key)
+                        }
+                      >
+                        {kind.key === "company" && (
+                          <Building2 size={16} />
+                        )}
+                        {kind.key === "person" && (
+                          <User size={16} />
+                        )}
+                        {kind.key === "designation" && (
+                          <Briefcase size={16} />
+                        )}
+                        {kind.key === "custom" && (
+                          <Type size={16} />
+                        )}
+                        + {kind.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {selectedElement?.type ===
                 "text" && (
@@ -2283,6 +3157,324 @@ function Customizer() {
                 </>
               )}
 
+              {/* SHAPE selected */}
+              {selectedElement?.type ===
+                "shape" && (
+                <>
+                  <h4>
+                    {selectedElement.label}
+                  </h4>
+
+                  <h4>Shape Color</h4>
+
+                  <div className="color-row">
+                    {textColors.map((color) => (
+                      <button
+                        key={color}
+                        className={
+                          selectedElement.color ===
+                          color
+                            ? "text-color selected-text-color"
+                            : "text-color"
+                        }
+                        style={{
+                          background: color,
+                        }}
+                        onClick={() =>
+                          updateElement(
+                            selectedElement.id,
+                            { color }
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <h4>Width</h4>
+
+                  <div className="range-row">
+                    <span>5%</span>
+                    <input
+                      type="range"
+                      min="5"
+                      max="100"
+                      value={selectedElement.width}
+                      onChange={(e) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            width: Number(
+                              e.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+                    <span>
+                      {Math.round(
+                        selectedElement.width
+                      )}
+                      %
+                    </span>
+                  </div>
+
+                  <h4>Height</h4>
+
+                  <div className="range-row">
+                    <span>2</span>
+                    <input
+                      type="range"
+                      min="2"
+                      max="80"
+                      value={selectedElement.height || 10}
+                      onChange={(e) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            height: Number(
+                              e.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+                    <span>
+                      {Math.round(
+                        selectedElement.height || 10
+                      )}
+                    </span>
+                  </div>
+
+                  <h4>Opacity</h4>
+
+                  <div className="range-row">
+                    <span>0.2</span>
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="1"
+                      step="0.05"
+                      value={selectedElement.opacity ?? 1}
+                      onChange={(e) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            opacity: Number(
+                              e.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+                    <span>
+                      {(
+                        selectedElement.opacity ?? 1
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {/* QR selected */}
+              {selectedElement?.type === "qr" && (
+                <>
+                  <h4>QR Code</h4>
+
+                  <div className="range-row">
+                    <span>10%</span>
+                    <input
+                      type="range"
+                      min="10"
+                      max="60"
+                      value={selectedElement.width}
+                      onChange={(e) =>
+                        moveElementLive(
+                          selectedElement.id,
+                          {
+                            width: Number(
+                              e.target.value
+                            ),
+                          }
+                        )
+                      }
+                      onMouseUp={() => saveHistory()}
+                    />
+                    <span>
+                      {Math.round(
+                        selectedElement.width
+                      )}
+                      %
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {/* IMAGE selected (upload tool ke bahar bhi controls) */}
+              {selectedElement?.type ===
+                "image" &&
+                activeTool !== "upload" && (
+                  <>
+                    <h4>
+                      {selectedElement.label}
+                    </h4>
+
+                    <div className="uploaded-preview">
+                      <img
+                        src={selectedElement.src}
+                        alt="Uploaded"
+                      />
+                    </div>
+
+                    <h4>Size</h4>
+
+                    <div className="range-row">
+                      <span>10%</span>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={selectedElement.width}
+                        onChange={(e) =>
+                          moveElementLive(
+                            selectedElement.id,
+                            {
+                              width: Number(
+                                e.target.value
+                              ),
+                            }
+                          )
+                        }
+                        onMouseUp={() => saveHistory()}
+                      />
+                      <span>
+                        {Math.round(
+                          selectedElement.width
+                        )}
+                        %
+                      </span>
+                    </div>
+
+                    <h4>Rotation</h4>
+
+                    <div className="range-row">
+                      <span>-90°</span>
+                      <input
+                        type="range"
+                        min="-90"
+                        max="90"
+                        value={selectedElement.rotation || 0}
+                        onChange={(e) =>
+                          moveElementLive(
+                            selectedElement.id,
+                            {
+                              rotation: Number(
+                                e.target.value
+                              ),
+                            }
+                          )
+                        }
+                        onMouseUp={() => saveHistory()}
+                      />
+                      <span>
+                        {selectedElement.rotation || 0}°
+                      </span>
+                    </div>
+
+                    <h4>Opacity</h4>
+
+                    <div className="range-row">
+                      <span>0.3</span>
+                      <input
+                        type="range"
+                        min="0.3"
+                        max="1"
+                        step="0.05"
+                        value={selectedElement.opacity ?? 1}
+                        onChange={(e) =>
+                          moveElementLive(
+                            selectedElement.id,
+                            {
+                              opacity: Number(
+                                e.target.value
+                              ),
+                            }
+                          )
+                        }
+                        onMouseUp={() => saveHistory()}
+                      />
+                      <span>
+                        {(
+                          selectedElement.opacity ?? 1
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+              {/* POSITION quick buttons */}
+              {activeTool === "position" &&
+                selectedElement && (
+                  <div className="position-buttons">
+                    <button
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { x: 50, y: 30 }
+                        )
+                      }
+                    >
+                      Top Center
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { x: 50, y: 50 }
+                        )
+                      }
+                    >
+                      Center
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { x: 50, y: 70 }
+                        )
+                      }
+                    >
+                      Bottom Center
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        updateElement(
+                          selectedElement.id,
+                          { x: 18, y: 22 }
+                        )
+                      }
+                    >
+                      {isNotebook
+                        ? "Left Side"
+                        : "Left Chest"}
+                    </button>
+                  </div>
+                )}
+
+              {!selectedElement &&
+                activeTool !== "text" && (
+                  <p className="position-info">
+                    {activeTool === "color"
+                      ? "Pehle cover par kisi element ko select karein, phir color choose karein."
+                      : "Cover par element ko directly drag karke move karein, ya element select karke quick position use karein."}
+                  </p>
+                )}
+
             </div>
           )}
 
@@ -2440,116 +3632,64 @@ function Customizer() {
             </div>
           )}
 
-          {/* COLOR */}
+          {/* TEMPLATES — notebook only */}
 
-          {activeTool === "color" && (
+          {activeTool === "templates" && (
             <div className="settings-content">
 
               <h3>
-                Text Color
-              </h3>
-
-              {selectedElement?.type === "text" ? (
-                <div className="large-color-grid">
-                  {textColors.map((color) => (
-                    <button
-                      key={color}
-                      style={{
-                        background: color,
-                      }}
-                      className={
-                        selectedElement.color === color
-                          ? "color-selected"
-                          : ""
-                      }
-                      onClick={() =>
-                        updateElement(
-                          selectedElement.id,
-                          { color }
-                        )
-                      }
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="position-info">
-                  Pehle shirt par kisi text ko
-                  select karein, phir color
-                  choose karein.
-                </p>
-              )}
-
-            </div>
-          )}
-
-          {/* POSITION */}
-
-          {activeTool === "position" && (
-            <div className="settings-content">
-
-              <h3>
-                Position
+                Design Templates
               </h3>
 
               <p className="position-info">
-                Shirt par element ko directly
-                drag karke move karein. Ya
-                quick position buttons use karein.
+                Template select karne par sab
+                elements editable rehte hain —
+                text, color, position sab badal
+                sakte ho.
               </p>
 
-              {selectedElement ? (
-                <div className="position-buttons">
-                  <button
-                    onClick={() =>
-                      updateElement(
-                        selectedElement.id,
-                        { x: 50, y: 30 }
-                      )
-                    }
-                  >
-                    Top Center
-                  </button>
+              <div className="template-list">
+                {NOTEBOOK_TEMPLATES.map(
+                  (tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      className="template-btn"
+                      onClick={() => {
+                        saveHistory();
 
-                  <button
-                    onClick={() =>
-                      updateElement(
-                        selectedElement.id,
-                        { x: 50, y: 50 }
-                      )
-                    }
-                  >
-                    Center
-                  </button>
+                        const ink =
+                          printColorFor(
+                            productColor
+                          );
 
-                  <button
-                    onClick={() =>
-                      updateElement(
-                        selectedElement.id,
-                        { x: 50, y: 70 }
-                      )
-                    }
-                  >
-                    Bottom Center
-                  </button>
+                        const newEls =
+                          tpl.elements(ink).map(
+                            (e) => ({
+                              ...e,
+                              id: uid(),
+                            })
+                          );
 
-                  <button
-                    onClick={() =>
-                      updateElement(
-                        selectedElement.id,
-                        { x: 18, y: 22 }
-                      )
-                    }
-                  >
-                    Left Chest
-                  </button>
-                </div>
-              ) : (
-                <p className="position-info">
-                  Koi element select nahi hai.
-                  Shirt par click karke select
-                  karein.
-                </p>
-              )}
+                        setDesigns((prev) => ({
+                          ...prev,
+                          [side]: newEls,
+                        }));
+
+                        setSelectedId(null);
+                      }}
+                    >
+                      <span className="template-name">
+                        {tpl.name}
+                      </span>
+
+                      <span className="template-desc">
+                        {tpl.elements().length} editable elements
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
 
             </div>
           )}
@@ -2836,13 +3976,7 @@ function Customizer() {
 
           <div className="size-options">
 
-            {[
-              "S",
-              "M",
-              "L",
-              "XL",
-              "XXL",
-            ].map(
+            {sizeOptions.map(
               (item) => (
                 <button
                   key={item}
@@ -2861,6 +3995,33 @@ function Customizer() {
             )}
 
           </div>
+
+          {/* PAPER TYPE — sirf supported products pe */}
+          {paperTypes?.length > 0 && (
+            <>
+              <div className="setting-divider" />
+
+              <h3>
+                Paper Type
+              </h3>
+
+              <div className="size-options">
+                {paperTypes.map((p) => (
+                  <button
+                    key={p}
+                    className={
+                      paperType === p
+                        ? "size-selected"
+                        : ""
+                    }
+                    onClick={() => setPaperType(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="setting-divider" />
 
