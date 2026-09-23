@@ -29,6 +29,45 @@
   pointer-events: none;
 }
 
+/* decorative outline circles (CTA ke jaise) */
+.contact-deco {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(18, 99, 189, 0.14);
+  pointer-events: none;
+}
+
+.contact-deco-1 {
+  width: 170px;
+  height: 170px;
+  right: 44%;
+  top: -60px;
+}
+
+.contact-deco-2 {
+  width: 110px;
+  height: 110px;
+  left: -40px;
+  bottom: -30px;
+  border-color: rgba(18, 99, 189, 0.1);
+}
+
+/* subtle dot pattern */
+.contact-dots {
+  position: absolute;
+  left: 30px;
+  bottom: 26px;
+  width: 150px;
+  height: 90px;
+  background-image: radial-gradient(
+    rgba(18, 99, 189, 0.16) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 16px 16px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
 .contact-inner {
   position: relative;
   display: grid;
@@ -38,6 +77,21 @@
 }
 
 /* ============ LEFT ============ */
+
+.contact-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  margin-bottom: 16px;
+  border-radius: 20px;
+  background: #eaf2fc;
+  border: 1px solid #cfe2f6;
+  color: #1263bd;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+}
 
 .contact-left h2 {
   margin: 0 0 14px;
@@ -56,21 +110,29 @@
 }
 
 .contact-benefits {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 26px;
+  margin: 0 0 24px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 18px;
+  gap: 10px;
 }
 
-.contact-benefits li {
+.benefit-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
+  padding: 11px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 13.5px;
   font-weight: 600;
   color: #1d3252;
+  transition: border-color 0.18s, transform 0.18s;
+}
+
+.benefit-card:hover {
+  border-color: #bcd4ee;
+  transform: translateY(-1px);
 }
 
 .benefit-icon {
@@ -94,6 +156,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   max-width: 380px;
+  margin-bottom: 20px;
 }
 
 .help-icon {
@@ -122,15 +185,73 @@
   color: #64748b;
 }
 
+/* direct contact chips */
+.contact-direct {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.direct-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 20px;
+  background: #eaf2fc;
+  border: 1px solid #cfe2f6;
+  color: #0f2544;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.18s, border-color 0.18s;
+}
+
+a.direct-chip:hover {
+  background: #dcebf9;
+  border-color: #1263bd;
+}
+
+.direct-chip svg {
+  color: #1263bd;
+}
+
+.direct-time {
+  background: transparent;
+  color: #64748b;
+}
+
+.direct-time svg {
+  color: #64748b;
+}
+
 /* ============ RIGHT — form ============ */
 
 .contact-form-card {
+  position: relative;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 18px;
   padding: 30px 30px 26px;
   box-shadow: 0 14px 40px rgba(15, 37, 68, 0.07);
   animation: contactCardIn 0.5s ease;
+  overflow: hidden;
+}
+
+/* top accent strip */
+.contact-form-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #1263bd,
+    #4f9cf0 60%,
+    #bcd4ee
+  );
 }
 
 @keyframes contactCardIn {
@@ -145,10 +266,33 @@
 }
 
 .contact-form-card h3 {
-  margin: 0 0 20px;
+  margin: 0;
   font-size: 20px;
   font-weight: 800;
   color: #0f2544;
+}
+
+/* form header row */
+.form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.form-head-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 4px 10px;
+  border-radius: 14px;
+  white-space: nowrap;
 }
 
 .inquiry-form {
@@ -324,6 +468,10 @@
   .contact-left h2 {
     font-size: 26px;
   }
+
+  .contact-deco-1 {
+    display: none;
+  }
 }
 
 @media (max-width: 540px) {
@@ -333,5 +481,11 @@
 
   .contact-benefits {
     grid-template-columns: 1fr;
+  }
+
+  .form-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }

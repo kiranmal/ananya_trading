@@ -7,6 +7,9 @@ import {
   Send,
   CheckCircle2,
   Headset,
+  Phone,
+  Mail,
+  Clock,
 } from "lucide-react";
 
 import "./ContactSection.css";
@@ -163,10 +166,18 @@ export default function ContactSection({ source = "homepage" }) {
       id="contact-inquiry"
     >
       <div className="contact-glow" />
+      <div className="contact-deco contact-deco-1" />
+      <div className="contact-deco contact-deco-2" />
+      <div className="contact-dots" />
 
       <div className="contact-inner">
         {/* ============ LEFT — intro + benefits ============ */}
         <div className="contact-left">
+          <span className="contact-tag">
+            <Headset size={13} />
+            GET IN TOUCH
+          </span>
+
           <h2>
             Let's create something
             <br />
@@ -180,16 +191,16 @@ export default function ContactSection({ source = "homepage" }) {
             you.
           </p>
 
-          <ul className="contact-benefits">
+          <div className="contact-benefits">
             {BENEFITS.map(({ icon: Icon, text }) => (
-              <li key={text}>
+              <div key={text} className="benefit-card">
                 <span className="benefit-icon">
                   <Icon size={16} />
                 </span>
                 {text}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
 
           <div className="contact-help-card">
             <div className="help-icon">
@@ -204,12 +215,32 @@ export default function ContactSection({ source = "homepage" }) {
               </p>
             </div>
           </div>
+
+          <div className="contact-direct">
+            <a
+              href="tel:+919876543210"
+              className="direct-chip"
+            >
+              <Phone size={14} />
+              +91 98765 43210
+            </a>
+            <a
+              href="mailto:support@ananyatrading.com"
+              className="direct-chip"
+            >
+              <Mail size={14} />
+              support@ananyatrading.com
+            </a>
+            <span className="direct-chip direct-time">
+              <Clock size={14} />
+              Mon–Sat · 10am–7pm
+            </span>
+          </div>
         </div>
 
         {/* ============ RIGHT — form ============ */}
         <div className="contact-form-card">
-          {sent ? (
-            <div className="inquiry-success">
+          {sent ? (            <div className="inquiry-success">
               <span className="success-check">
                 <CheckCircle2 size={44} />
               </span>
@@ -232,7 +263,13 @@ export default function ContactSection({ source = "homepage" }) {
             </div>
           ) : (
             <>
-              <h3>Get in touch</h3>
+              <div className="form-head">
+                <h3>Get in touch</h3>
+                <span className="form-head-note">
+                  <Clock size={12} />
+                  We reply within 24 hours
+                </span>
+              </div>
 
               <form
                 className="inquiry-form"
