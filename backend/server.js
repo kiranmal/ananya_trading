@@ -2711,6 +2711,32 @@ app.delete(
   }
 );
 
+/* PUBLIC — abhi live coupons (offer bar ke liye) */
+app.get("/api/coupons/active", async (req, res) => {
+  try {
+    await ensureCouponsTable();
+
+    const [rows] = await db.execute(
+      `SELECT * FROM coupons
+       WHERE active = 1
+         AND valid_from <= NOW()
+         AND valid_to >= NOW()
+       ORDER BY value DESC`
+    );
+
+    return res.status(200).json({
+      success: true,
+      coupons: rows.map(formatCoupon),
+    });
+  } catch (error) {
+    console.error("Active coupons error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load offers.",
+    });
+  }
+});
+
 /* USER — coupon validate (checkout) */
 app.post("/api/coupons/validate", async (req, res) => {
   try {

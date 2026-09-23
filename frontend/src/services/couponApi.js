@@ -70,6 +70,19 @@ export const deleteCoupon = async (id) => {
   return data;
 };
 
+/* Public — abhi live coupons (navbar offer bar) */
+export const fetchActiveCoupons = async () => {
+  try {
+    const res = await fetch(`${API_URL}/coupons/active`);
+    const data = await res.json().catch(() => ({}));
+    return res.ok && Array.isArray(data.coupons)
+      ? data.coupons
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 /* Checkout — code validate + discount amount */
 export const validateCoupon = async (code, total) => {
   try {

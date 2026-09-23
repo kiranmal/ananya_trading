@@ -6,6 +6,7 @@ import ananyaLogo from "../assets/logo.jpeg";
 
 import { getProducts } from "../data/productStorage";
 import { fetchCategories } from "../services/categoryApi";
+import { fetchActiveCoupons } from "../services/couponApi";
 import { useAuth } from "../context/AuthContext";
 
 /* =====================================================
@@ -221,6 +222,13 @@ function Navbar() {
   const [categories, setCategories] =
     useState(defaultCategories);
 
+  /* Admin ke live coupons — offer bar mein */
+  const [liveCoupons, setLiveCoupons] =
+    useState([]);
+
+  const [couponIndex, setCouponIndex] =
+    useState(0);
+
   /* Overflow — jo categories fit na hon wo More menu mein jaati hain */
   const listRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(
@@ -297,6 +305,9 @@ function Navbar() {
     };
     loadCategories();
 
+    /* Live coupons — admin panel se */
+    fetchActiveCoupons().then(setLiveCoupons);
+
     const handleProductsUpdate = () => {
       loadProducts();
     };
@@ -313,6 +324,25 @@ function Navbar() {
       );
     };
   }, []);
+
+  /* =====================================================
+     OFFER BAR — live coupon rotate (multiple hone pe)
+  ===================================================== */
+
+  useEffect(() => {
+    if (liveCoupons.length < 2) return;
+
+    const timer = setInterval(() => {
+      setCouponIndex(
+        (i) => (i + 1) % liveCoupons.length
+      );
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [liveCoupons.length]);
+
+  const liveCoupon =
+    liveCoupons[couponIndex] || null;
 
   /* =====================================================
      CATEGORY OVERFLOW — fit hone wale count ko measure karo
@@ -1475,7 +1505,7 @@ function Navbar() {
       </header>
 
       {/* =================================================
-          OFFER BAR
+          OFFER BAR — admin ke live coupons dikhte hain
       ================================================= */}
 
       <div className="offer-bar">
@@ -1484,29 +1514,63 @@ function Navbar() {
           SPECIAL OFFER
         </span>
 
-        <strong>
-          Buy More, Save More!
-        </strong>
+        {liveCoupon ? (
+          <>
+            <strong>
+              {liveCoupon.type === "percent"
+                ? `Flat ${liveCoupon.value}% OFF`
+                : `Flat ₹${liveCoupon.value} OFF`}
+            </strong>
 
-        <span>
-          Flat 5% OFF on Orders ₹10,000+
-        </span>
+            <span>
+              {liveCoupon.minOrder > 0
+                ? `on Orders ₹${Number(liveCoupon.minOrder).toLocaleString("en-IN")}+`
+                : "on all orders"}
+            </span>
 
-        <span>
-          Use Code:
-          <b>SAVE5</b>
-        </span>
+            <span>
+              Use Code:
+              <b>{liveCoupon.code}</b>
+            </span>
 
-        <button
-          type="button"
-          onClick={() =>
-            navigator.clipboard?.writeText(
-              "SAVE5"
-            )
-          }
-        >
-          Copy
-        </button>
+            <button
+              type="button"
+              onClick={() =>
+                navigator.clipboard?.writeText(
+                  liveCoupon.code
+                )
+              }
+            >
+              Copy
+            </button>
+          </>
+        ) : (
+          <>
+            <strong>
+              Buy More, Save More!
+            </strong>
+
+            <span>
+              Flat 5% OFF on Orders ₹10,000+
+            </span>
+
+            <span>
+              Use Code:
+              <b>SAVE5</b>
+            </span>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigator.clipboard?.writeText(
+                  "SAVE5"
+                )
+              }
+            >
+              Copy
+            </button>
+          </>
+        )}
 
       </div>
     </>
