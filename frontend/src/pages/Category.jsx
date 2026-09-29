@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import {
@@ -54,12 +54,19 @@ function Category() {
   const [showMobileFilter, setShowMobileFilter] =
     useState(false);
 
+  const [isLoading, setIsLoading] = useState(false);
+
+  const searchRequestIdRef = useRef(0);
+
 
   /* =====================================================
      LOAD PRODUCTS
   ===================================================== */
 
   const loadProducts = async () => {
+    const requestId = ++searchRequestIdRef.current;
+
+    setIsLoading(true);
 
     try {
 
@@ -73,6 +80,11 @@ function Category() {
 
       const databaseProducts =
         await fetchProducts(urlSearch);
+
+      /* stale response ignore */
+      if (requestId !== searchRequestIdRef.current) {
+        return;
+      }
 
       /* search hai aur backend empty ho —
          static list ko search se filter karo,
@@ -219,11 +231,19 @@ function Category() {
         error
       );
 
-      setAllProducts(
-        Array.isArray(products)
-          ? products
-          : []
-      );
+      if (requestId === searchRequestIdRef.current) {
+        setAllProducts(
+          Array.isArray(products)
+            ? products
+            : []
+        );
+      }
+
+    } finally {
+
+      if (requestId === searchRequestIdRef.current) {
+        setIsLoading(false);
+      }
 
     }
 
@@ -1107,15 +1127,21 @@ function Category() {
 
             <span>
 
-              Showing{" "}
-              {sortedProducts.length}{" "}
-              of{" "}
-              {allProducts.length}{" "}
-              products
+              {isLoading
+                ? "Searching..."
+                : (
+                  <>
+                    Showing{" "}
+                    {sortedProducts.length}{" "}
+                    of{" "}
+                    {allProducts.length}{" "}
+                    products
 
-              {urlSearch && (
-                <>{" "}for "{urlSearch}"</>
-              )}
+                    {urlSearch && (
+                      <>{" "}for "{urlSearch}"</>
+                    )}
+                  </>
+                )}
 
             </span>
 
@@ -1145,7 +1171,13 @@ function Category() {
               NO PRODUCTS
           ================================================= */}
 
-          {sortedProducts.length === 0 ? (
+          {isLoading ? (
+
+            <div className="category-loading">
+              Searching...
+            </div>
+
+          ) : sortedProducts.length === 0 ? (
 
             <div className="no-products">
 

@@ -1,5 +1,6 @@
 import { API_URL } from "./apiConfig";
 const STORAGE_KEY = "ananyaProducts";
+const inFlight = new Map();
 
 const request = async (path, options = {}) => {
   const response = await fetch(`${API_URL}${path}`, options);
@@ -39,56 +40,68 @@ const getAuthHeaders = () => {
   };
 };
 
-export const fetchProducts = async (search = "") => {
-  const cachedProducts = (() => {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
-
+export const fetchProducts = (search = "") => {
   const searchTerm = String(search || "").trim();
 
-  const path = searchTerm
-    ? `/products?search=${encodeURIComponent(searchTerm)}`
-    : "/products";
+  /* same query already in flight — duplicate API request avoid */
+  if (inFlight.has(searchTerm)) {
+    return inFlight.get(searchTerm);
+  }
 
-  const data = await request(path);
+  const promise = (async () => {
+    const cachedProducts = (() => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
 
-  let products = Array.isArray(data.products) ? data.products : [];
+    const path = searchTerm
+      ? `/products?search=${encodeURIComponent(searchTerm)}`
+      : "/products";
 
-  const token = localStorage.getItem("authToken");
-  const savedUser = localStorage.getItem("currentUser");
+    const data = await request(path);
 
-  const isAdmin = (() => {
-    try {
-      return JSON.parse(savedUser || "null")?.role === "admin";
-    } catch {
-      return false;
+    let products = Array.isArray(data.products) ? data.products : [];
+
+    const token = localStorage.getItem("authToken");
+    const savedUser = localStorage.getItem("currentUser");
+
+    const isAdmin = (() => {
+      try {
+        return JSON.parse(savedUser || "null")?.role === "admin";
+      } catch {
+        return false;
+      }
+    })();
+
+    if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin && !searchTerm) {
+      const imported = await request("/products/import", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ products: cachedProducts }),
+      });
+
+      products = Array.isArray(imported.products)
+        ? imported.products
+        : [];
     }
+
+    /* search result ko cache mein mat likho —
+       warna baaki pages ko sirf search matches milenge */
+    if (products.length > 0 && !searchTerm) {
+      syncProductCache(products);
+    }
+
+    return products;
   })();
 
-  if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin && !searchTerm) {
-    const imported = await request("/products/import", {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ products: cachedProducts }),
-    });
+  inFlight.set(searchTerm, promise);
+  promise.finally(() => inFlight.delete(searchTerm));
 
-    products = Array.isArray(imported.products)
-      ? imported.products
-      : [];
-  }
-
-  /* search result ko cache mein mat likho —
-     warna baaki pages ko sirf search matches milenge */
-  if (products.length > 0 && !searchTerm) {
-    syncProductCache(products);
-  }
-
-  return products;
+  return promise;
 };
 
 export const fetchProductById = async (id) => {

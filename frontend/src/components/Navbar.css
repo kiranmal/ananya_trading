@@ -2197,6 +2197,21 @@ body {
 }
 
 
+.search-loading {
+  min-height: 120px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: #667085;
+
+  font-size: 14px;
+}
+
+
 .search-no-results span {
   color: #777;
 

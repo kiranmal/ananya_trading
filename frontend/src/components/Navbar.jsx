@@ -249,6 +249,12 @@ function Navbar() {
   const [mobileSearchOpen, setMobileSearchOpen] =
     useState(false);
 
+  const [searchLoading, setSearchLoading] =
+    useState(false);
+
+  const searchRequestIdRef = useRef(0);
+  const lastSearchRef = useRef("");
+
   /* =====================================================
      CART COUNT
   ===================================================== */
@@ -274,23 +280,39 @@ function Navbar() {
   ===================================================== */
 
   const loadProducts = async (search = "") => {
-  try {
-    const products = await fetchProducts(search);
+    const requestId = ++searchRequestIdRef.current;
 
-    setProducts(
-      Array.isArray(products)
-        ? products
-        : []
-    );
-  } catch (error) {
-    console.error(
-      "Search products loading error:",
-      error
-    );
-
+    setSearchLoading(true);
     setProducts([]);
-  }
-};
+
+    try {
+      const list = await fetchProducts(search);
+
+      /* stale response ignore */
+      if (requestId !== searchRequestIdRef.current) {
+        return;
+      }
+
+      setProducts(
+        Array.isArray(list) ? list : []
+      );
+    } catch (error) {
+      console.error(
+        "Search products loading error:",
+        error
+      );
+
+      if (requestId !== searchRequestIdRef.current) {
+        return;
+      }
+
+      setProducts([]);
+    } finally {
+      if (requestId === searchRequestIdRef.current) {
+        setSearchLoading(false);
+      }
+    }
+  };
 
   /* =====================================================
    INITIAL LOAD
@@ -338,7 +360,13 @@ useEffect(() => {
     return;
   }
 
+  /* same query pe duplicate API call avoid */
+  if (search === lastSearchRef.current) {
+    return;
+  }
+
   const timer = setTimeout(() => {
+    lastSearchRef.current = search;
     loadProducts(search);
   }, 300);
 
@@ -869,7 +897,13 @@ useEffect(() => {
               searchText.trim() && (
                 <div className="search-results-dropdown">
 
-                  {searchResults.length >
+                  {searchLoading ? (
+
+                    <div className="search-loading">
+                      Searching...
+                    </div>
+
+                  ) : searchResults.length >
                   0 ? (
                     <>
                       <div className="search-results-header">
