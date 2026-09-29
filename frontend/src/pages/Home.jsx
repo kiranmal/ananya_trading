@@ -12,7 +12,7 @@ import "./Home.css";
 import defaultProducts from "../data/products";
 import CustomizeProducts from "../components/CustomizeProducts";
 import ContactSection from "../components/ContactSection";
-import { fetchProducts } from "../services/productApi";
+import { fetchProducts, isActiveProduct } from "../services/productApi";
 
 function Home() {
   const navigate = useNavigate();
@@ -147,10 +147,12 @@ function Home() {
         : defaultProducts;
 
       setProducts(
-        sourceProducts.map(
-          (product, index) =>
-            normalizeProduct(product, index)
-        )
+        sourceProducts
+          .filter(isActiveProduct)
+          .map(
+            (product, index) =>
+              normalizeProduct(product, index)
+          )
       );
     } catch (error) {
       console.error(
@@ -160,13 +162,15 @@ function Home() {
 
       const fallbackProducts =
         Array.isArray(defaultProducts)
-          ? defaultProducts.map(
-              (product, index) =>
-                normalizeProduct(
-                  product,
-                  `fallback-${index}`
-                )
-            )
+          ? defaultProducts
+              .filter(isActiveProduct)
+              .map(
+                (product, index) =>
+                  normalizeProduct(
+                    product,
+                    `fallback-${index}`
+                  )
+              )
           : [];
 
       setProducts(

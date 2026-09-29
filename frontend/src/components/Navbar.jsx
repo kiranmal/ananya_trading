@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import "./Navbar.css";
 import ananyaLogo from "../assets/logo.jpeg";
 
-import { fetchProducts } from "../services/productApi";
+import { fetchProducts, isActiveProduct } from "../services/productApi";
 import { fetchCategories } from "../services/categoryApi";
 import { fetchActiveCoupons } from "../services/couponApi";
 import { useAuth } from "../context/AuthContext";
@@ -294,7 +294,9 @@ function Navbar() {
       }
 
       setProducts(
-        Array.isArray(list) ? list : []
+        Array.isArray(list)
+          ? list.filter(isActiveProduct).slice(0, 8)
+          : []
       );
     } catch (error) {
       console.error(

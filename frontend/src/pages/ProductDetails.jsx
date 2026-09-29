@@ -20,10 +20,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import {
-  getProductById,
-} from "../data/productStorage";
-import { fetchProductById } from "../services/productApi";
+import { fetchProductById, isActiveProduct } from "../services/productApi";
+import { getProductById } from "../data/productStorage";
 import { saveInquiryContext } from "../services/inquiryApi";
 
 import "../styles/ProductDetails.css";
@@ -39,16 +37,30 @@ function ProductDetails() {
      GET PRODUCT
   ===================================================== */
 
-  const [product, setProduct] = useState(
-    () => getProductById(id)
-  );
+  const [product, setProduct] = useState(null);
 
   useEffect(() => {
     const loadProduct = async () => {
       try {
-        setProduct(await fetchProductById(id));
+        const apiProduct = await fetchProductById(id);
+
+        if (!apiProduct || !isActiveProduct(apiProduct)) {
+          navigate("/category");
+          return;
+        }
+
+        setProduct(apiProduct);
       } catch (error) {
         console.error("Product loading error:", error);
+
+        const fallback = getProductById(id);
+
+        if (!fallback || !isActiveProduct(fallback)) {
+          navigate("/category");
+          return;
+        }
+
+        setProduct(fallback);
       }
     };
 

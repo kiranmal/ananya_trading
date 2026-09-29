@@ -19,7 +19,7 @@ import {
 } from "../data/productStorage";
 
 import "../styles/Category.css";
-import { fetchProducts } from "../services/productApi";
+import { fetchProducts, isActiveProduct } from "../services/productApi";
 
 function Category() {
 
@@ -110,6 +110,9 @@ function Category() {
             })
           : products;
 
+      const activeProducts =
+        combinedProducts.filter(isActiveProduct);
+
 
       /*
        * Duplicate IDs remove
@@ -120,7 +123,7 @@ function Category() {
       const usedIds = new Set();
 
 
-      combinedProducts.forEach(
+      activeProducts.forEach(
         (product, index) => {
 
           const id =
@@ -246,11 +249,11 @@ function Category() {
                   .filter(Boolean)
                   .join(" ")
                   .toLowerCase()
-                  .includes(term);
+                  .includes(term)
+                  && isActiveProduct(p);
               })
-            : Array.isArray(products)
-            ? products
-            : []
+            : (Array.isArray(products) ? products : [])
+                .filter(isActiveProduct)
         );
       }
 

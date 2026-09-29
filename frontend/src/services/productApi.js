@@ -109,6 +109,9 @@ export const fetchProductById = async (id) => {
   return data.product;
 };
 
+export const isActiveProduct = (product) =>
+  product?.status !== "Inactive";
+
 export const createProduct = async (product) => {
   const data = await request("/products", {
     method: "POST",
