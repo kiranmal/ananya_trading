@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import "./Navbar.css";
 import ananyaLogo from "../assets/logo.jpeg";
 
-import { getProducts } from "../data/productStorage";
+import { fetchProducts } from "../services/productApi";
 import { fetchCategories } from "../services/categoryApi";
 import { fetchActiveCoupons } from "../services/couponApi";
 import { useAuth } from "../context/AuthContext";
@@ -273,57 +273,77 @@ function Navbar() {
      LOAD PRODUCTS
   ===================================================== */
 
-  const loadProducts = () => {
-    try {
-      const allProducts = getProducts();
+  const loadProducts = async (search = "") => {
+  try {
+    const products = await fetchProducts(search);
 
-      setProducts(
-        Array.isArray(allProducts)
-          ? allProducts
-          : []
-      );
-    } catch (error) {
-      console.error(
-        "Search products loading error:",
-        error
-      );
+    setProducts(
+      Array.isArray(products)
+        ? products
+        : []
+    );
+  } catch (error) {
+    console.error(
+      "Search products loading error:",
+      error
+    );
 
-      setProducts([]);
-    }
-  };
+    setProducts([]);
+  }
+};
 
   /* =====================================================
-     INITIAL LOAD
-  ===================================================== */
+   INITIAL LOAD
+===================================================== */
 
-  useEffect(() => {
+useEffect(() => {
+  loadProducts();
+
+  const loadCategories = async () => {
+    const list = await fetchCategories();
+    setCategories(list);
+  };
+
+  loadCategories();
+
+  /* Live coupons — admin panel se */
+  fetchActiveCoupons().then(setLiveCoupons);
+
+  const handleProductsUpdate = () => {
     loadProducts();
+  };
 
-    const loadCategories = async () => {
-      const list = await fetchCategories();
-      setCategories(list);
-    };
-    loadCategories();
+  window.addEventListener(
+    "ananyaProductsUpdated",
+    handleProductsUpdate
+  );
 
-    /* Live coupons — admin panel se */
-    fetchActiveCoupons().then(setLiveCoupons);
-
-    const handleProductsUpdate = () => {
-      loadProducts();
-    };
-
-    window.addEventListener(
+  return () => {
+    window.removeEventListener(
       "ananyaProductsUpdated",
       handleProductsUpdate
     );
+  };
+}, []);
 
-    return () => {
-      window.removeEventListener(
-        "ananyaProductsUpdated",
-        handleProductsUpdate
-      );
-    };
-  }, []);
+
+/* =====================================================
+   SEARCH PRODUCTS
+===================================================== */
+
+useEffect(() => {
+  const search = searchText.trim();
+
+  if (!search) {
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    loadProducts(search);
+  }, 300);
+
+  return () => clearTimeout(timer);
+}, [searchText]);
 
   /* =====================================================
      OFFER BAR — live coupon rotate (multiple hone pe)
@@ -414,43 +434,9 @@ function Navbar() {
   ===================================================== */
 
   const searchResults =
-    searchText.trim().length === 0
-      ? []
-      : products
-          .filter((product) => {
-            const search =
-              searchText
-                .trim()
-                .toLowerCase();
-
-            const name =
-              String(
-                product.name || ""
-              ).toLowerCase();
-
-            const category =
-              String(
-                product.category || ""
-              ).toLowerCase();
-
-            const description =
-              String(
-                product.description || ""
-              ).toLowerCase();
-
-            const badge =
-              String(
-                product.badge || ""
-              ).toLowerCase();
-
-            return (
-              name.includes(search) ||
-              category.includes(search) ||
-              description.includes(search) ||
-              badge.includes(search)
-            );
-          })
-          .slice(0, 8);
+  searchText.trim().length === 0
+    ? []
+    : products.slice(0, 8);
 
   /* =====================================================
      SEARCH INPUT

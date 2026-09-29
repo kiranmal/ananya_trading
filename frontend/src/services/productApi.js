@@ -13,7 +13,16 @@ const request = async (path, options = {}) => {
 };
 
 const syncProductCache = (products) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  const serialized = JSON.stringify(products);
+
+  /* same data hai to write+dispatch skip —
+     ananyaProductsUpdated listener -> loadProducts ->
+     fetchProducts -> dispatch ka infinite loop nahi banega */
+  if (localStorage.getItem(STORAGE_KEY) === serialized) {
+    return;
+  }
+
+  localStorage.setItem(STORAGE_KEY, serialized);
   window.dispatchEvent(new Event("ananyaProductsUpdated"));
 };
 
@@ -30,7 +39,7 @@ const getAuthHeaders = () => {
   };
 };
 
-export const fetchProducts = async () => {
+export const fetchProducts = async (search = "") => {
   const cachedProducts = (() => {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -40,10 +49,19 @@ export const fetchProducts = async () => {
     }
   })();
 
-  const data = await request("/products");
+  const searchTerm = String(search || "").trim();
+
+  const path = searchTerm
+    ? `/products?search=${encodeURIComponent(searchTerm)}`
+    : "/products";
+
+  const data = await request(path);
+
   let products = Array.isArray(data.products) ? data.products : [];
+
   const token = localStorage.getItem("authToken");
   const savedUser = localStorage.getItem("currentUser");
+
   const isAdmin = (() => {
     try {
       return JSON.parse(savedUser || "null")?.role === "admin";
@@ -52,16 +70,21 @@ export const fetchProducts = async () => {
     }
   })();
 
-  if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin) {
+  if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin && !searchTerm) {
     const imported = await request("/products/import", {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({ products: cachedProducts }),
     });
-    products = Array.isArray(imported.products) ? imported.products : [];
+
+    products = Array.isArray(imported.products)
+      ? imported.products
+      : [];
   }
 
-  if (products.length > 0) {
+  /* search result ko cache mein mat likho —
+     warna baaki pages ko sirf search matches milenge */
+  if (products.length > 0 && !searchTerm) {
     syncProductCache(products);
   }
 

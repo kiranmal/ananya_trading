@@ -30,6 +30,7 @@ function Category() {
   const [searchParams] = useSearchParams();
   const urlCategory = searchParams.get("category") || "";
   const urlType = searchParams.get("type") || "";
+  const urlSearch = searchParams.get("search") || "";
 
 
   /* =====================================================
@@ -70,11 +71,31 @@ function Category() {
        * ananya_products
        */
 
-      const databaseProducts = await fetchProducts();
+      const databaseProducts =
+        await fetchProducts(urlSearch);
 
+      /* search hai aur backend empty ho —
+         static list ko search se filter karo,
+         saara catalog mat dikhao */
       const combinedProducts =
         databaseProducts.length > 0
           ? databaseProducts
+          : urlSearch
+          ? products.filter((p) => {
+              const term =
+                urlSearch.toLowerCase();
+
+              return [
+                p.name,
+                p.category,
+                p.subcategory,
+                p.description,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(term);
+            })
           : products;
 
 
@@ -273,7 +294,7 @@ function Category() {
 
     };
 
-  }, []);
+  }, [urlSearch]);
 
 
   /* =====================================================
@@ -1091,6 +1112,10 @@ function Category() {
               of{" "}
               {allProducts.length}{" "}
               products
+
+              {urlSearch && (
+                <>{" "}for "{urlSearch}"</>
+              )}
 
             </span>
 
