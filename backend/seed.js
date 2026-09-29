@@ -92,10 +92,11 @@ const createAdmin = async () => {
 const loadProductsData = () => {
   const file = path.join(__dirname, "..", "frontend", "src", "data", "products.js");
   const source = fs.readFileSync(file, "utf8");
-  // ES module -> eval-able: "const products = [...]; export default products;"
-  const arraySource = source
-    .replace(/^const products =/m, "module.exports =")
-    .replace(/export default products;?\s*$/m, "");
+  // ES module -> eval-able: keep `const products` intact, export at the end
+  const arraySource = source.replace(
+    /export default products;?\s*$/m,
+    "module.exports = products;"
+  );
   const mod = { exports: [] };
   new Function("module", arraySource)(mod);
   return mod.exports;

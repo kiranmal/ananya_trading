@@ -1253,19 +1253,49 @@ function getProductPayload(body) {
 app.get("/api/products", async (req, res) => {
   try {
     await ensureProductsTable();
-    const [rows] = await db.execute(
-      "SELECT * FROM products ORDER BY id DESC"
-    );
+
+    const search = String(req.query.search || "").trim();
+
+    let sql = "SELECT * FROM products";
+    const params = [];
+
+    if (search) {
+      sql += `
+        WHERE
+          name LIKE ?
+          OR category LIKE ?
+          OR subcategory LIKE ?
+          OR description LIKE ?
+          OR badge LIKE ?
+      `;
+
+      const keyword = `%${search}%`;
+
+      params.push(
+        keyword,
+        keyword,
+        keyword,
+        keyword,
+        keyword
+      );
+    }
+
+    sql += " ORDER BY id DESC";
+
+    const [rows] = await db.execute(sql, params);
 
     return res.status(200).json({
       success: true,
       products: rows.map(mapProduct),
     });
+
   } catch (error) {
     console.error("GET PRODUCTS ERROR:", error);
+
     return res.status(500).json({
       success: false,
       message: "Unable to load products.",
+      error: error.message,
     });
   }
 });
