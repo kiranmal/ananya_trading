@@ -1300,30 +1300,52 @@ app.get("/api/products", async (req, res) => {
   }
 });
 
-app.get("/api/products/:id", async (req, res) => {
+app.get("/api/products", async (req, res) => {
   try {
     await ensureProductsTable();
-    const [rows] = await db.execute(
-      "SELECT * FROM products WHERE id = ? LIMIT 1",
-      [req.params.id]
-    );
 
-    if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found.",
-      });
+    const search = String(req.query.search || "").trim();
+
+    let sql = "SELECT * FROM products";
+    const params = [];
+
+    if (search) {
+      sql += `
+        WHERE
+          name LIKE ?
+          OR category LIKE ?
+          OR subcategory LIKE ?
+          OR description LIKE ?
+          OR badge LIKE ?
+      `;
+
+      const keyword = `%${search}%`;
+
+      params.push(
+        keyword,
+        keyword,
+        keyword,
+        keyword,
+        keyword
+      );
     }
+
+    sql += " ORDER BY id DESC";
+
+    const [rows] = await db.execute(sql, params);
 
     return res.status(200).json({
       success: true,
-      product: mapProduct(rows[0]),
+      products: rows.map(mapProduct),
     });
+
   } catch (error) {
-    console.error("GET PRODUCT ERROR:", error);
+    console.error("GET PRODUCTS ERROR:", error);
+
     return res.status(500).json({
       success: false,
-      message: "Unable to load product.",
+      message: "Unable to load products.",
+      error: error.message,
     });
   }
 });
