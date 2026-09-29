@@ -155,7 +155,6 @@ app.get("/api/test", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Backend is running but MySQL connection failed.",
-      error: error.message,
     });
   }
 });
@@ -364,7 +363,6 @@ app.post("/api/auth/signup", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while creating account.",
-      error: error.message,
     });
   }
 });
@@ -494,7 +492,6 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while logging in.",
-      error: error.message,
     });
   }
 });
@@ -1295,7 +1292,45 @@ app.get("/api/products", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Unable to load products.",
-      error: error.message,
+    });
+  }
+});
+
+app.get("/api/products/:id", async (req, res) => {
+  try {
+    await ensureProductsTable();
+
+    const id = Number(req.params.id);
+
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product id.",
+      });
+    }
+
+    const [rows] = await db.execute(
+      "SELECT * FROM products WHERE id = ? LIMIT 1",
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      product: mapProduct(rows[0]),
+    });
+  } catch (error) {
+    console.error("GET PRODUCT ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load product.",
     });
   }
 });
@@ -2176,6 +2211,26 @@ app.post(
       }
 
       await ensureOrdersTable();
+
+      const status = String(
+        order.status || "New"
+      );
+      const customerName = String(
+        order.customerName ||
+          order.customer?.name ||
+          order.name ||
+          ""
+      );
+      const email = String(
+        order.email ||
+          order.customer?.email ||
+          ""
+      );
+      const phone = String(
+        order.phone ||
+          order.customer?.phone ||
+          ""
+      );
 
       /*
        * SERVER-SIDE ORDER VALIDATION
@@ -3353,16 +3408,29 @@ app.use((req, res) => {
 
 app.use(
   (error, req, res, next) => {
-    console.error(
-      "GLOBAL ERROR:",
-      error
-    );
+    if (res.headersSent) {
+      return next(error);
+    }
 
-    return res.status(500).json({
+    const status =
+      Number(error.status || error.statusCode) || 500;
+
+    /* Malformed JSON body — client error, not server error */
+    const isJsonParseError =
+      error instanceof SyntaxError &&
+      error.type === "entity.parse.failed";
+
+    const finalStatus = isJsonParseError ? 400 : status;
+
+    console.error("GLOBAL ERROR:", error);
+
+    return res.status(finalStatus).json({
       success: false,
-      message:
-        error.message ||
-        "Internal server error.",
+      message: isJsonParseError
+        ? "Malformed JSON request."
+        : finalStatus < 500
+        ? error.message || "Invalid request."
+        : "Internal server error.",
     });
   }
 );
