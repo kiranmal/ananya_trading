@@ -16,6 +16,7 @@ import {
 
 import "./Cart.css";
 import { saveOrderToServer } from "../services/orderApi";
+import { fetchProducts, isActiveProduct } from "../services/productApi";
 
 // ============================================================
 // HELPERS
@@ -682,11 +683,107 @@ function Cart() {
   };
 
   // ==========================================================
+  // REFRESH CART PRICES FROM DATABASE
+  // Cart mein purani price na rahe; DB se latest price use hoga
+  // ==========================================================
+
+  const refreshCartPrices = async () => {
+    try {
+      const products = await fetchProducts();
+
+      if (!Array.isArray(products) || products.length === 0) {
+        return;
+      }
+
+      const productMap = new Map(
+        products.map((p) => [String(p.id), p])
+      );
+
+      const savedCart = localStorage.getItem("ananyaCart");
+      const currentCart = savedCart ? JSON.parse(savedCart) : [];
+
+      if (!Array.isArray(currentCart)) {
+        return;
+      }
+
+      let changed = false;
+
+      const updatedCart = currentCart.reduce(
+        (acc, item) => {
+          const pid = String(
+            item.productId ||
+              item.originalProductId ||
+              item.id ||
+              ""
+          );
+
+          const current = productMap.get(pid);
+
+          if (!current || !isActiveProduct(current)) {
+            changed = true;
+            return acc;
+          }
+
+          const currentPrice = Number(
+            current.price || 0
+          );
+
+          if (
+            Number(item.price) !== currentPrice ||
+            item.status === "Inactive"
+          ) {
+            changed = true;
+          }
+
+          acc.push({
+            ...item,
+            price: currentPrice,
+            name: current.name || item.name,
+            image:
+              getImage(current) ||
+              item.image,
+            category:
+              current.category ||
+              item.category,
+            status: current.status,
+          });
+
+          return acc;
+        },
+        []
+      );
+
+      if (changed) {
+        setCart(updatedCart);
+
+        localStorage.setItem(
+          "ananyaCart",
+          JSON.stringify(updatedCart)
+        );
+
+        window.dispatchEvent(
+          new Event("ananyaCartUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("cartUpdated")
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Cart price refresh error:",
+        error
+      );
+    }
+  };
+
+  // ==========================================================
   // INITIAL LOAD
   // ==========================================================
 
   useEffect(() => {
     loadCart();
+    refreshCartPrices();
 
     const handleCartUpdate = () => {
       loadCart();

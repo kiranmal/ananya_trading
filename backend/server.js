@@ -2177,34 +2177,186 @@ app.post(
 
       await ensureOrdersTable();
 
-      const status = String(
-        order.status || "New"
+      /*
+       * SERVER-SIDE ORDER VALIDATION
+       * Frontend se aaya total blindly trust nahi karenge.
+       * DB se current product price lekar subtotal, coupon aur final total
+       * recalculate karenge.
+       */
+
+      const rawItems = Array.isArray(order.items || order.products || order.cart)
+        ? (order.items || order.products || order.cart)
+        : [];
+
+      if (rawItems.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Order must contain at least one product.",
+        });
+      }
+
+      const productIds = rawItems
+        .map((item) =>
+          String(
+            item.productId ||
+              item.originalProductId ||
+              item.id ||
+              ""
+          )
+        )
+        .filter(Boolean);
+
+      const productMap = new Map();
+
+      if (productIds.length > 0) {
+        const placeholders = productIds
+          .map(() => "?")
+          .join(",");
+
+        const [productRows] = await db.execute(
+          `SELECT * FROM products WHERE id IN (${placeholders})`,
+          productIds
+        );
+
+        productRows
+          .map(mapProduct)
+          .forEach((p) => productMap.set(String(p.id), p));
+      }
+
+      const validatedItems = [];
+      let subtotal = 0;
+
+      for (const item of rawItems) {
+        const pid = String(
+          item.productId ||
+            item.originalProductId ||
+            item.id ||
+            ""
+        );
+
+        const product = productMap.get(pid);
+
+        if (!product || product.status !== "Active") {
+          return res.status(400).json({
+            success: false,
+            message: `Product "${item.name || pid}" is not available.`,
+          });
+        }
+
+        const quantity = Math.max(
+          1,
+          Math.floor(Number(item.quantity) || 1)
+        );
+
+        const price = Number(product.price || 0);
+        const itemTotal = price * quantity;
+
+        subtotal += itemTotal;
+
+        validatedItems.push({
+          ...item,
+          productId: pid,
+          price,
+          quantity,
+          total: itemTotal,
+        });
+      }
+
+      /* Coupon validate server side */
+      let discount = 0;
+      const couponCode = String(
+        order.couponCode || ""
+      ).trim();
+
+      if (couponCode) {
+        await ensureCouponsTable();
+
+        const [couponRows] = await db.execute(
+          "SELECT * FROM coupons WHERE code = ? LIMIT 1",
+          [couponCode.toUpperCase()]
+        );
+
+        if (couponRows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid coupon code.",
+          });
+        }
+
+        const coupon = couponRows[0];
+        const now = new Date();
+
+        if (!coupon.active) {
+          return res.status(400).json({
+            success: false,
+            message: "This coupon is no longer active.",
+          });
+        }
+
+        if (now < new Date(coupon.valid_from)) {
+          return res.status(400).json({
+            success: false,
+            message: `Coupon starts from ${new Date(coupon.valid_from).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}.`,
+          });
+        }
+
+        if (now > new Date(coupon.valid_to)) {
+          return res.status(400).json({
+            success: false,
+            message: "This coupon has expired.",
+          });
+        }
+
+        if (subtotal < Number(coupon.min_order)) {
+          return res.status(400).json({
+            success: false,
+            message: `Minimum order ₹${Number(coupon.min_order).toLocaleString("en-IN")} required for this coupon.`,
+          });
+        }
+
+        discount =
+          coupon.type === "percent"
+            ? Math.round(
+                (subtotal * Number(coupon.value)) / 100
+              )
+            : Number(coupon.value);
+
+        discount = Math.min(discount, subtotal);
+      }
+
+      const shippingCharge = 0;
+      const finalTotal = Math.max(
+        0,
+        subtotal + shippingCharge - discount
       );
-      const customerName = String(
-        order.customerName ||
-          order.customer?.name ||
-          order.name ||
-          ""
-      );
-      const email = String(
-        order.email ||
-          order.customer?.email ||
-          ""
-      );
-      const phone = String(
-        order.phone ||
-          order.customer?.phone ||
-          ""
-      );
-      const total = Number(
+
+      /* Frontend ne jo total bheja, woh match nahi karta toh server total use hoga */
+      const frontendTotal = Number(
         order.total ??
           order.grandTotal ??
           order.totalPrice ??
           0
       );
 
+      if (Math.abs(frontendTotal - finalTotal) > 0.01) {
+        console.warn(
+          `Order total mismatch for ${orderNumber}: frontend=${frontendTotal}, server=${finalTotal}`
+        );
+      }
+
+      const total = finalTotal;
+
       const payload = {
         ...order,
+        products: validatedItems,
+        items: validatedItems,
+        subtotal,
+        discount,
+        shipping: shippingCharge,
+        total: finalTotal,
+        grandTotal: finalTotal,
+        totalAmount: finalTotal,
+        couponCode,
         orderNumber,
         status,
         tracking:
@@ -2242,12 +2394,7 @@ app.post(
           String(
             order.paymentStatus || "Pending"
           ),
-          JSON.stringify(
-            order.items ||
-              order.products ||
-              order.cart ||
-              []
-          ),
+          JSON.stringify(validatedItems),
           JSON.stringify(payload),
         ]
       );
