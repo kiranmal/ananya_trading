@@ -233,7 +233,22 @@ function Category() {
 
       if (requestId === searchRequestIdRef.current) {
         setAllProducts(
-          Array.isArray(products)
+          urlSearch
+            ? products.filter((p) => {
+                const term = urlSearch.toLowerCase();
+
+                return [
+                  p.name,
+                  p.category,
+                  p.subcategory,
+                  p.description,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+                  .toLowerCase()
+                  .includes(term);
+              })
+            : Array.isArray(products)
             ? products
             : []
         );
