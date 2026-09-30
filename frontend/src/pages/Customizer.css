@@ -632,7 +632,13 @@
 }
 
 .design-text {
-  white-space: nowrap;
+  /* multiline + wrapping; canvas se bahar overflow na ho */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 85%;
+  max-height: 90%;
+  overflow: hidden;
   line-height: 1.15;
 }
 

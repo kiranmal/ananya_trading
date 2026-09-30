@@ -108,6 +108,103 @@ const TEXT_KINDS = [
 ];
 
 /* =====================================================
+   COLOR HELPERS + PICKER — presets ke saath HEX/RGB input
+===================================================== */
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+const hexToRgb = (hex) => {
+  const h = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  return `rgb(${parseInt(h.slice(0, 2), 16)}, ${parseInt(
+    h.slice(2, 4),
+    16
+  )}, ${parseInt(h.slice(4, 6), 16)})`;
+};
+
+function ColorPickerField({ value, onChange }) {
+  const safeValue = HEX_RE.test(value) ? value : "#111827";
+  const [draft, setDraft] = useState(safeValue);
+
+  useEffect(() => {
+    setDraft(
+      HEX_RE.test(value)
+        ? String(value).toUpperCase()
+        : safeValue
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const commitHex = () => {
+    let v = draft.trim();
+    if (!v.startsWith("#")) v = `#${v}`;
+    if (HEX_RE.test(v)) {
+      onChange(v.toUpperCase());
+    } else {
+      setDraft(safeValue.toUpperCase());
+    }
+  };
+
+  const rgb = hexToRgb(safeValue);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        marginTop: "8px",
+        flexWrap: "wrap",
+      }}
+    >
+      {/* native color picker — free color select */}
+      <input
+        type="color"
+        value={safeValue}
+        onChange={(e) => onChange(e.target.value)}
+        title="Pick any color"
+        style={{
+          width: "42px",
+          height: "34px",
+          padding: 0,
+          border: "1px solid #d1d5db",
+          borderRadius: "6px",
+          cursor: "pointer",
+          background: "#fff",
+        }}
+      />
+
+      {/* HEX input */}
+      <input
+        className="text-input"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commitHex}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitHex();
+          }
+        }}
+        placeholder="#RRGGBB"
+        maxLength={7}
+        style={{
+          width: "90px",
+          textTransform: "uppercase",
+        }}
+      />
+
+      {/* RGB readout */}
+      {rgb && (
+        <small style={{ color: "#6b7280", fontSize: "11px" }}>
+          {rgb}
+        </small>
+      )}
+    </div>
+  );
+}
+
+/* =====================================================
    GARMENT MOCKUP (vector T-shirt — color changeable)
 ===================================================== */
 
@@ -3383,20 +3480,27 @@ function Customizer() {
                     {selectedElement.label}
                   </h4>
 
-                  <input
+                  {/* multiline text editor — Enter se new
+                      line, pasted text supported */}
+                  <textarea
                     className="text-input"
+                    rows={3}
                     value={selectedElement.text}
                     onChange={(event) =>
                       moveElementLive(
                         selectedElement.id,
                         {
                           text:
-                            event.target.value,
+                            event.target.value.slice(
+                              0,
+                              500
+                            ),
                         }
                       )
                     }
                     onBlur={() => saveHistory()}
-                    placeholder="Enter your text"
+                    placeholder="Enter your text (multiple lines supported)"
+                    style={{ resize: "vertical" }}
                   />
 
                   <h4>Font</h4>
@@ -3526,6 +3630,16 @@ function Customizer() {
                       />
                     ))}
                   </div>
+
+                  {/* custom color — HEX / picker / RGB */}
+                  <ColorPickerField
+                    value={selectedElement.color}
+                    onChange={(color) =>
+                      updateElement(selectedElement.id, {
+                        color,
+                      })
+                    }
+                  />
 
                   <h4>Font Size</h4>
 
@@ -3703,6 +3817,15 @@ function Customizer() {
                       />
                     ))}
                   </div>
+
+                  <ColorPickerField
+                    value={selectedElement.color}
+                    onChange={(color) =>
+                      updateElement(selectedElement.id, {
+                        color,
+                      })
+                    }
+                  />
 
                   <h4>Width</h4>
 
@@ -4498,6 +4621,15 @@ function Customizer() {
                 )}
 
               </div>
+
+              {/* custom product color — HEX / picker / RGB */}
+              <ColorPickerField
+                value={productColor}
+                onChange={(color) => {
+                  saveHistory();
+                  setProductColor(color);
+                }}
+              />
 
               <div className="setting-divider" />
             </>

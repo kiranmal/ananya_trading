@@ -1165,6 +1165,106 @@ function parseProductList(value) {
   }
 }
 
+/* =====================================================
+   CUSTOMIZATION PAYLOAD SANITIZATION
+   Cart/Checkout se aaya designs object blindly trust nahi —
+   har element ko validate/clamp karke store karte hain.
+===================================================== */
+
+const sanitizeColor = (value) => {
+  const s = String(value || "").trim();
+
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s;
+
+  if (
+    /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\)$/.test(
+      s
+    )
+  ) {
+    return s;
+  }
+
+  return "#111827";
+};
+
+const clampNum = (n, min, max, fallback = 0) => {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(max, Math.max(min, v));
+};
+
+const sanitizeDesignElement = (el) => {
+  if (!el || typeof el !== "object") return null;
+
+  const clean = {
+    type: ["text", "image", "shape"].includes(el.type)
+      ? el.type
+      : "text",
+    id: String(el.id || "").slice(0, 80),
+    kind:
+      typeof el.kind === "string" ? el.kind.slice(0, 40) : null,
+    label: String(el.label || "").slice(0, 80),
+    x: clampNum(el.x, -50, 150, 50),
+    y: clampNum(el.y, -50, 150, 50),
+    rotation: clampNum(el.rotation, -360, 360, 0),
+    hidden: Boolean(el.hidden),
+  };
+
+  if (clean.type === "text") {
+    clean.text = String(el.text || "").slice(0, 500);
+    clean.fontSize = clampNum(el.fontSize, 4, 200, 16);
+    clean.fontFamily = String(el.fontFamily || "").slice(0, 60);
+    clean.color = sanitizeColor(el.color);
+    clean.bold = Boolean(el.bold);
+    clean.italic = Boolean(el.italic);
+    clean.underline = Boolean(el.underline);
+    clean.align = ["left", "center", "right"].includes(el.align)
+      ? el.align
+      : "center";
+    clean.letterSpacing = clampNum(el.letterSpacing, -5, 30, 0);
+    clean.opacity = clampNum(el.opacity, 0, 1, 1);
+  } else if (clean.type === "image") {
+    clean.src =
+      typeof el.src === "string" && el.src.length < 2000000
+        ? el.src
+        : null;
+    clean.width = clampNum(el.width, 1, 150, 20);
+    clean.height = clampNum(el.height, 0, 150, 0);
+    clean.opacity = clampNum(el.opacity, 0, 1, 1);
+  } else {
+    clean.shape = String(el.shape || "rect").slice(0, 20);
+    clean.color = sanitizeColor(el.color);
+    clean.width = clampNum(el.width, 1, 150, 50);
+    clean.height = clampNum(el.height, 0, 150, 10);
+    clean.opacity = clampNum(el.opacity, 0, 1, 1);
+  }
+
+  return clean;
+};
+
+const sanitizeDesigns = (designs) => {
+  if (
+    !designs ||
+    typeof designs !== "object" ||
+    Array.isArray(designs)
+  ) {
+    return null;
+  }
+
+  const clean = {};
+
+  for (const [side, list] of Object.entries(designs)) {
+    if (!Array.isArray(list)) continue;
+
+    clean[String(side).slice(0, 30)] = list
+      .slice(0, 60)
+      .map(sanitizeDesignElement)
+      .filter(Boolean);
+  }
+
+  return Object.keys(clean).length > 0 ? clean : null;
+};
+
 function mapProduct(row) {
   return {
     id: row.id,
@@ -4647,6 +4747,18 @@ app.post(
           total: itemTotal,
           unit: product.unit || "Pieces",
           attributes: cleanAttrs,
+
+          /* customization sanitize — text/color/design
+             structure validate karke hi store */
+          designs: sanitizeDesigns(item.designs),
+          color:
+            item.color !== undefined && item.color !== null
+              ? sanitizeColor(item.color)
+              : null,
+          personName: String(item.personName || "").slice(0, 120),
+          designation: String(item.designation || "").slice(0, 120),
+          companyName: String(item.companyName || "").slice(0, 160),
+          text: String(item.text || "").slice(0, 500),
         });
       }
 
