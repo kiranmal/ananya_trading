@@ -1136,7 +1136,7 @@ async function ensureProductsTable() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
 
-  /* Purani table pe missing column add karo */
+  /* add missing column on the old table */
   try {
     await db.execute(
       "ALTER TABLE products ADD COLUMN quantity_step INT NOT NULL DEFAULT 1"
@@ -1527,7 +1527,7 @@ app.get("/api/products", async (req, res) => {
     }
 
     /* dynamic attribute filter — ?attr_value=<id>[,<id>...]
-       har selected value match honi chahiye (AND) */
+       every selected value must match (AND) */
     const attrValueIds = String(req.query.attr_value || "")
       .split(",")
       .map((v) => Number(v))
@@ -1735,7 +1735,7 @@ app.post(
       }
 
       /* categoryId/subcategoryId diya ho to naam wahi se resolve;
-         warna naam se id resolve */
+         otherwise resolve the id by name */
       const categoryRow = await resolveCategoryId(req.body);
       const subcategoryRow = await resolveSubcategoryId(
         req.body,
@@ -2395,8 +2395,8 @@ async function ensureTaxonomyTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
 
-  /* attribute kis category/subcategory ke liye relevant hai —
-     koi row nahi -> attribute sab products pe applicable.
+  /* attribute's category/subcategory relevance —
+     no row -> attribute applies to all products.
      0 = wildcard (category-only scope) */
   await db.execute(`
     CREATE TABLE IF NOT EXISTS attribute_scopes (
@@ -2652,7 +2652,7 @@ async function migrateAttributesOnce() {
       await upsertAttributeValue(attrId, seed.values[i], i);
     }
 
-    /* scopes add karo (existing scopes untouched) */
+    /* add scopes (existing scopes untouched) */
     const [existingScopes] = await db.execute(
       `SELECT COUNT(*) AS c FROM attribute_scopes
        WHERE attribute_id = ?`,
@@ -2674,7 +2674,7 @@ async function migrateAttributesOnce() {
     }
   }
 
-  /* 2. products.sizes -> "Size" ya drinkware ke liye "Capacity";
+  /* 2. products.sizes -> "Size" or "Capacity" for drinkware;
         products.paper_types -> "Paper Type" */
 
   const [products] = await db.execute(
@@ -2805,7 +2805,7 @@ async function migrateAttributesOnce() {
   );
 }
 
-/* products ke attributes ek query mein */
+/* product attributes in a single query */
 async function getAttributesForProducts(productIds) {
   const ids = (Array.isArray(productIds) ? productIds : [])
     .map((id) => Number(id))
@@ -2846,7 +2846,7 @@ async function getAttributesForProducts(productIds) {
 
     if (r.value_id) {
       attr.values.push({ id: r.value_id, value: r.value });
-      /* select-type ke liye single value mirror */
+      /* single-value mirror for select-type */
       if (attr.type === "select" && attr.value === null) {
         attr.value = r.value;
       }
@@ -2863,7 +2863,7 @@ async function getAttributesForProducts(productIds) {
   return out;
 }
 
-/* product ke attributes replace — validation ke saath */
+/* replace product attributes — with validation */
 async function syncProductAttributes(
   productId,
   valueIds,
@@ -2957,7 +2957,7 @@ function ensureTaxonomy() {
   return taxonomyReadyPromise;
 }
 
-/* Saare product ids ke tags ek query mein */
+/* tags for all product ids in one query */
 async function getTagsForProducts(productIds) {
   const ids = (Array.isArray(productIds) ? productIds : [])
     .map((id) => Number(id))
@@ -3057,7 +3057,7 @@ async function resolveSubcategoryId(body, categoryId) {
     );
     if (rows.length > 0) return rows[0];
 
-    /* naam valid hai par row nahi — create karo */
+    /* name is valid but row missing — create it */
     const [ins] = await db.execute(
       `INSERT INTO subcategories (category_id, name, slug)
        VALUES (?, ?, ?)
@@ -3264,7 +3264,7 @@ app.get("/api/attributes", async (req, res) => {
       scopes: scopesByAttr.get(a.id) || [],
     }));
 
-    /* relevance filter — form/detail ke liye */
+    /* relevance filter — for form/detail */
     if (categoryId || subcategoryId) {
       attributes = attributes.filter((a) => {
         const s = a.scopes;
@@ -3777,7 +3777,7 @@ app.delete(
         });
       }
 
-      /* products delete nahi hote — sirf assignments detach */
+      /* products are never deleted — only assignments detached */
       const [ref] = await db.execute(
         `SELECT COUNT(DISTINCT product_id) AS c
          FROM product_attribute_values WHERE attribute_value_id = ?`,
@@ -3956,7 +3956,7 @@ app.put(
 
       /* items -> subcategories sync (add missing; removed ones
          delete karo sirf jab koi product use na kar raha ho,
-         warna Inactive mark karo) */
+         otherwise mark it Inactive) */
       const wanted = new Set(
         items.map((i) => String(i).toLowerCase())
       );
@@ -4042,8 +4042,8 @@ app.delete(
         });
       }
 
-      /* Dependency check — products/subcategories use kar rahe
-         hain to delete nahi; deactivate karna safer hai */
+      /* Dependency check — if products/subcategories still
+         use it, do not delete; deactivate is safer */
       const [productUse] = await db.execute(
         `SELECT COUNT(*) AS c FROM products
          WHERE category_id = ? OR category = ?`,
@@ -4526,7 +4526,7 @@ app.delete(
         });
       }
 
-      /* products delete nahi hote — sirf assignments detach */
+      /* products are never deleted — only assignments detached */
       const [ref] = await db.execute(
         "SELECT COUNT(*) AS c FROM product_tags WHERE tag_id = ?",
         [id]
@@ -4580,7 +4580,7 @@ async function ensureOrdersTable() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
 
-  /* Purane schema pe missing columns add karo */
+  /* add missing columns on the old schema */
   const addColumn = async (sql) => {
     try {
       await db.execute(sql);
@@ -4672,7 +4672,7 @@ const parseOrderRow = (row) => {
   };
 };
 
-/* USER — order place karna (login required) */
+/* USER — place an order (login required) */
 app.post(
   "/api/orders",
   authenticateToken,
@@ -4717,7 +4717,7 @@ app.post(
 
       /*
        * SERVER-SIDE ORDER VALIDATION
-       * Frontend se aaya total blindly trust nahi karenge.
+       * Never blindly trust the total sent by the frontend.
        * DB se current product price lekar subtotal, coupon aur final total
        * recalculate karenge.
        */
@@ -4854,8 +4854,8 @@ app.post(
             ) {
               cleanAttrs[attrName] = value;
             } else if (!allowed.has(key)) {
-              /* attribute product pe configured nahi —
-                 silently drop, order block nahi */
+              /* attribute not configured on this product —
+                 silently drop, do not block the order */
               continue;
             } else {
               /* attribute hai par value invalid — drop */
@@ -4982,7 +4982,7 @@ app.post(
         subtotal + shippingCharge - discount
       );
 
-      /* Frontend ne jo total bheja, woh match nahi karta toh server total use hoga */
+      /* if the frontend's total does not match, the server total is used */
       const frontendTotal = Number(
         order.total ??
           order.grandTotal ??
@@ -5568,7 +5568,7 @@ app.delete(
   }
 );
 
-/* PUBLIC — abhi live coupons (offer bar ke liye) */
+/* PUBLIC — currently live coupons (for the offer bar) */
 app.get("/api/coupons/active", async (req, res) => {
   try {
     await ensureCouponsTable();
@@ -6110,7 +6110,7 @@ app.post(
         });
       }
 
-      /* idempotent — pehle ka razorpay order reuse karo */
+      /* idempotent — reuse the previous razorpay order */
       if (order.razorpay_order_id) {
         return res.status(200).json({
           success: true,
@@ -6222,7 +6222,7 @@ app.post(
         });
       }
 
-      /* rzp order id DB ka hona chahiye — browser ka arbitrary id trust nahi */
+      /* rzp order id must come from the DB — do not trust arbitrary browser ids */
       if (
         !order.razorpay_order_id ||
         order.razorpay_order_id !== String(rzpOrderId)
@@ -6233,7 +6233,7 @@ app.post(
         });
       }
 
-      /* idempotent — same payment dobara verify ho toh OK */
+      /* idempotent — OK if the same payment is verified again */
       if (
         String(order.payment_status).toLowerCase() ===
           "paid" &&
@@ -6365,7 +6365,7 @@ app.post(
 
         const order = rows?.[0];
         if (!order) {
-          /* humara order nahi — ack karo, retry rok do */
+          /* not our order — ack it, stop retries */
           return res
             .status(200)
             .json({ success: true });

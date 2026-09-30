@@ -26,6 +26,7 @@ import {
   fetchTags,
   fetchAttributes,
 } from "../../services/categoryApi";
+import { inferCustomizationType } from "../../services/customizationType";
 
 const defaultCategories = [
   {
@@ -251,7 +252,11 @@ export default function EditProduct() {
         );
 
         setCustomizationType(
-          product.customizationType || "tshirt"
+          product.customizationType ||
+            inferCustomizationType(
+              product.subcategory,
+              product.category
+            )
         );
 
         const existingImages = (product.images || []).filter(Boolean);
@@ -271,7 +276,7 @@ export default function EditProduct() {
         );
 
         /* dynamic attribute selections prefill —
-           category change effect isko consume karega */
+           the category-change effect consumes this */
         const vs = {};
         const tx = {};
         (Array.isArray(product.attributes)
@@ -358,8 +363,23 @@ export default function EditProduct() {
       (item) => item.name === value
     );
 
-    setSubcategory(
-      newCategory?.items?.[0] || ""
+    const firstSub = newCategory?.items?.[0] || "";
+
+    setSubcategory(firstSub);
+
+    /* auto-pick customization type for this category */
+    setCustomizationType(
+      inferCustomizationType(firstSub, value)
+    );
+  };
+
+  const handleSubcategoryChange = (e) => {
+    const value = e.target.value;
+
+    setSubcategory(value);
+
+    setCustomizationType(
+      inferCustomizationType(value, category)
     );
   };
 
@@ -865,10 +885,8 @@ export default function EditProduct() {
 
                 <select
                   value={subcategory}
-                  onChange={(e) =>
-                    setSubcategory(
-                      e.target.value
-                    )
+                  onChange={
+                    handleSubcategoryChange
                   }
                 >
                   {subcategories.map(

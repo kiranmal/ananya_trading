@@ -22,6 +22,7 @@ import {
   fetchAttributes,
 } from "../../services/categoryApi";
 import { createProduct } from "../../services/productApi";
+import { inferCustomizationType } from "../../services/customizationType";
 
 export default function AddProduct() {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export default function AddProduct() {
       const list = await fetchCategories();
       setCategories(list);
 
-      /* Products page se aaya ho to selected category preselect */
+      /* preselect category when opened from Products page */
       const wanted = searchParams.get("category");
       const first =
         (wanted &&
@@ -49,8 +50,13 @@ export default function AddProduct() {
         list[0];
 
       if (first) {
+        const firstSub = first.items?.[0] || "";
         setCategory(first.name);
-        setSubcategory(first.items?.[0] || "");
+        setSubcategory(firstSub);
+        /* infer customization type from category */
+        setCustomizationType(
+          inferCustomizationType(firstSub, first.name)
+        );
       }
 
       try {
@@ -67,7 +73,7 @@ export default function AddProduct() {
   const [selectedTagIds, setSelectedTagIds] = useState([]);
 
   /* last selected tag = product badge,
-     kuch nahi to default NEW */
+     default NEW when none selected */
   const previewBadge =
     (
       allTags.find(
@@ -180,8 +186,23 @@ export default function AddProduct() {
       (item) => item.name === value
     );
 
-    setSubcategory(
-      newCategory?.items?.[0] || ""
+    const firstSub = newCategory?.items?.[0] || "";
+
+    setSubcategory(firstSub);
+
+    /* auto-pick customization type for this category */
+    setCustomizationType(
+      inferCustomizationType(firstSub, value)
+    );
+  };
+
+  const handleSubcategoryChange = (e) => {
+    const value = e.target.value;
+
+    setSubcategory(value);
+
+    setCustomizationType(
+      inferCustomizationType(value, category)
     );
   };
 
@@ -359,8 +380,8 @@ export default function AddProduct() {
         description.trim() ||
         "Premium quality product from Ananya Trading Company.",
 
-      /* attributes dynamic system se aate hain —
-         legacy paper_types/sizes hardcode nahi */
+      /* attributes come from the dynamic system —
+         legacy paper_types/sizes not hardcoded */
       paperTypes: [],
 
       sizes: [],
@@ -539,10 +560,8 @@ export default function AddProduct() {
 
                 <select
                   value={subcategory}
-                  onChange={(e) =>
-                    setSubcategory(
-                      e.target.value
-                    )
+                  onChange={
+                    handleSubcategoryChange
                   }
                 >
                   {subcategories.map(
@@ -1062,9 +1081,9 @@ export default function AddProduct() {
                   fontSize: "12px",
                 }}
               >
-                Enabled hone par product detail
-                page pe "Customize Now" button
-                dikhega.
+                When enabled, a "Customize Now"
+                button appears on the product
+                detail page.
               </small>
             </div>
 

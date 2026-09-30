@@ -73,8 +73,8 @@ const isItemCustomized = (item) =>
     item?.text
   );
 
-/* business-card design se labeled text fields nikaal —
-   cart summary (Name/Designation/Company) ke liye */
+/* extract labeled text fields from the business-card
+   design — for the cart summary (Name/Designation/Company) */
 const getCardFieldSummary = (item) => {
   const elements =
     item?.customization?.frontDesign?.elements ||
@@ -108,9 +108,9 @@ const getCardFieldSummary = (item) => {
 // ============================================================
 // CREATE PRODUCT SNAPSHOT
 // ============================================================
-// Order ke andar product ka complete data save karne ke liye.
-// Isse OrderDetails mein image, price, quantity, amount etc.
-// correctly milenge.
+// Save complete product data inside the order so
+// OrderDetails correctly receives image, price,
+// quantity, amount etc.
 // ============================================================
 
 const createProductSnapshot = (item) => {
@@ -716,7 +716,7 @@ function Cart() {
 
   // ==========================================================
   // REFRESH CART PRICES FROM DATABASE
-  // Cart mein purani price na rahe; DB se latest price use hoga
+  // Avoid stale prices in the cart; latest DB price is used
   // ==========================================================
 
   const refreshCartPrices = async () => {
@@ -1423,7 +1423,7 @@ function Cart() {
       )
     );
 
-    // DB mein bhi save — background mein
+    // also save to DB — in the background
     saveOrderToServer(order);
 
     // --------------------------------------------------------
@@ -1543,7 +1543,7 @@ function Cart() {
   };
 
   // ==========================================================
-  // EDIT DESIGN — cart item ka saved design editor mein kholna
+  // EDIT DESIGN — reopen the cart item's saved design in the editor
   // ==========================================================
 
   const editCardDesign = (item) => {

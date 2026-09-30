@@ -27,8 +27,8 @@ import {
 
 import "./AdminProducts.css";
 
-/* categories API object ho ya static {items:[..]} —
-   sub list ko normalize karo */
+/* categories may come as an API object or a static
+   {items:[..]} — normalize the subcategory list */
 const catSubs = (cat) => {
   if (Array.isArray(cat.subcategories) && cat.subcategories.length) {
     return cat.subcategories
@@ -134,7 +134,7 @@ export default function AdminProducts() {
     const reqId = ++loadRef.current;
 
     const run = async () => {
-      /* All + no search -> allProducts reuse, extra call nahi */
+      /* All + no search -> reuse allProducts, no extra call */
       if (!selCat && !debouncedSearch) {
         setProducts(allProducts);
         return;
@@ -266,7 +266,7 @@ export default function AdminProducts() {
       )}`
     : "/admin/products/add";
 
-  /* group headers sirf All Products view mein */
+  /* group headers only in the All Products view */
   const groupedByCategory = {};
   products.forEach((product) => {
     const cat = product.category || "Uncategorized";

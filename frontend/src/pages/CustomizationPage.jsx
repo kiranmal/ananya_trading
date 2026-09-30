@@ -30,7 +30,7 @@ export default function CustomizationPage() {
     }
   })();
 
-  /* ── product hi nahi mila ── */
+  /* ── product not found ── */
   if (!product || (!product.id && !product.name)) {
     return (
       <div className="customizer-loading">
@@ -82,7 +82,7 @@ export default function CustomizationPage() {
     );
   }
 
-  /* ── editor pick: field pehle, phir name fallback ── */
+  /* ── editor pick: field first, then name fallback ── */
   const identity =
     `${product.name || ""} ${product.category || ""}`.toLowerCase();
 

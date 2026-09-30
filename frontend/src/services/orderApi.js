@@ -7,7 +7,7 @@ const authHeaders = () => {
     : null;
 };
 
-/* Checkout — order DB mein save (localStorage ke saath) */
+/* Checkout — save order to DB (alongside localStorage) */
 export const saveOrderToServer = async (order) => {
   const headers = authHeaders();
   if (!headers) return null;

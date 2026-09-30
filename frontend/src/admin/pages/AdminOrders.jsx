@@ -109,9 +109,9 @@ export default function AdminOrders() {
 
     setOrders(updatedOrders);
 
-    /* Sirf local-originated orders update karo —
-       remote (sabhi customers ke) orders ko ananyaOrders
-       cache mein mat likho */
+    /* only update locally-originated orders —
+       remote orders (all customers) must not be written
+       into the ananyaOrders cache */
     try {
       const savedLocal = JSON.parse(
         localStorage.getItem("ananyaOrders") || "[]"

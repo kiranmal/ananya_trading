@@ -16,9 +16,9 @@ const request = async (path, options = {}) => {
 const syncProductCache = (products) => {
   const serialized = JSON.stringify(products);
 
-  /* same data hai to write+dispatch skip —
+  /* if data unchanged, skip write+dispatch —
      ananyaProductsUpdated listener -> loadProducts ->
-     fetchProducts -> dispatch ka infinite loop nahi banega */
+     fetchProducts -> dispatch would loop infinitely */
   if (localStorage.getItem(STORAGE_KEY) === serialized) {
     return;
   }
@@ -96,8 +96,8 @@ export const fetchProducts = (search = "", filters = {}) => {
         : [];
     }
 
-    /* filtered result ko cache mein mat likho —
-       warna baaki pages ko sirf filtered matches milenge */
+    /* do not cache filtered results —
+       otherwise other pages would only see filtered matches */
     if (products.length > 0 && !isFiltered) {
       syncProductCache(products);
     }
