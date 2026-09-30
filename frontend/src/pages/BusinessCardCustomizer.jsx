@@ -279,8 +279,16 @@ export default function BusinessCardCustomizer() {
   }, []);
 
   const savedDesign = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem(`businessCardDesign-${product?.id || "draft"}`) || "null"); }
-    catch { return null; }
+    try {
+      const raw = JSON.parse(localStorage.getItem(`businessCardDesign-${product?.id || "draft"}`) || "null");
+      /* stale/incompatible saved shapes must not crash the editor —
+         only restore when both sides carry an elements array */
+      return raw &&
+        Array.isArray(raw.frontDesign?.elements) &&
+        Array.isArray(raw.backDesign?.elements)
+        ? raw
+        : null;
+    } catch { return null; }
   }, [product?.id]);
 
   const [side, setSide] = useState("front");
@@ -299,7 +307,8 @@ export default function BusinessCardCustomizer() {
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   const current = design[side];
-  const selected = current.elements.find((el) => el.id === selectedId) || null;
+  const elements = Array.isArray(current?.elements) ? current.elements : [];
+  const selected = elements.find((el) => el.id === selectedId) || null;
 
   /* ── history helpers ── */
   const commit = useCallback((updater) => {
@@ -325,11 +334,11 @@ export default function BusinessCardCustomizer() {
   }, [commit, side, selectedId]);
 
   const addElement = useCallback((element) => {
-    const existingPreset = element.preset ? current.elements.find((el) => el.preset === element.preset) : null;
+    const existingPreset = element.preset ? elements.find((el) => el.preset === element.preset) : null;
     if (existingPreset) { setSelectedId(existingPreset.id); return; }
     commit((v) => ({ ...v, [side]: { ...v[side], elements: [...v[side].elements, element] } }));
     setSelectedId(element.id);
-  }, [commit, side, current.elements]);
+  }, [commit, side, elements]);
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
@@ -654,8 +663,8 @@ export default function BusinessCardCustomizer() {
             </h4>
             {showLayers && (
               <div className="bc-layers-list">
-                {current.elements.length === 0 && <p className="bc-layers-empty">No elements</p>}
-                {[...current.elements].reverse().map((el) => (
+                {elements.length === 0 && <p className="bc-layers-empty">No elements</p>}
+                {[...elements].reverse().map((el) => (
                   <div key={el.id} className={`bc-layer-item ${el.id === selectedId ? "active" : ""} ${el.visible === false ? "hidden-layer" : ""}`} onClick={() => selectLayerItem(el.id)}>
                     <span className="bc-layer-icon">{layerIcon(el)}</span>
                     <span className="bc-layer-name">{elementLabel(el)}</span>
@@ -683,7 +692,7 @@ export default function BusinessCardCustomizer() {
               style={{ background: current.gradient || current.background, backgroundImage: current.backgroundImage ? `url(${current.backgroundImage})` : current.gradient || "none" }}
               onClick={() => setSelectedId(null)}
             >
-              {current.elements.map((element) => (
+              {elements.map((element) => (
                 <div
                   key={element.id}
                   className={`bc-canvas-element ${selectedId === element.id ? "selected" : ""} ${element.visible === false ? "bc-el-hidden" : ""}`}
