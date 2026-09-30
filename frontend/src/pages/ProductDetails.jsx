@@ -175,11 +175,28 @@ function ProductDetails() {
   const [quantity, setQuantity] =
     useState(1);
 
+  /* null = not editing; string = user typing */
+  const [quantityRaw, setQuantityRaw] =
+    useState(null);
+
   /* Admin-set quantity step / min order */
   const quantityStep = Math.max(
     1,
     Number(product?.quantityStep) || 1
   );
+
+  /* product ka unit label (Cards / Pieces / Boxes ...) */
+  const unitLabel =
+    String(product?.unit || "Pieces").trim() ||
+    "Pieces";
+
+  /* max order qty — product pe set ho to enforce */
+  const maxQuantity =
+    product?.maxQuantity !== null &&
+    product?.maxQuantity !== undefined &&
+    Number(product?.maxQuantity) > 0
+      ? Number(product.maxQuantity)
+      : null;
 
   /* Product load hone pe start qty = step */
   useEffect(() => {
@@ -397,8 +414,12 @@ function ProductDetails() {
   const increaseQuantity = () => {
 
     setQuantity(
-      (previousQuantity) =>
-        previousQuantity + quantityStep
+      (previousQuantity) => {
+        const next = previousQuantity + quantityStep;
+        return maxQuantity
+          ? Math.min(maxQuantity, next)
+          : next;
+      }
     );
 
   };
@@ -417,6 +438,53 @@ function ProductDetails() {
           previousQuantity - quantityStep
         )
     );
+
+  };
+
+
+  /* =====================================================
+     DIRECT QUANTITY INPUT — type/paste allowed
+  ===================================================== */
+
+  const handleQuantityInput = (event) => {
+
+    const raw = event.target.value;
+
+    /* digits only — alphabets/sign reject */
+    if (raw !== "" && !/^\d+$/.test(raw)) {
+      return;
+    }
+
+    if (raw === "") {
+      setQuantityRaw("");
+      return;
+    }
+
+    setQuantityRaw(raw);
+  };
+
+
+  const commitQuantityInput = () => {
+
+    const parsed = Math.floor(
+      Number(quantityRaw)
+    );
+
+    if (
+      !Number.isFinite(parsed) ||
+      parsed <= 0
+    ) {
+      setQuantityRaw(null);
+      return;
+    }
+
+    let next = Math.max(quantityStep, parsed);
+    if (maxQuantity) {
+      next = Math.min(maxQuantity, next);
+    }
+
+    setQuantity(next);
+    setQuantityRaw(null);
 
   };
 
@@ -652,6 +720,9 @@ function ProductDetails() {
 
         attributes:
           { ...attrSelections },
+
+        unit:
+          unitLabel,
 
         image:
           images[0],
@@ -1490,10 +1561,43 @@ function ProductDetails() {
               </button>
 
 
-              <span>
+              <input
+                type="number"
+                className="quantity-input"
+                min={quantityStep}
+                {...(maxQuantity
+                  ? { max: maxQuantity }
+                  : {})}
+                value={
+                  quantityRaw === null
+                    ? quantity
+                    : quantityRaw
+                }
+                onChange={handleQuantityInput}
+                onBlur={commitQuantityInput}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitQuantityInput();
+                  }
+                }}
+                aria-label={`Quantity in ${unitLabel}`}
+                style={{
+                  width: "70px",
+                  textAlign: "center",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                }}
+              />
 
-                {quantity} Cards
-
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "#6b7280",
+                  marginLeft: "4px",
+                }}
+              >
+                {unitLabel}
               </span>
 
 

@@ -634,10 +634,19 @@ function Checkout() {
             item.size ||
             "Standard",
 
+          unit:
+            item.unit ||
+            "Pieces",
+
+          attributes:
+            item.attributes &&
+            typeof item.attributes === "object"
+              ? item.attributes
+              : {},
+
           category:
             item.category ||
-            item.paperType ||
-            "Premium",
+            "General",
 
           customized,
 
@@ -1658,7 +1667,9 @@ function Checkout() {
                           {price.toLocaleString(
                             "en-IN"
                           )}{" "}
-                          × {quantity}
+                          × {quantity}{" "}
+                          {item.unit ||
+                            "Pieces"}
                         </small>
 
                       </div>

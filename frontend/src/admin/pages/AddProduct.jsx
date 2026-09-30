@@ -92,6 +92,9 @@ export default function AddProduct() {
   const [quantityStep, setQuantityStep] =
     useState("1");
 
+  const [unit, setUnit] = useState("Pieces");
+  const [maxQuantity, setMaxQuantity] = useState("");
+
   const [customizable, setCustomizable] =
     useState(false);
 
@@ -301,6 +304,16 @@ export default function AddProduct() {
         Math.floor(Number(quantityStep)) || 1
       ),
 
+      unit,
+
+      maxQuantity:
+        maxQuantity === ""
+          ? null
+          : Math.max(
+              1,
+              Math.floor(Number(maxQuantity)) || 0
+            ) || null,
+
       customizable,
 
       customizationType: customizable
@@ -323,23 +336,13 @@ export default function AddProduct() {
         description.trim() ||
         "Premium quality product from Ananya Trading Company.",
 
-      paperTypes: [
-        "Matte",
-        "Glossy",
-        "Textured",
-      ],
+      /* attributes dynamic system se aate hain —
+         legacy paper_types/sizes hardcode nahi */
+      paperTypes: [],
 
-      sizes: [
-        "Standard",
-        "Premium",
-      ],
+      sizes: [],
 
-      features: [
-        "Premium Quality",
-        "High Quality Printing",
-        "Fast Delivery",
-        "100% Quality Assured",
-      ],
+      features: [],
     };
 
     try {
@@ -834,6 +837,71 @@ export default function AddProduct() {
                 Min order + step. e.g. 100 for
                 business cards, 1 for normal
                 products.
+              </small>
+            </div>
+
+            {/* UNIT */}
+
+            <div className="form-group">
+              <label>Selling Unit</label>
+
+              <div className="input-wrapper">
+                <select
+                  value={unit}
+                  onChange={(e) =>
+                    setUnit(e.target.value)
+                  }
+                >
+                  {[
+                    "Pieces",
+                    "Cards",
+                    "Boxes",
+                    "Sets",
+                    "Packs",
+                    "Units",
+                  ].map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <small
+                style={{
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                Displayed with quantity (e.g. "100 Cards")
+              </small>
+            </div>
+
+            {/* MAX QUANTITY */}
+
+            <div className="form-group">
+              <label>Max Quantity</label>
+
+              <div className="input-wrapper">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="No limit"
+                  value={maxQuantity}
+                  onChange={(e) =>
+                    setMaxQuantity(e.target.value)
+                  }
+                />
+              </div>
+
+              <small
+                style={{
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                Optional — max units per order
               </small>
             </div>
 

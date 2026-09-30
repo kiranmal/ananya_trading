@@ -1193,6 +1193,11 @@ function mapProduct(row) {
       row.customizable === true,
     customizationType:
       row.customization_type || "",
+    unit: row.unit || "Pieces",
+    maxQuantity:
+      row.max_qty !== null && row.max_qty !== undefined
+        ? Number(row.max_qty)
+        : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1248,6 +1253,13 @@ function getProductPayload(body) {
           body.customization_type ||
           ""
       ).trim() || null,
+    unit: String(body.unit || "").trim() || null,
+    maxQuantity:
+      body.maxQuantity !== undefined &&
+      body.maxQuantity !== null &&
+      String(body.maxQuantity) !== ""
+        ? Math.max(1, Math.floor(Number(body.maxQuantity)) || 0)
+        : null,
   };
 }
 
@@ -1540,8 +1552,8 @@ app.post(
            price, old_price, stock, status,
            badge, rating, reviews, discount, description, images,
            paper_types, sizes, features, quantity_step,
-           customizable, customization_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           customizable, customization_type, unit, max_qty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           product.name,
           product.category,
@@ -1564,6 +1576,8 @@ app.post(
           product.quantityStep,
           product.customizable ? 1 : 0,
           product.customizationType,
+          product.unit || "Pieces",
+          product.maxQuantity,
         ]
       );
 
@@ -1650,7 +1664,7 @@ app.put(
           stock = ?, status = ?, badge = ?, rating = ?, reviews = ?,
           discount = ?, description = ?, images = ?, paper_types = ?,
           sizes = ?, features = ?, quantity_step = ?,
-          customizable = ?, customization_type = ?
+          customizable = ?, customization_type = ?, unit = COALESCE(?, unit), max_qty = ?
          WHERE id = ?`,
         [
           product.name,
@@ -1674,6 +1688,8 @@ app.put(
           product.quantityStep,
           product.customizable ? 1 : 0,
           product.customizationType,
+          product.unit,
+          product.maxQuantity,
           req.params.id,
         ]
       );
@@ -2194,6 +2210,12 @@ async function ensureTaxonomyTables() {
   await addColumn(
     "ALTER TABLE products ADD COLUMN subcategory_id INT DEFAULT NULL"
   );
+  await addColumn(
+    "ALTER TABLE products ADD COLUMN unit VARCHAR(30) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE products ADD COLUMN max_qty INT DEFAULT NULL"
+  );
 }
 
 /* Ek baar per process — idempotent data migration */
@@ -2561,6 +2583,23 @@ async function migrateAttributesOnce() {
       }
     }
   }
+
+  /* 4. unit field — category ke hisaab se sensible default */
+  await db.execute(
+    `UPDATE products SET unit = 'Cards'
+     WHERE unit IS NULL AND category LIKE '%Card%'`
+  );
+  await db.execute(
+    `UPDATE products SET unit = 'Boxes'
+     WHERE unit IS NULL AND (category = 'Packaging' OR name LIKE '%Box%')`
+  );
+  await db.execute(
+    `UPDATE products SET unit = 'Sets'
+     WHERE unit IS NULL AND name LIKE '%Set%'`
+  );
+  await db.execute(
+    `UPDATE products SET unit = 'Pieces' WHERE unit IS NULL`
+  );
 }
 
 /* products ke attributes ek query mein */
@@ -4517,15 +4556,88 @@ app.post(
           });
         }
 
-        const quantity = Math.max(
+        /* quantity: integer, >= min step, <= max_qty (if set) */
+        const minQty = Math.max(
           1,
-          Math.floor(Number(item.quantity) || 1)
+          Number(product.quantityStep) || 1
         );
+        const maxQty =
+          product.maxQuantity !== null &&
+          product.maxQuantity !== undefined
+            ? Number(product.maxQuantity)
+            : null;
+
+        let quantity = Math.floor(
+          Number(item.quantity) || 0
+        );
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid quantity for "${product.name}".`,
+          });
+        }
+
+        if (quantity < minQty) quantity = minQty;
+        if (maxQty && quantity > maxQty) quantity = maxQty;
 
         const price = Number(product.price || 0);
         const itemTotal = price * quantity;
 
         subtotal += itemTotal;
+
+        /* dynamic attribute selections validate — sirf product
+           ke allowed attribute values accept honge */
+        const cleanAttrs = {};
+
+        if (
+          item.attributes &&
+          typeof item.attributes === "object" &&
+          !Array.isArray(item.attributes)
+        ) {
+          const [pavRows] = await db.execute(
+            `SELECT a.name AS attr_name, av.value
+             FROM product_attribute_values pav
+             JOIN product_attributes a
+               ON a.id = pav.attribute_id
+             JOIN attribute_values av
+               ON av.id = pav.attribute_value_id
+             WHERE pav.product_id = ?`,
+            [pid]
+          );
+
+          const allowed = new Map();
+          pavRows.forEach((r) => {
+            const key = String(r.attr_name).toLowerCase();
+            if (!allowed.has(key)) allowed.set(key, new Set());
+            allowed
+              .get(key)
+              .add(String(r.value).toLowerCase());
+          });
+
+          for (const [attrName, val] of Object.entries(
+            item.attributes
+          )) {
+            const key = String(attrName).toLowerCase();
+            const value = String(val).trim();
+
+            if (!value) continue;
+
+            if (
+              allowed.has(key) &&
+              allowed.get(key).has(value.toLowerCase())
+            ) {
+              cleanAttrs[attrName] = value;
+            } else if (!allowed.has(key)) {
+              /* attribute product pe configured nahi —
+                 silently drop, order block nahi */
+              continue;
+            } else {
+              /* attribute hai par value invalid — drop */
+              continue;
+            }
+          }
+        }
 
         validatedItems.push({
           ...item,
@@ -4533,6 +4645,8 @@ app.post(
           price,
           quantity,
           total: itemTotal,
+          unit: product.unit || "Pieces",
+          attributes: cleanAttrs,
         });
       }
 

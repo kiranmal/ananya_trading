@@ -165,6 +165,10 @@ export default function EditProduct() {
   const [quantityStep, setQuantityStep] =
     useState("1");
 
+  const [unit, setUnit] = useState("Pieces");
+  const [maxQuantity, setMaxQuantity] =
+    useState("");
+
   const [customizable, setCustomizable] =
     useState(false);
 
@@ -217,6 +221,14 @@ export default function EditProduct() {
         setOldPrice(String(product.oldPrice ?? ""));
         setQuantityStep(
           String(product.quantityStep ?? 1)
+        );
+
+        setUnit(product.unit || "Pieces");
+        setMaxQuantity(
+          product.maxQuantity !== null &&
+            product.maxQuantity !== undefined
+            ? String(product.maxQuantity)
+            : ""
         );
 
         setCustomizable(
@@ -507,6 +519,16 @@ export default function EditProduct() {
         Math.floor(Number(quantityStep)) || 1
       ),
 
+      unit,
+
+      maxQuantity:
+        maxQuantity === ""
+          ? null
+          : Math.max(
+              1,
+              Math.floor(Number(maxQuantity)) || 0
+            ) || null,
+
       customizable,
 
       customizationType: customizable
@@ -543,21 +565,14 @@ export default function EditProduct() {
           currentProduct.paperTypes
         )
           ? currentProduct.paperTypes
-          : [
-              "Matte",
-              "Glossy",
-              "Textured",
-            ],
+          : [],
 
       sizes:
         Array.isArray(
           currentProduct.sizes
         )
           ? currentProduct.sizes
-          : [
-              "Standard",
-              "Premium",
-            ],
+          : [],
 
       features:
         Array.isArray(
@@ -1163,6 +1178,53 @@ export default function EditProduct() {
                 business cards, 1 for normal
                 products.
               </small>
+            </div>
+
+            {/* UNIT */}
+
+            <div className="form-group">
+              <label>Selling Unit</label>
+
+              <div className="input-wrapper">
+                <select
+                  value={unit}
+                  onChange={(e) =>
+                    setUnit(e.target.value)
+                  }
+                >
+                  {[
+                    "Pieces",
+                    "Cards",
+                    "Boxes",
+                    "Sets",
+                    "Packs",
+                    "Units",
+                  ].map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* MAX QUANTITY */}
+
+            <div className="form-group">
+              <label>Max Quantity</label>
+
+              <div className="input-wrapper">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="No limit"
+                  value={maxQuantity}
+                  onChange={(e) =>
+                    setMaxQuantity(e.target.value)
+                  }
+                />
+              </div>
             </div>
 
             {/* CUSTOMIZATION */}

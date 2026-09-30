@@ -207,19 +207,14 @@ function Category() {
                   product.paperTypes
                 )
                   ? product.paperTypes
-                  : [
-                      "Matte",
-                      "Glossy"
-                    ],
+                  : [],
 
               sizes:
                 Array.isArray(
                   product.sizes
                 )
                   ? product.sizes
-                  : [
-                      "Standard"
-                    ],
+                  : [],
 
             });
 

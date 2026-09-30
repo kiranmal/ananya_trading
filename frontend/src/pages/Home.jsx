@@ -112,14 +112,14 @@ function Home() {
           product?.paperTypes
         )
           ? product.paperTypes
-          : ["Matte", "Glossy"],
+          : [],
 
       sizes:
         Array.isArray(
           product?.sizes
         )
           ? product.sizes
-          : ["Standard"],
+          : [],
 
       features:
         Array.isArray(

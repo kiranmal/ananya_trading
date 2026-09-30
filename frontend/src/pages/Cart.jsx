@@ -933,6 +933,51 @@ function Cart() {
   };
 
   // ==========================================================
+  // DIRECT QUANTITY INPUT — type/paste; min = quantityStep
+  // ==========================================================
+
+  const setItemQuantity = (index, rawValue) => {
+    if (
+      rawValue !== "" &&
+      !/^\d+$/.test(rawValue)
+    ) {
+      return;
+    }
+
+    const updatedCart = [
+      ...cart,
+    ];
+
+    const item = updatedCart[index];
+    const step = getQuantityStep(item);
+
+    const parsed = Math.floor(
+      Number(rawValue)
+    );
+
+    if (
+      rawValue === "" ||
+      !Number.isFinite(parsed) ||
+      parsed <= 0
+    ) {
+      /* invalid/empty -> min step pe reset */
+      updatedCart[index] = {
+        ...item,
+        quantity: step,
+      };
+      saveCart(updatedCart);
+      return;
+    }
+
+    updatedCart[index] = {
+      ...item,
+      quantity: Math.max(step, parsed),
+    };
+
+    saveCart(updatedCart);
+  };
+
+  // ==========================================================
   // REMOVE
   // ==========================================================
 
@@ -1738,9 +1783,8 @@ function Cart() {
                     <div className="cart-info">
 
                       <span className="cart-category">
-                        {item?.paperType ||
-                          item?.category ||
-                          "Premium"}
+                        {item?.category ||
+                          "General"}
                       </span>
 
                       <h3
@@ -1755,11 +1799,31 @@ function Cart() {
                           "Untitled Product"}
                       </h3>
 
-                      <p>
-                        Size:{" "}
-                        {item?.size ||
-                          "Standard"}
-                      </p>
+                      {/* dynamic attributes (Size/Material/
+                          Capacity/Paper Type...) */}
+                      {item?.attributes &&
+                      Object.keys(item.attributes).length > 0 ? (
+                        Object.entries(item.attributes).map(
+                          ([k, v]) => (
+                            <p key={k}>
+                              {k}: {String(v)}
+                            </p>
+                          )
+                        )
+                      ) : (
+                        <>
+                          {item?.size && (
+                            <p>
+                              Size: {item.size}
+                            </p>
+                          )}
+                          {item?.paperType && (
+                            <p>
+                              Paper Type: {item.paperType}
+                            </p>
+                          )}
+                        </>
+                      )}
 
                       {item?.color && (
                         <p>
@@ -1850,8 +1914,53 @@ function Cart() {
                         />
                       </button>
 
-                      <span>
-                        {quantity}
+                      <input
+                        type="number"
+                        min={getQuantityStep(item)}
+                        value={quantity}
+                        onChange={(e) => {
+                          /* digits only; commit on valid */
+                          if (
+                            e.target.value !== "" &&
+                            /^\d+$/.test(e.target.value)
+                          ) {
+                            setItemQuantity(
+                              index,
+                              e.target.value
+                            );
+                          } else if (
+                            e.target.value === ""
+                          ) {
+                            /* allow clearing for typing */
+                            const updatedCart = [...cart];
+                            updatedCart[index] = {
+                              ...item,
+                              quantity: "",
+                            };
+                            setCart(updatedCart);
+                          }
+                        }}
+                        onBlur={(e) =>
+                          setItemQuantity(
+                            index,
+                            e.target.value
+                          )
+                        }
+                        aria-label="Quantity"
+                        style={{
+                          width: "60px",
+                          textAlign: "center",
+                          fontWeight: 600,
+                        }}
+                      />
+
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        {item.unit || "Pieces"}
                       </span>
 
                       <button
