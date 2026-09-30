@@ -988,6 +988,8 @@ app.post(
 
 app.get(
   "/api/admin/users",
+  authenticateToken,
+  requireAdmin,
   async (req, res) => {
     try {
       const [users] = await db.execute(
@@ -1033,6 +1035,8 @@ app.get(
 
 app.put(
   "/api/admin/users/:id/status",
+  authenticateToken,
+  requireAdmin,
   async (req, res) => {
     try {
       const { id } = req.params;
