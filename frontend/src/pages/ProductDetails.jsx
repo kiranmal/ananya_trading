@@ -94,6 +94,67 @@ function ProductDetails() {
       : ["Standard"];
 
 
+  /* =====================================================
+     DYNAMIC OPTION GROUPS — DB attributes (select/
+     multi-select) > legacy paperTypes/sizes fallback
+  ===================================================== */
+
+  const productAttrs = Array.isArray(
+    product?.attributes
+  )
+    ? product.attributes
+    : [];
+
+
+  const optionGroups = (() => {
+
+    const groups = productAttrs
+      .filter(
+        (attr) =>
+          Array.isArray(attr.values) &&
+          attr.values.length > 0
+      )
+      .map((attr) => ({
+        name: attr.name,
+        options: attr.values.map((v) => v.value),
+      }));
+
+    /* koi attribute nahi -> legacy fields fallback */
+    if (groups.length === 0) {
+      if (product?.paperTypes?.length) {
+        groups.push({
+          name: "Paper Type",
+          options: product.paperTypes,
+        });
+      }
+      if (product?.sizes?.length) {
+        groups.push({
+          name: "Size",
+          options: product.sizes,
+        });
+      }
+    }
+
+    return groups;
+
+  })();
+
+
+  /* text/number/boolean attribute values — info display */
+  const attrInfo = productAttrs
+    .filter(
+      (attr) =>
+        (!attr.values || attr.values.length === 0) &&
+        attr.value !== null &&
+        attr.value !== undefined &&
+        attr.value !== ""
+    )
+    .map((attr) => ({
+      name: attr.name,
+      value: String(attr.value),
+    }));
+
+
   const features =
     product?.features?.length
       ? product.features
@@ -125,11 +186,30 @@ function ProductDetails() {
     setQuantity(quantityStep);
   }, [quantityStep, id]);
 
-  const [paper, setPaper] =
-    useState(paperTypes[0]);
+  /* dynamic attribute selections — { attrName: value } */
+  const [attrSelections, setAttrSelections] =
+    useState({});
 
-  const [size, setSize] =
-    useState(sizes[0]);
+  useEffect(() => {
+    const init = {};
+    productAttrs.forEach((attr) => {
+      if (attr.values?.length) {
+        init[attr.name] = attr.values[0].value;
+      }
+    });
+    setAttrSelections(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+
+
+  /* legacy cart keys compat — attribute names se derive */
+  const paper =
+    attrSelections["Paper Type"] || paperTypes[0];
+
+  const size =
+    attrSelections["Size"] ||
+    attrSelections["Capacity"] ||
+    sizes[0];
 
   const [isFavorite, setIsFavorite] =
     useState(false);
@@ -569,6 +649,9 @@ function ProductDetails() {
 
         size:
           size,
+
+        attributes:
+          { ...attrSelections },
 
         image:
           images[0],
@@ -1301,82 +1384,81 @@ function ProductDetails() {
               PAPER TYPE
           ================================================= */}
 
-          <div className="option-section">
-
-            <h3>
-              Paper Type
-            </h3>
-
-
-            <div className="options">
-
-              {paperTypes.map(
-                (type) => (
-
-                  <button
-                    key={type}
-                    type="button"
-                    className={
-                      paper === type
-                        ? "option active"
-                        : "option"
-                    }
-                    onClick={() =>
-                      setPaper(type)
-                    }
-                  >
-
-                    {type}
-
-                  </button>
-
-                )
-              )}
-
-            </div>
-
-          </div>
-
-
           {/* =================================================
-              SIZE
+              DYNAMIC ATTRIBUTES — DB se (Paper Type sirf
+              card/print products pe, Capacity sirf drinkware pe)
           ================================================= */}
 
-          <div className="option-section">
+          {optionGroups.map(
+            (group) => (
 
-            <h3>
-              Size
-            </h3>
+              <div
+                className="option-section"
+                key={group.name}
+              >
+
+                <h3>
+                  {group.name}
+                </h3>
 
 
-            <div className="options">
+                <div className="options">
 
-              {sizes.map(
-                (item) => (
+                  {group.options.map(
+                    (item) => (
 
-                  <button
-                    key={item}
-                    type="button"
-                    className={
-                      size === item
-                        ? "option active"
-                        : "option"
-                    }
-                    onClick={() =>
-                      setSize(item)
-                    }
+                      <button
+                        key={item}
+                        type="button"
+                        className={
+                          attrSelections[
+                            group.name
+                          ] === item
+                            ? "option active"
+                            : "option"
+                        }
+                        onClick={() =>
+                          setAttrSelections(
+                            (prev) => ({
+                              ...prev,
+                              [group.name]: item,
+                            })
+                          )
+                        }
+                      >
+
+                        {item}
+
+                      </button>
+
+                    )
+                  )}
+
+                </div>
+
+              </div>
+
+            )
+          )}
+
+
+          {/* text/number/boolean attributes — info lines */}
+
+          {attrInfo.length > 0 && (
+            <div className="option-section">
+              <div className="options">
+                {attrInfo.map((info) => (
+                  <span
+                    key={info.name}
+                    className="option"
+                    style={{ cursor: "default" }}
                   >
-
-                    {item}
-
-                  </button>
-
-                )
-              )}
-
+                    {info.name}: {info.value}
+                  </span>
+                ))}
+              </div>
             </div>
-
-          </div>
+          )}
 
 
           {/* =================================================

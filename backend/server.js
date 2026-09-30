@@ -1311,6 +1311,21 @@ app.get("/api/products", async (req, res) => {
       params.push(tag, Number(tag) || -1);
     }
 
+    /* dynamic attribute filter — ?attr_value=<id>[,<id>...]
+       har selected value match honi chahiye (AND) */
+    const attrValueIds = String(req.query.attr_value || "")
+      .split(",")
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && v > 0);
+
+    for (const vid of attrValueIds) {
+      where.push(`id IN (
+        SELECT pav.product_id FROM product_attribute_values pav
+        WHERE pav.attribute_value_id = ?
+      )`);
+      params.push(vid);
+    }
+
     if (where.length > 0) {
       sql += " WHERE " + where.join(" AND ");
     }
@@ -1319,9 +1334,9 @@ app.get("/api/products", async (req, res) => {
 
     const [rows] = await db.execute(sql, params);
 
-    const tagMap = await getTagsForProducts(
-      rows.map((r) => r.id)
-    );
+    const productIds = rows.map((r) => r.id);
+    const tagMap = await getTagsForProducts(productIds);
+    const attrMap = await getAttributesForProducts(productIds);
 
     const products = rows.map((row) => {
       const tags = tagMap.get(row.id) || [];
@@ -1329,6 +1344,7 @@ app.get("/api/products", async (req, res) => {
         ...mapProduct(row),
         tags,
         tagIds: tags.map((t) => t.id),
+        attributes: attrMap.get(row.id) || [],
       };
     });
 
@@ -1374,6 +1390,7 @@ app.get("/api/products/:id", async (req, res) => {
 
     const tagMap = await getTagsForProducts([id]);
     const tags = tagMap.get(id) || [];
+    const attrMap = await getAttributesForProducts([id]);
 
     return res.status(200).json({
       success: true,
@@ -1381,6 +1398,7 @@ app.get("/api/products/:id", async (req, res) => {
         ...mapProduct(rows[0]),
         tags,
         tagIds: tags.map((t) => t.id),
+        attributes: attrMap.get(id) || [],
       },
     });
   } catch (error) {
@@ -1553,6 +1571,17 @@ app.post(
         await syncProductTags(result.insertId, req.body.tagIds);
       }
 
+      if (
+        Array.isArray(req.body?.attributeValues) ||
+        Array.isArray(req.body?.attributeTexts)
+      ) {
+        await syncProductAttributes(
+          result.insertId,
+          req.body.attributeValues,
+          req.body.attributeTexts
+        );
+      }
+
       const [rows] = await db.execute(
         "SELECT * FROM products WHERE id = ? LIMIT 1",
         [result.insertId]
@@ -1560,6 +1589,9 @@ app.post(
 
       const tagMap = await getTagsForProducts([result.insertId]);
       const tags = tagMap.get(result.insertId) || [];
+      const attrMap = await getAttributesForProducts([
+        result.insertId,
+      ]);
 
       return res.status(201).json({
         success: true,
@@ -1568,6 +1600,7 @@ app.post(
           ...mapProduct(rows[0]),
           tags,
           tagIds: tags.map((t) => t.id),
+          attributes: attrMap.get(result.insertId) || [],
         },
       });
     } catch (error) {
@@ -1656,6 +1689,17 @@ app.put(
         await syncProductTags(Number(req.params.id), req.body.tagIds);
       }
 
+      if (
+        Array.isArray(req.body?.attributeValues) ||
+        Array.isArray(req.body?.attributeTexts)
+      ) {
+        await syncProductAttributes(
+          Number(req.params.id),
+          req.body.attributeValues,
+          req.body.attributeTexts
+        );
+      }
+
       const [rows] = await db.execute(
         "SELECT * FROM products WHERE id = ? LIMIT 1",
         [req.params.id]
@@ -1663,6 +1707,9 @@ app.put(
 
       const tagMap = await getTagsForProducts([Number(req.params.id)]);
       const tags = tagMap.get(Number(req.params.id)) || [];
+      const attrMap = await getAttributesForProducts([
+        Number(req.params.id),
+      ]);
 
       return res.status(200).json({
         success: true,
@@ -1671,6 +1718,7 @@ app.put(
           ...mapProduct(rows[0]),
           tags,
           tagIds: tags.map((t) => t.id),
+          attributes: attrMap.get(Number(req.params.id)) || [],
         },
       });
     } catch (error) {
@@ -1689,7 +1737,15 @@ app.delete(
   requireAdmin,
   async (req, res) => {
     try {
-      await ensureProductsTable();
+      await ensureTaxonomy();
+      await db.execute(
+        "DELETE FROM product_tags WHERE product_id = ?",
+        [req.params.id]
+      );
+      await db.execute(
+        "DELETE FROM product_attribute_values WHERE product_id = ?",
+        [req.params.id]
+      );
       const [result] = await db.execute(
         "DELETE FROM products WHERE id = ?",
         [req.params.id]
@@ -2075,6 +2131,63 @@ async function ensureTaxonomyTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
 
+  /* ---------- dynamic product attributes ---------- */
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS product_attributes (
+      id INT NOT NULL AUTO_INCREMENT,
+      name VARCHAR(100) NOT NULL,
+      slug VARCHAR(140) DEFAULT NULL,
+      type VARCHAR(20) NOT NULL DEFAULT 'select',
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY attr_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS attribute_values (
+      id INT NOT NULL AUTO_INCREMENT,
+      attribute_id INT NOT NULL,
+      value VARCHAR(150) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY attr_value (attribute_id, value),
+      KEY attribute_id (attribute_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  /* value_id=0 -> text/number/boolean attribute ka text_value store */
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS product_attribute_values (
+      product_id INT NOT NULL,
+      attribute_id INT NOT NULL,
+      attribute_value_id INT NOT NULL DEFAULT 0,
+      text_value VARCHAR(500) DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (product_id, attribute_id, attribute_value_id),
+      KEY attribute_id (attribute_id),
+      KEY attribute_value_id (attribute_value_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  /* attribute kis category/subcategory ke liye relevant hai —
+     koi row nahi -> attribute sab products pe applicable.
+     0 = wildcard (category-only scope) */
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS attribute_scopes (
+      attribute_id INT NOT NULL,
+      category_id INT NOT NULL DEFAULT 0,
+      subcategory_id INT NOT NULL DEFAULT 0,
+      PRIMARY KEY (attribute_id, category_id, subcategory_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
   await addColumn(
     "ALTER TABLE products ADD COLUMN category_id INT DEFAULT NULL"
   );
@@ -2218,6 +2331,373 @@ async function migrateTaxonomyOnce() {
   }
 }
 
+/* =========================================================
+   ATTRIBUTE MIGRATION — rigid sizes/paper_types ->
+   dynamic attributes + seeded attribute library
+========================================================= */
+
+const ATTR_SEEDS = [
+  {
+    name: "Material",
+    type: "select",
+    values: [
+      "Cotton",
+      "Polyester",
+      "Metal",
+      "Plastic",
+      "Stainless Steel",
+      "Ceramic",
+      "Kraft Paper",
+    ],
+    scopeCategories: [
+      "Clothing & Bags",
+      "Pens & Drinkware",
+      "Mugs & Gifts",
+      "Custom Polo T-Shirts",
+      "Packaging",
+    ],
+  },
+  {
+    name: "Capacity",
+    type: "select",
+    values: [
+      "500 ml",
+      "750 ml",
+      "1 Litre",
+      "11 oz",
+      "15 oz",
+    ],
+    scopeCategories: ["Pens & Drinkware", "Mugs & Gifts"],
+  },
+  {
+    name: "Finish",
+    type: "select",
+    values: ["Matte", "Glossy", "Velvet", "Textured"],
+    scopeCategories: [
+      "Visiting Cards",
+      "Marketing Materials",
+      "Stationery & Office",
+    ],
+  },
+  {
+    name: "Print Area",
+    type: "select",
+    values: ["Front Only", "Back Only", "Full Wrap", "Center"],
+    scopeCategories: [
+      "Mugs & Gifts",
+      "Clothing & Bags",
+      "Custom Polo T-Shirts",
+    ],
+  },
+];
+
+async function upsertAttribute(name, type) {
+  const [rows] = await db.execute(
+    `INSERT INTO product_attributes (name, slug, type)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+    [name, slugify(name), type]
+  );
+  return rows.insertId;
+}
+
+async function upsertAttributeValue(attributeId, value, order = 0) {
+  const [rows] = await db.execute(
+    `INSERT INTO attribute_values (attribute_id, value, sort_order)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+    [attributeId, value, order]
+  );
+  return rows.insertId;
+}
+
+async function migrateAttributesOnce() {
+  /* 1. seed attribute library + scopes */
+  const [cats] = await db.execute(
+    "SELECT id, name FROM categories"
+  );
+  const catIdByName = new Map(
+    cats.map((c) => [String(c.name).toLowerCase(), c.id])
+  );
+
+  for (const seed of ATTR_SEEDS) {
+    const attrId = await upsertAttribute(seed.name, seed.type);
+
+    for (let i = 0; i < seed.values.length; i++) {
+      await upsertAttributeValue(attrId, seed.values[i], i);
+    }
+
+    /* scopes add karo (existing scopes untouched) */
+    const [existingScopes] = await db.execute(
+      `SELECT COUNT(*) AS c FROM attribute_scopes
+       WHERE attribute_id = ?`,
+      [attrId]
+    );
+
+    if (Number(existingScopes[0].c) === 0) {
+      for (const catName of seed.scopeCategories) {
+        const catId = catIdByName.get(catName.toLowerCase());
+        if (catId) {
+          await db.execute(
+            `INSERT IGNORE INTO attribute_scopes
+             (attribute_id, category_id, subcategory_id)
+             VALUES (?, ?, 0)`,
+            [attrId, catId]
+          );
+        }
+      }
+    }
+  }
+
+  /* 2. products.sizes -> "Size" ya drinkware ke liye "Capacity";
+        products.paper_types -> "Paper Type" */
+
+  const [products] = await db.execute(
+    `SELECT id, name, category, subcategory, category_id,
+            sizes, paper_types
+     FROM products`
+  );
+
+  const sizeAttrId = await upsertAttribute("Size", "multi-select");
+  const paperAttrId = await upsertAttribute(
+    "Paper Type",
+    "multi-select"
+  );
+
+  /* Paper Type sirf print categories pe apply ho */
+  const [paperScopes] = await db.execute(
+    "SELECT COUNT(*) AS c FROM attribute_scopes WHERE attribute_id = ?",
+    [paperAttrId]
+  );
+  if (Number(paperScopes[0].c) === 0) {
+    for (const catName of [
+      "Visiting Cards",
+      "Stationery & Office",
+      "Marketing Materials",
+      "Stickers & Labels",
+      "Packaging",
+    ]) {
+      const catId = catIdByName.get(catName.toLowerCase());
+      if (catId) {
+        await db.execute(
+          `INSERT IGNORE INTO attribute_scopes
+           (attribute_id, category_id, subcategory_id)
+           VALUES (?, ?, 0)`,
+          [paperAttrId, catId]
+        );
+      }
+    }
+  }
+
+  const [capacityRows] = await db.execute(
+    "SELECT id FROM product_attributes WHERE name = 'Capacity' LIMIT 1"
+  );
+  const capacityAttrId = capacityRows[0]?.id;
+
+  const [materialRows] = await db.execute(
+    "SELECT id FROM product_attributes WHERE name = 'Material' LIMIT 1"
+  );
+  const materialAttrId = materialRows[0]?.id;
+
+  for (const p of products) {
+    const sizes = parseProductList(p.sizes);
+    const papers = parseProductList(p.paper_types);
+    const drinkware = /bottle|mug/i.test(
+      `${p.name} ${p.subcategory}`
+    );
+
+    /* sizes -> Size ya Capacity */
+    const targetAttr =
+      drinkware && capacityAttrId ? capacityAttrId : sizeAttrId;
+
+    for (let i = 0; i < sizes.length; i++) {
+      const val = String(sizes[i] || "").trim();
+      if (!val) continue;
+      const vid = await upsertAttributeValue(targetAttr, val, i);
+      await db.execute(
+        `INSERT IGNORE INTO product_attribute_values
+         (product_id, attribute_id, attribute_value_id)
+         VALUES (?, ?, ?)`,
+        [p.id, targetAttr, vid]
+      );
+    }
+
+    /* paper_types -> Paper Type */
+    for (let i = 0; i < papers.length; i++) {
+      const val = String(papers[i] || "").trim();
+      if (!val) continue;
+      const vid = await upsertAttributeValue(paperAttrId, val, i);
+      await db.execute(
+        `INSERT IGNORE INTO product_attribute_values
+         (product_id, attribute_id, attribute_value_id)
+         VALUES (?, ?, ?)`,
+        [p.id, paperAttrId, vid]
+      );
+    }
+
+    /* Material auto-guess by name (safe heuristics) */
+    if (materialAttrId) {
+      const guess = /mug/i.test(p.name)
+        ? "Ceramic"
+        : /bottle/i.test(p.name)
+          ? "Stainless Steel"
+          : /pen/i.test(p.name)
+            ? "Metal"
+            : /t-?shirt|polo|cap|tote|bag\b/i.test(p.name)
+              ? "Cotton"
+              : null;
+
+      if (guess) {
+        const vid = await upsertAttributeValue(
+          materialAttrId,
+          guess
+        );
+        await db.execute(
+          `INSERT IGNORE INTO product_attribute_values
+           (product_id, attribute_id, attribute_value_id)
+           VALUES (?, ?, ?)`,
+          [p.id, materialAttrId, vid]
+        );
+      }
+    }
+  }
+}
+
+/* products ke attributes ek query mein */
+async function getAttributesForProducts(productIds) {
+  const ids = (Array.isArray(productIds) ? productIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+
+  if (ids.length === 0) return new Map();
+
+  const placeholders = ids.map(() => "?").join(",");
+  const [rows] = await db.execute(
+    `SELECT pav.product_id, pav.text_value,
+            a.id AS attribute_id, a.name, a.type,
+            av.id AS value_id, av.value
+     FROM product_attribute_values pav
+     JOIN product_attributes a ON a.id = pav.attribute_id
+     LEFT JOIN attribute_values av ON av.id = pav.attribute_value_id
+     WHERE pav.product_id IN (${placeholders})
+     ORDER BY a.name ASC, av.sort_order ASC, av.id ASC`,
+    ids
+  );
+
+  const map = new Map();
+
+  rows.forEach((r) => {
+    if (!map.has(r.product_id)) map.set(r.product_id, new Map());
+    const attrs = map.get(r.product_id);
+
+    if (!attrs.has(r.attribute_id)) {
+      attrs.set(r.attribute_id, {
+        attributeId: r.attribute_id,
+        name: r.name,
+        type: r.type,
+        values: [],
+        value: null,
+      });
+    }
+
+    const attr = attrs.get(r.attribute_id);
+
+    if (r.value_id) {
+      attr.values.push({ id: r.value_id, value: r.value });
+      /* select-type ke liye single value mirror */
+      if (attr.type === "select" && attr.value === null) {
+        attr.value = r.value;
+      }
+    } else if (r.text_value !== null) {
+      attr.value = r.text_value;
+    }
+  });
+
+  /* Map->array normalize */
+  const out = new Map();
+  map.forEach((attrs, productId) => {
+    out.set(productId, [...attrs.values()]);
+  });
+  return out;
+}
+
+/* product ke attributes replace — validation ke saath */
+async function syncProductAttributes(
+  productId,
+  valueIds,
+  attributeTexts
+) {
+  const ids = (Array.isArray(valueIds) ? valueIds : [])
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v > 0);
+
+  /* validate value ids -> attribute map */
+  let valid = [];
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => "?").join(",");
+    const [rows] = await db.execute(
+      `SELECT av.id AS value_id, av.attribute_id, a.type
+       FROM attribute_values av
+       JOIN product_attributes a ON a.id = av.attribute_id
+       WHERE av.id IN (${placeholders})
+         AND a.status = 'Active' AND av.status = 'Active'`,
+      ids
+    );
+    valid = rows;
+  }
+
+  /* select-type: sirf ek value per attribute rakho */
+  const seenSelect = new Set();
+  valid = valid.filter((r) => {
+    if (r.type === "multi-select") return true;
+    if (seenSelect.has(r.attribute_id)) return false;
+    seenSelect.add(r.attribute_id);
+    return true;
+  });
+
+  const texts = (Array.isArray(attributeTexts) ? attributeTexts : [])
+    .map((t) => ({
+      attributeId: Number(t?.attributeId || t?.attribute_id),
+      value: String(t?.value ?? "").trim(),
+    }))
+    .filter((t) => Number.isFinite(t.attributeId) && t.value !== "");
+
+  /* existing rows delete + fresh insert (full replace) */
+  await db.execute(
+    "DELETE FROM product_attribute_values WHERE product_id = ?",
+    [productId]
+  );
+
+  for (const r of valid) {
+    await db.execute(
+      `INSERT IGNORE INTO product_attribute_values
+       (product_id, attribute_id, attribute_value_id)
+       VALUES (?, ?, ?)`,
+      [productId, r.attribute_id, r.value_id]
+    );
+  }
+
+  for (const t of texts) {
+    const [attrRow] = await db.execute(
+      `SELECT id, type FROM product_attributes
+       WHERE id = ? AND status = 'Active' LIMIT 1`,
+      [t.attributeId]
+    );
+    if (
+      attrRow.length > 0 &&
+      ["text", "number", "boolean"].includes(attrRow[0].type)
+    ) {
+      await db.execute(
+        `INSERT INTO product_attribute_values
+         (product_id, attribute_id, attribute_value_id, text_value)
+         VALUES (?, ?, 0, ?)
+         ON DUPLICATE KEY UPDATE text_value = VALUES(text_value)`,
+        [productId, t.attributeId, t.value]
+      );
+    }
+  }
+}
+
 let taxonomyReadyPromise = null;
 function ensureTaxonomy() {
   if (!taxonomyReadyPromise) {
@@ -2226,6 +2706,7 @@ function ensureTaxonomy() {
       await ensureCategoriesTable();
       await ensureTaxonomyTables();
       await migrateTaxonomyOnce();
+      await migrateAttributesOnce();
     })().catch((err) => {
       taxonomyReadyPromise = null;
       throw err;
@@ -2477,6 +2958,612 @@ app.get("/api/tags", async (req, res) => {
     });
   }
 });
+
+/* =========================================================
+   PUBLIC — attributes
+   ?category_id=&subcategory_id= -> sirf relevant attributes
+   (unscoped attrs + scopes matching cat/sub)
+========================================================= */
+
+app.get("/api/attributes", async (req, res) => {
+  try {
+    await ensureTaxonomy();
+
+    const categoryId = Number(req.query.category_id) || 0;
+    const subcategoryId = Number(req.query.subcategory_id) || 0;
+
+    const [attrs] = await db.execute(
+      `SELECT id, name, slug, type, status
+       FROM product_attributes
+       ORDER BY name ASC`
+    );
+
+    const [values] = await db.execute(
+      `SELECT id, attribute_id, value, sort_order, status
+       FROM attribute_values
+       ORDER BY sort_order ASC, id ASC`
+    );
+
+    const [scopes] = await db.execute(
+      `SELECT attribute_id, category_id, subcategory_id
+       FROM attribute_scopes`
+    );
+
+    const scopesByAttr = new Map();
+    scopes.forEach((s) => {
+      if (!scopesByAttr.has(s.attribute_id)) {
+        scopesByAttr.set(s.attribute_id, []);
+      }
+      scopesByAttr.get(s.attribute_id).push({
+        categoryId: s.category_id,
+        subcategoryId: s.subcategory_id,
+      });
+    });
+
+    const valuesByAttr = new Map();
+    values.forEach((v) => {
+      if (!valuesByAttr.has(v.attribute_id)) {
+        valuesByAttr.set(v.attribute_id, []);
+      }
+      valuesByAttr.get(v.attribute_id).push({
+        id: v.id,
+        value: v.value,
+        status: v.status,
+      });
+    });
+
+    let attributes = attrs.map((a) => ({
+      id: a.id,
+      name: a.name,
+      slug: a.slug,
+      type: a.type,
+      status: a.status,
+      values: valuesByAttr.get(a.id) || [],
+      scopes: scopesByAttr.get(a.id) || [],
+    }));
+
+    /* relevance filter — form/detail ke liye */
+    if (categoryId || subcategoryId) {
+      attributes = attributes.filter((a) => {
+        const s = a.scopes;
+        if (s.length === 0) return true; /* global attr */
+        return s.some(
+          (sc) =>
+            (sc.subcategoryId &&
+              sc.subcategoryId === subcategoryId) ||
+            (sc.subcategoryId === 0 &&
+              sc.categoryId === categoryId)
+        );
+      });
+    }
+
+    return res.status(200).json({ success: true, attributes });
+  } catch (error) {
+    console.error("Attributes fetch error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load attributes.",
+    });
+  }
+});
+
+/* =========================================================
+   ADMIN — ATTRIBUTES CRUD
+========================================================= */
+
+const VALID_ATTR_TYPES = [
+  "select",
+  "multi-select",
+  "text",
+  "number",
+  "boolean",
+];
+
+async function saveAttributeScopes(attrId, categoryIds, subcategoryIds) {
+  const cats = (Array.isArray(categoryIds) ? categoryIds : [])
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const subs = (Array.isArray(subcategoryIds) ? subcategoryIds : [])
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  await db.execute(
+    "DELETE FROM attribute_scopes WHERE attribute_id = ?",
+    [attrId]
+  );
+
+  for (const cid of cats) {
+    await db.execute(
+      `INSERT IGNORE INTO attribute_scopes
+       (attribute_id, category_id, subcategory_id)
+       VALUES (?, ?, 0)`,
+      [attrId, cid]
+    );
+  }
+
+  for (const sid of subs) {
+    const [sub] = await db.execute(
+      "SELECT category_id FROM subcategories WHERE id = ? LIMIT 1",
+      [sid]
+    );
+    if (sub.length > 0) {
+      await db.execute(
+        `INSERT IGNORE INTO attribute_scopes
+         (attribute_id, category_id, subcategory_id)
+         VALUES (?, ?, ?)`,
+        [attrId, sub[0].category_id, sid]
+      );
+    }
+  }
+}
+
+app.post(
+  "/api/admin/attributes",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+      const type = VALID_ATTR_TYPES.includes(req.body?.type)
+        ? req.body.type
+        : "select";
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Attribute name must be at least 2 characters.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [dup] = await db.execute(
+        "SELECT id FROM product_attributes WHERE name = ? LIMIT 1",
+        [name]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Attribute already exists.",
+        });
+      }
+
+      const [result] = await db.execute(
+        `INSERT INTO product_attributes (name, slug, type)
+         VALUES (?, ?, ?)`,
+        [name, slugify(name), type]
+      );
+
+      await saveAttributeScopes(
+        result.insertId,
+        req.body?.categoryIds,
+        req.body?.subcategoryIds
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Attribute added.",
+        attribute: {
+          id: result.insertId,
+          name,
+          slug: slugify(name),
+          type,
+          status: "Active",
+        },
+      });
+    } catch (error) {
+      console.error("Attribute add error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to add attribute.",
+      });
+    }
+  }
+);
+
+app.put(
+  "/api/admin/attributes/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid attribute id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id, name, type, status FROM product_attributes WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Attribute not found.",
+        });
+      }
+
+      const name =
+        req.body?.name !== undefined
+          ? String(req.body.name).trim()
+          : existing[0].name;
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Attribute name must be at least 2 characters.",
+        });
+      }
+
+      const type =
+        req.body?.type !== undefined &&
+        VALID_ATTR_TYPES.includes(req.body.type)
+          ? req.body.type
+          : existing[0].type;
+
+      const status = ["Active", "Inactive"].includes(
+        req.body?.status
+      )
+        ? req.body.status
+        : existing[0].status;
+
+      const [dup] = await db.execute(
+        "SELECT id FROM product_attributes WHERE name = ? AND id != ? LIMIT 1",
+        [name, id]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Another attribute with this name already exists.",
+        });
+      }
+
+      await db.execute(
+        "UPDATE product_attributes SET name = ?, slug = ?, type = ?, status = ? WHERE id = ?",
+        [name, slugify(name), type, status, id]
+      );
+
+      if (
+        req.body?.categoryIds !== undefined ||
+        req.body?.subcategoryIds !== undefined
+      ) {
+        await saveAttributeScopes(
+          id,
+          req.body?.categoryIds,
+          req.body?.subcategoryIds
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Attribute updated.",
+        attribute: { id, name, slug: slugify(name), type, status },
+      });
+    } catch (error) {
+      console.error("Attribute update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update attribute.",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/attributes/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid attribute id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM product_attributes WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Attribute not found.",
+        });
+      }
+
+      const [used] = await db.execute(
+        `SELECT COUNT(*) AS c FROM product_attribute_values
+         WHERE attribute_id = ?`,
+        [id]
+      );
+
+      if (Number(used[0].c) > 0) {
+        await db.execute(
+          "UPDATE product_attributes SET status = 'Inactive' WHERE id = ?",
+          [id]
+        );
+        return res.status(200).json({
+          success: true,
+          message: `Attribute is used by ${Number(used[0].c)} product assignment(s) — deactivated instead of deleted.`,
+        });
+      }
+
+      await db.execute(
+        "DELETE FROM attribute_scopes WHERE attribute_id = ?",
+        [id]
+      );
+      await db.execute(
+        "DELETE FROM attribute_values WHERE attribute_id = ?",
+        [id]
+      );
+      await db.execute(
+        "DELETE FROM product_attributes WHERE id = ?",
+        [id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Attribute deleted.",
+      });
+    } catch (error) {
+      console.error("Attribute delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete attribute.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN — ATTRIBUTE VALUES CRUD
+========================================================= */
+
+app.post(
+  "/api/admin/attributes/:id/values",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const attributeId = Number(req.params.id);
+      const value = String(req.body?.value || "").trim();
+
+      if (!Number.isFinite(attributeId) || attributeId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid attribute id.",
+        });
+      }
+
+      if (value.length < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Value is required.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [attr] = await db.execute(
+        "SELECT id, type FROM product_attributes WHERE id = ? LIMIT 1",
+        [attributeId]
+      );
+
+      if (attr.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Attribute not found.",
+        });
+      }
+
+      if (
+        !["select", "multi-select"].includes(attr[0].type)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Attribute type '${attr[0].type}' does not use option values.`,
+        });
+      }
+
+      const [dup] = await db.execute(
+        `SELECT id FROM attribute_values
+         WHERE attribute_id = ? AND value = ? LIMIT 1`,
+        [attributeId, value]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Value already exists for this attribute.",
+        });
+      }
+
+      const [maxRow] = await db.execute(
+        `SELECT COALESCE(MAX(sort_order), -1) AS maxOrder
+         FROM attribute_values WHERE attribute_id = ?`,
+        [attributeId]
+      );
+
+      const [result] = await db.execute(
+        `INSERT INTO attribute_values (attribute_id, value, sort_order)
+         VALUES (?, ?, ?)`,
+        [attributeId, value, maxRow[0].maxOrder + 1]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Attribute value added.",
+        value: {
+          id: result.insertId,
+          attribute_id: attributeId,
+          value,
+          status: "Active",
+        },
+      });
+    } catch (error) {
+      console.error("Attribute value add error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to add attribute value.",
+      });
+    }
+  }
+);
+
+app.put(
+  "/api/admin/attribute-values/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid value id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id, attribute_id, value, status FROM attribute_values WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Attribute value not found.",
+        });
+      }
+
+      const value =
+        req.body?.value !== undefined
+          ? String(req.body.value).trim()
+          : existing[0].value;
+
+      if (value.length < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Value is required.",
+        });
+      }
+
+      const status = ["Active", "Inactive"].includes(
+        req.body?.status
+      )
+        ? req.body.status
+        : existing[0].status;
+
+      const [dup] = await db.execute(
+        `SELECT id FROM attribute_values
+         WHERE attribute_id = ? AND value = ? AND id != ? LIMIT 1`,
+        [existing[0].attribute_id, value, id]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Value already exists for this attribute.",
+        });
+      }
+
+      await db.execute(
+        "UPDATE attribute_values SET value = ?, status = ? WHERE id = ?",
+        [value, status, id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Attribute value updated.",
+        value: { id, value, status },
+      });
+    } catch (error) {
+      console.error("Attribute value update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update attribute value.",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/attribute-values/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid value id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM attribute_values WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Attribute value not found.",
+        });
+      }
+
+      /* products delete nahi hote — sirf assignments detach */
+      const [ref] = await db.execute(
+        `SELECT COUNT(DISTINCT product_id) AS c
+         FROM product_attribute_values WHERE attribute_value_id = ?`,
+        [id]
+      );
+
+      await db.execute(
+        "DELETE FROM product_attribute_values WHERE attribute_value_id = ?",
+        [id]
+      );
+      await db.execute(
+        "DELETE FROM attribute_values WHERE id = ?",
+        [id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: `Value deleted (removed from ${Number(ref[0].c)} product(s)).`,
+      });
+    } catch (error) {
+      console.error("Attribute value delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete attribute value.",
+      });
+    }
+  }
+);
 
 app.post(
   "/api/admin/categories",

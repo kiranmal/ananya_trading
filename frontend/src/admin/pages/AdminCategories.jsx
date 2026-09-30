@@ -12,6 +12,13 @@ import {
   createTag,
   updateTag,
   deleteTag,
+  fetchAttributes,
+  createAttribute,
+  updateAttribute,
+  deleteAttribute,
+  createAttributeValue,
+  updateAttributeValue,
+  deleteAttributeValue,
 } from "../../services/categoryApi";
 import {
   Tags,
@@ -65,6 +72,14 @@ export default function AdminCategories() {
   const [tagInput, setTagInput] = useState("");
   const [busyTagId, setBusyTagId] = useState(null);
 
+  /* Attribute state */
+  const [attributes, setAttributes] = useState([]);
+  const [attrName, setAttrName] = useState("");
+  const [attrType, setAttrType] = useState("select");
+  const [valueInputs, setValueInputs] = useState({});
+  const [busyAttrId, setBusyAttrId] = useState(null);
+  const [busyValueId, setBusyValueId] = useState(null);
+
   /* =====================================================
      FETCH CATEGORIES + PRODUCT COUNTS
   ===================================================== */
@@ -100,6 +115,7 @@ export default function AdminCategories() {
       }
 
       loadTags();
+      loadAttributes();
     };
 
     load();
@@ -110,6 +126,124 @@ export default function AdminCategories() {
       setTags(await fetchTags());
     } catch {
       // tags optional
+    }
+  };
+
+  const loadAttributes = async () => {
+    try {
+      setAttributes(await fetchAttributes());
+    } catch {
+      // attributes optional
+    }
+  };
+
+  /* =====================================================
+     ATTRIBUTE ACTIONS
+  ===================================================== */
+
+  const handleAddAttribute = async (e) => {
+    e.preventDefault();
+
+    const name = attrName.trim();
+    if (name.length < 2) {
+      alert("Attribute name must be at least 2 characters.");
+      return;
+    }
+
+    setBusyAttrId("new");
+
+    try {
+      await createAttribute({ name, type: attrType });
+      setAttrName("");
+      await loadAttributes();
+    } catch (error) {
+      alert(error.message || "Unable to add attribute.");
+    } finally {
+      setBusyAttrId(null);
+    }
+  };
+
+  const handleToggleAttribute = async (attr) => {
+    setBusyAttrId(attr.id);
+
+    try {
+      await updateAttribute(attr.id, {
+        status: attr.status === "Active" ? "Inactive" : "Active",
+      });
+      await loadAttributes();
+    } catch (error) {
+      alert(error.message || "Unable to update attribute.");
+    } finally {
+      setBusyAttrId(null);
+    }
+  };
+
+  const handleDeleteAttribute = async (attr) => {
+    if (
+      !window.confirm(
+        `Delete attribute "${attr.name}"? If used by products it will be deactivated instead.`
+      )
+    ) {
+      return;
+    }
+
+    setBusyAttrId(attr.id);
+
+    try {
+      const result = await deleteAttribute(attr.id);
+      if (result?.message) alert(result.message);
+      await loadAttributes();
+    } catch (error) {
+      alert(error.message || "Unable to delete attribute.");
+    } finally {
+      setBusyAttrId(null);
+    }
+  };
+
+  const handleAddValue = async (attrId) => {
+    const value = (valueInputs[attrId] || "").trim();
+    if (!value) return;
+
+    setBusyValueId(`add-${attrId}`);
+
+    try {
+      await createAttributeValue(attrId, value);
+      setValueInputs((prev) => ({ ...prev, [attrId]: "" }));
+      await loadAttributes();
+    } catch (error) {
+      alert(error.message || "Unable to add value.");
+    } finally {
+      setBusyValueId(null);
+    }
+  };
+
+  const handleToggleValue = async (val) => {
+    setBusyValueId(val.id);
+
+    try {
+      await updateAttributeValue(val.id, {
+        status: val.status === "Active" ? "Inactive" : "Active",
+      });
+      await loadAttributes();
+    } catch (error) {
+      alert(error.message || "Unable to update value.");
+    } finally {
+      setBusyValueId(null);
+    }
+  };
+
+  const handleDeleteValue = async (val) => {
+    if (!window.confirm(`Delete value "${val.value}"?`)) return;
+
+    setBusyValueId(val.id);
+
+    try {
+      await deleteAttributeValue(val.id);
+      await loadAttributes();
+    } catch (error) {
+      alert(error.message || "Unable to delete value.");
+    } finally {
+      setBusyValueId(null);
     }
   };
 
@@ -1149,6 +1283,361 @@ export default function AdminCategories() {
                   <Trash2 size={12} />
                 </button>
               </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* =====================================================
+          DYNAMIC ATTRIBUTES MANAGEMENT
+      ===================================================== */}
+
+      <div
+        style={{
+          marginTop: "32px",
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          borderRadius: "14px",
+          padding: "22px 24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "16px",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <FolderOpen size={18} color="#1263bd" />
+            <div>
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "#111827",
+                }}
+              >
+                Product Attributes
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                Size, Material, Capacity, Paper Type — shown on
+                product form &amp; detail page
+              </div>
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleAddAttribute}
+            style={{ display: "flex", gap: "8px" }}
+          >
+            <input
+              type="text"
+              value={attrName}
+              onChange={(e) => setAttrName(e.target.value)}
+              placeholder="New attribute (e.g. Weight)"
+              style={{
+                height: "36px",
+                padding: "0 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                fontSize: "13px",
+                outline: "none",
+                width: "200px",
+              }}
+            />
+            <select
+              value={attrType}
+              onChange={(e) => setAttrType(e.target.value)}
+              style={{
+                height: "36px",
+                padding: "0 8px",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                fontSize: "13px",
+                background: "#fff",
+              }}
+            >
+              <option value="select">select</option>
+              <option value="multi-select">multi-select</option>
+              <option value="text">text</option>
+              <option value="number">number</option>
+              <option value="boolean">boolean</option>
+            </select>
+            <button
+              type="submit"
+              disabled={busyAttrId === "new"}
+              style={{
+                height: "36px",
+                padding: "0 16px",
+                border: "none",
+                borderRadius: "8px",
+                background: "#1263bd",
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <Plus size={14} /> Add
+            </button>
+          </form>
+        </div>
+
+        {attributes.length === 0 ? (
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#9ca3af",
+              margin: 0,
+            }}
+          >
+            No attributes yet.
+          </p>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {attributes.map((attr) => (
+              <div
+                key={attr.id}
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "10px",
+                  padding: "14px 16px",
+                  opacity:
+                    attr.status === "Inactive" ? 0.55 : 1,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      color: "#111827",
+                    }}
+                  >
+                    {attr.name}
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        color: "#6b7280",
+                      }}
+                    >
+                      {attr.type}
+                      {attr.scopes?.length
+                        ? ` · ${attr.scopes.length} scope(s)`
+                        : " · global"}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{ display: "flex", gap: "6px" }}
+                  >
+                    <button
+                      type="button"
+                      disabled={busyAttrId === attr.id}
+                      title={
+                        attr.status === "Active"
+                          ? "Deactivate"
+                          : "Activate"
+                      }
+                      onClick={() => handleToggleAttribute(attr)}
+                      style={{
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "4px 8px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        background:
+                          attr.status === "Active"
+                            ? "#fef2f2"
+                            : "#ecfdf5",
+                        color:
+                          attr.status === "Active"
+                            ? "#dc2626"
+                            : "#059669",
+                      }}
+                    >
+                      {attr.status === "Active" ? "Off" : "On"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyAttrId === attr.id}
+                      title="Delete attribute"
+                      onClick={() => handleDeleteAttribute(attr)}
+                      style={{
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "4px 6px",
+                        cursor: "pointer",
+                        background: "#fef2f2",
+                        color: "#dc2626",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                  }}
+                >
+                  {(attr.values || []).map((val) => (
+                    <span
+                      key={val.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        padding: "3px 8px",
+                        borderRadius: "999px",
+                        fontSize: "12px",
+                        border: "1px solid #e5e7eb",
+                        background: "#f9fafb",
+                        color: "#374151",
+                        opacity:
+                          val.status === "Inactive" ? 0.5 : 1,
+                      }}
+                    >
+                      {val.value}
+                      <button
+                        type="button"
+                        disabled={busyValueId === val.id}
+                        title={
+                          val.status === "Active"
+                            ? "Deactivate"
+                            : "Activate"
+                        }
+                        onClick={() => handleToggleValue(val)}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          color:
+                            val.status === "Active"
+                              ? "#dc2626"
+                              : "#059669",
+                          padding: 0,
+                        }}
+                      >
+                        {val.status === "Active" ? "off" : "on"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyValueId === val.id}
+                        title="Delete value"
+                        onClick={() => handleDeleteValue(val)}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          color: "#dc2626",
+                          display: "flex",
+                          padding: 0,
+                        }}
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </span>
+                  ))}
+
+                  {["select", "multi-select"].includes(
+                    attr.type
+                  ) && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={valueInputs[attr.id] || ""}
+                        onChange={(e) =>
+                          setValueInputs((prev) => ({
+                            ...prev,
+                            [attr.id]: e.target.value,
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddValue(attr.id);
+                          }
+                        }}
+                        placeholder="+ value"
+                        style={{
+                          height: "26px",
+                          width: "90px",
+                          padding: "0 8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "999px",
+                          fontSize: "12px",
+                          outline: "none",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={
+                          busyValueId === `add-${attr.id}`
+                        }
+                        onClick={() => handleAddValue(attr.id)}
+                        style={{
+                          height: "26px",
+                          width: "26px",
+                          border: "none",
+                          borderRadius: "50%",
+                          background: "#1263bd",
+                          color: "#fff",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}

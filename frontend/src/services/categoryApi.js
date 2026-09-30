@@ -193,3 +193,120 @@ export const deleteTag = async (id) => {
 
   return data;
 };
+
+
+/* =====================================================
+   DYNAMIC ATTRIBUTES
+===================================================== */
+
+export const fetchAttributes = async (
+  categoryId = null,
+  subcategoryId = null
+) => {
+  const params = new URLSearchParams();
+  if (categoryId) params.set("category_id", categoryId);
+  if (subcategoryId) params.set("subcategory_id", subcategoryId);
+  const qs = params.toString();
+
+  const res = await fetch(
+    `${API_URL}/attributes${qs ? `?${qs}` : ""}`
+  );
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to load attributes.");
+  }
+
+  return Array.isArray(data.attributes) ? data.attributes : [];
+};
+
+export const createAttribute = async (payload) => {
+  const res = await fetch(`${API_URL}/admin/attributes`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to add attribute.");
+  }
+
+  return data.attribute;
+};
+
+export const updateAttribute = async (id, payload = {}) => {
+  const res = await fetch(`${API_URL}/admin/attributes/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to update attribute.");
+  }
+
+  return data.attribute;
+};
+
+export const deleteAttribute = async (id) => {
+  const res = await fetch(`${API_URL}/admin/attributes/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to delete attribute.");
+  }
+
+  return data;
+};
+
+export const createAttributeValue = async (attributeId, value) => {
+  const res = await fetch(
+    `${API_URL}/admin/attributes/${attributeId}/values`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ value }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to add value.");
+  }
+
+  return data.value;
+};
+
+export const updateAttributeValue = async (id, payload = {}) => {
+  const res = await fetch(`${API_URL}/admin/attribute-values/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to update value.");
+  }
+
+  return data.value;
+};
+
+export const deleteAttributeValue = async (id) => {
+  const res = await fetch(`${API_URL}/admin/attribute-values/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to delete value.");
+  }
+
+  return data;
+};

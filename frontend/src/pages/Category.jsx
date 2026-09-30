@@ -54,7 +54,7 @@ function Category() {
   const [selectedTags, setSelectedTags] =
     useState([]);
 
-  const [selectedPaperTypes, setSelectedPaperTypes] =
+  const [selectedAttrValues, setSelectedAttrValues] =
     useState([]);
 
   const [showMobileFilter, setShowMobileFilter] =
@@ -433,40 +433,73 @@ function Category() {
 
 
   /* =====================================================
-     PAPER TYPE LIST
+     ATTRIBUTE FILTER GROUPS — products ke DB attributes se
+     (Paper Type sirf tab dikhta hai jab context mein hai)
   ===================================================== */
 
-  const paperTypes = useMemo(() => {
+  const attributeGroups = useMemo(() => {
 
-    const paperList = [];
-
-
-    allProducts.forEach(
+    const contextProducts = allProducts.filter(
       (product) => {
 
         if (
-          Array.isArray(
-            product.paperTypes
-          )
+          urlCategory &&
+          product.category !== urlCategory
         ) {
-
-          paperList.push(
-            ...product.paperTypes
-          );
-
+          return false;
         }
 
+        if (
+          selectedCategories.length > 0 &&
+          !selectedCategories.includes(
+            product.category
+          )
+        ) {
+          return false;
+        }
+
+        return true;
       }
     );
 
 
-    return [
-      ...new Set(
-        paperList
-      ),
-    ];
+    const groups = new Map();
 
-  }, [allProducts]);
+    contextProducts.forEach((product) => {
+      (Array.isArray(product.attributes)
+        ? product.attributes
+        : []
+      ).forEach((attr) => {
+        if (
+          !["select", "multi-select"].includes(attr.type)
+        ) {
+          return;
+        }
+
+        (attr.values || []).forEach((v) => {
+          if (!groups.has(attr.name)) {
+            groups.set(attr.name, new Map());
+          }
+          groups.get(attr.name).set(v.id, v.value);
+        });
+      });
+    });
+
+
+    return [...groups.entries()].map(
+      ([name, values]) => ({
+        name,
+        options: [...values.entries()].map(
+          ([id, value]) => ({ id, value })
+        ),
+      })
+    );
+
+  }, [
+    allProducts,
+    urlCategory,
+    selectedCategories,
+  ]);
 
 
   /* =====================================================
@@ -506,25 +539,25 @@ function Category() {
 
 
   /* =====================================================
-     PAPER FILTER
+     ATTRIBUTE VALUE FILTER
   ===================================================== */
 
-  const handlePaperChange = (
-    paper
+  const handleAttrValueChange = (
+    valueId
   ) => {
 
-    setSelectedPaperTypes(
+    setSelectedAttrValues(
       (previous) => {
 
         if (
           previous.includes(
-            paper
+            valueId
           )
         ) {
 
           return previous.filter(
             (item) =>
-              item !== paper
+              item !== valueId
           );
 
         }
@@ -532,7 +565,7 @@ function Category() {
 
         return [
           ...previous,
-          paper,
+          valueId,
         ];
 
       }
@@ -641,30 +674,68 @@ function Category() {
     }
 
 
-    /* ================= PAPER TYPE ================= */
+    /* ================= ATTRIBUTE VALUES =================
+       har attribute group mein >=1 selected value match
+       (groups ke andar OR, groups ke beech AND) */
 
     if (
-      selectedPaperTypes.length > 0
+      selectedAttrValues.length > 0
     ) {
 
       filtered =
         filtered.filter(
           (product) => {
 
-            const productPapers =
-              Array.isArray(
-                product.paperTypes
-              )
-                ? product.paperTypes
+            const productAttrs =
+              Array.isArray(product.attributes)
+                ? product.attributes
                 : [];
 
+            /* har attribute ke liye check */
+            const requiredByAttr =
+              new Map();
 
-            return productPapers.some(
-              (paper) =>
-                selectedPaperTypes.includes(
-                  paper
-                )
+            attributeGroups.forEach(
+              (group) => {
+
+                const wanted =
+                  group.options
+                    .filter((o) =>
+                      selectedAttrValues.includes(
+                        o.id
+                      )
+                    )
+                    .map((o) => o.id);
+
+                if (wanted.length > 0) {
+                  requiredByAttr.set(
+                    group.name,
+                    new Set(wanted)
+                  );
+                }
+
+              }
             );
+
+
+            for (const [
+              ,
+              wantedSet,
+            ] of requiredByAttr) {
+
+              const has = productAttrs.some(
+                (attr) =>
+                  (attr.values || []).some(
+                    (v) =>
+                      wantedSet.has(v.id)
+                  )
+              );
+
+              if (!has) return false;
+
+            }
+
+            return true;
 
           }
         );
@@ -747,7 +818,9 @@ function Category() {
 
     selectedTags,
 
-    selectedPaperTypes,
+    selectedAttrValues,
+
+    attributeGroups,
 
     maxPrice,
 
@@ -772,7 +845,7 @@ function Category() {
 
     setSelectedTags([]);
 
-    setSelectedPaperTypes([]);
+    setSelectedAttrValues([]);
 
     setMaxPrice(2000);
 
@@ -1264,55 +1337,54 @@ function Category() {
 
 
           {/* =================================================
-              PAPER TYPE
+              ATTRIBUTES — dynamic, DB-driven (Paper Type,
+              Size, Material, Capacity — sirf relevant)
           ================================================= */}
 
-          <div className="filter-group">
+          {attributeGroups.map(
+            (group) => (
 
-            <h4>
-              Paper Type
-            </h4>
+              <div
+                className="filter-group"
+                key={group.name}
+              >
 
+                <h4>
+                  {group.name}
+                </h4>
 
-            {paperTypes.length === 0 ? (
+                {group.options.map(
+                  (opt) => (
 
-              <p>
-                No paper types
-              </p>
+                    <label
+                      key={opt.id}
+                    >
 
-            ) : (
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedAttrValues.includes(
+                            opt.id
+                          )
+                        }
+                        onChange={() =>
+                          handleAttrValueChange(
+                            opt.id
+                          )
+                        }
+                      />
 
-              paperTypes.map(
-                (paper) => (
+                      {opt.value}
 
-                  <label
-                    key={paper}
-                  >
+                    </label>
 
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedPaperTypes.includes(
-                          paper
-                        )
-                      }
-                      onChange={() =>
-                        handlePaperChange(
-                          paper
-                        )
-                      }
-                    />
+                  )
+                )}
 
-                    {paper}
+              </div>
 
-                  </label>
-
-                )
-              )
-
-            )}
-
-          </div>
+            )
+          )}
 
 
           {/* =================================================
