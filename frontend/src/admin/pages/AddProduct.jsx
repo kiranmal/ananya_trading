@@ -1400,10 +1400,9 @@ export default function AddProduct() {
                 "Your Product Name"}
             </h3>
 
-            <p>
-              {description ||
-                "Your product description will appear here."}
-            </p>
+            {description && (
+              <p>{description}</p>
+            )}
 
             <div className="preview-rating">
               <span>

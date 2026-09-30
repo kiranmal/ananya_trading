@@ -1699,10 +1699,9 @@ export default function EditProduct() {
                 "Your Product Name"}
             </h3>
 
-            <p>
-              {description ||
-                "Your product description will appear here."}
-            </p>
+            {description && (
+              <p>{description}</p>
+            )}
 
             <div className="preview-rating">
               <span>
