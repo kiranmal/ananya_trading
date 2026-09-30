@@ -55,10 +55,10 @@ const textPresets = [
   { label: "Name", text: "Your Name", x: 28, y: 25, width: 44, fontSize: 24, fontWeight: 700 },
   { label: "Company Name", text: "Company Name", x: 28, y: 43, width: 44, fontSize: 14, fontWeight: 600 },
   { label: "Designation", text: "Your Designation", x: 28, y: 55, width: 44, fontSize: 10, color: "#64748b" },
-  { label: "Phone", text: "+91 98765 43210", x: 72, y: 25, width: 42, fontSize: 10 },
-  { label: "Email", text: "hello@example.com", x: 72, y: 39, width: 42, fontSize: 10 },
+  { label: "Phone", text: "+91 00000 00000", x: 72, y: 25, width: 42, fontSize: 10 },
+  { label: "Email", text: "you@example.com", x: 72, y: 39, width: 42, fontSize: 10 },
   { label: "Website", text: "www.example.com", x: 72, y: 53, width: 42, fontSize: 10 },
-  { label: "Address", text: "Business address", x: 72, y: 70, width: 42, fontSize: 10, lineHeight: 1.4 },
+  { label: "Address", text: "Your address", x: 72, y: 70, width: 42, fontSize: 10, lineHeight: 1.4 },
 ];
 const fonts = ["Inter", "Poppins", "Montserrat", "Georgia", "Arial", "Times New Roman"];
 
@@ -97,18 +97,18 @@ const templates = {
       background: "#ffffff", gradient: "", backgroundImage: "",
       elements: [
         makeShape("line", 50, 58, { width: 30, color: "#e2e8f0", label: "Divider" }),
-        makeText("ALEX MORGAN", 50, 30, { fontSize: 24, fontWeight: 700, width: 80, align: "center", label: "Name" }),
-        makeText("CREATIVE DIRECTOR", 50, 44, { fontSize: 10, letterSpacing: 3, color: "#64748b", width: 60, align: "center", label: "Designation" }),
+        makeText("YOUR NAME", 50, 30, { fontSize: 24, fontWeight: 700, width: 80, align: "center", label: "Name" }),
+        makeText("YOUR DESIGNATION", 50, 44, { fontSize: 10, letterSpacing: 3, color: "#64748b", width: 60, align: "center", label: "Designation" }),
         makeIcon("Phone", 30, 70, { width: 4, color: "#94a3b8" }),
-        makeText("+91 98765 43210", 50, 70, { fontSize: 9, width: 30, color: "#475569", align: "center", label: "Phone" }),
+        makeText("+91 00000 00000", 50, 70, { fontSize: 9, width: 30, color: "#475569", align: "center", label: "Phone" }),
         makeIcon("Mail", 30, 82, { width: 4, color: "#94a3b8" }),
-        makeText("alex@example.com", 50, 82, { fontSize: 9, width: 30, color: "#475569", align: "center", label: "Email" }),
+        makeText("you@example.com", 50, 82, { fontSize: 9, width: 30, color: "#475569", align: "center", label: "Email" }),
       ],
     },
     backDesign: {
       background: "#ffffff", gradient: "", backgroundImage: "",
       elements: [
-        makeText("AM", 50, 40, { fontSize: 48, fontWeight: 800, color: "#e2e8f0", align: "center", width: 40, label: "Monogram" }),
+        makeText("YN", 50, 40, { fontSize: 48, fontWeight: 800, color: "#e2e8f0", align: "center", width: 40, label: "Monogram" }),
         makeText("www.example.com", 50, 70, { fontSize: 9, color: "#94a3b8", align: "center", width: 60, label: "Website" }),
       ],
     },
@@ -118,21 +118,21 @@ const templates = {
       background: "#111111", gradient: "linear-gradient(135deg, #090909, #26211a)", backgroundImage: "",
       elements: [
         makeShape("line", 50, 46, { width: 20, color: "#d4af37", label: "Gold Line" }),
-        makeText("AM", 50, 25, { fontSize: 36, fontWeight: 700, color: "#d4af37", align: "center", width: 30, letterSpacing: 4, label: "Monogram" }),
-        makeText("ALEX MORGAN", 50, 58, { fontSize: 18, color: "#ffffff", align: "center", width: 70, letterSpacing: 3, label: "Name" }),
-        makeText("FOUNDER & CEO", 50, 70, { fontSize: 9, color: "#d4af37", align: "center", width: 50, letterSpacing: 3, label: "Designation" }),
+        makeText("YN", 50, 25, { fontSize: 36, fontWeight: 700, color: "#d4af37", align: "center", width: 30, letterSpacing: 4, label: "Monogram" }),
+        makeText("YOUR NAME", 50, 58, { fontSize: 18, color: "#ffffff", align: "center", width: 70, letterSpacing: 3, label: "Name" }),
+        makeText("YOUR DESIGNATION", 50, 70, { fontSize: 9, color: "#d4af37", align: "center", width: 50, letterSpacing: 3, label: "Designation" }),
         makeIcon("Phone", 28, 86, { width: 3.5, color: "#d4af37" }),
-        makeText("+91 98765 43210", 42, 86, { fontSize: 8, color: "#a89060", width: 22, label: "Phone" }),
+        makeText("+91 00000 00000", 42, 86, { fontSize: 8, color: "#a89060", width: 22, label: "Phone" }),
         makeIcon("Mail", 62, 86, { width: 3.5, color: "#d4af37" }),
-        makeText("alex@luxury.com", 76, 86, { fontSize: 8, color: "#a89060", width: 22, label: "Email" }),
+        makeText("you@example.com", 76, 86, { fontSize: 8, color: "#a89060", width: 22, label: "Email" }),
       ],
     },
     backDesign: {
       background: "#111111", gradient: "linear-gradient(135deg, #090909, #26211a)", backgroundImage: "",
       elements: [
         makeShape("rectangle", 50, 50, { width: 92, color: "rgba(212,175,55,0.08)", label: "Border" }),
-        makeText("AM", 50, 42, { fontSize: 56, fontWeight: 800, color: "#d4af37", align: "center", width: 40, letterSpacing: 6, label: "Monogram" }),
-        makeText("LUXURY BRAND", 50, 68, { fontSize: 9, color: "#a89060", align: "center", width: 50, letterSpacing: 4, label: "Tagline" }),
+        makeText("YN", 50, 42, { fontSize: 56, fontWeight: 800, color: "#d4af37", align: "center", width: 40, letterSpacing: 6, label: "Monogram" }),
+        makeText("YOUR COMPANY", 50, 68, { fontSize: 9, color: "#a89060", align: "center", width: 50, letterSpacing: 4, label: "Tagline" }),
       ],
     },
   },
@@ -140,25 +140,25 @@ const templates = {
     frontDesign: {
       background: "#f8fafc", gradient: "linear-gradient(120deg, #0f3d68 0 34%, #f8fafc 34%)", backgroundImage: "",
       elements: [
-        makeText("AM", 16, 42, { fontSize: 32, fontWeight: 700, color: "#ffffff", align: "center", width: 25, label: "Monogram" }),
-        makeText("Alex Morgan", 60, 24, { fontSize: 22, fontWeight: 700, width: 48, label: "Name" }),
-        makeText("Business Consultant", 60, 38, { fontSize: 11, color: "#2563eb", width: 42, label: "Designation" }),
+        makeText("YN", 16, 42, { fontSize: 32, fontWeight: 700, color: "#ffffff", align: "center", width: 25, label: "Monogram" }),
+        makeText("Your Name", 60, 24, { fontSize: 22, fontWeight: 700, width: 48, label: "Name" }),
+        makeText("Your Designation", 60, 38, { fontSize: 11, color: "#2563eb", width: 42, label: "Designation" }),
         makeShape("line", 60, 48, { width: 15, color: "#2563eb", label: "Divider" }),
         makeIcon("Phone", 44, 58, { width: 3.5, color: "#2563eb" }),
-        makeText("+91 98765 43210", 62, 58, { fontSize: 9, color: "#475569", width: 30, label: "Phone" }),
+        makeText("+91 00000 00000", 62, 58, { fontSize: 9, color: "#475569", width: 30, label: "Phone" }),
         makeIcon("Mail", 44, 68, { width: 3.5, color: "#2563eb" }),
-        makeText("hello@example.com", 62, 68, { fontSize: 9, color: "#475569", width: 30, label: "Email" }),
+        makeText("you@example.com", 62, 68, { fontSize: 9, color: "#475569", width: 30, label: "Email" }),
         makeIcon("Globe", 44, 78, { width: 3.5, color: "#2563eb" }),
         makeText("www.example.com", 62, 78, { fontSize: 9, color: "#475569", width: 30, label: "Website" }),
         makeIcon("MapPin", 44, 88, { width: 3.5, color: "#2563eb" }),
-        makeText("New Delhi, India", 62, 88, { fontSize: 9, color: "#475569", width: 30, label: "Address" }),
+        makeText("Your City, India", 62, 88, { fontSize: 9, color: "#475569", width: 30, label: "Address" }),
       ],
     },
     backDesign: {
       background: "#0f3d68", gradient: "", backgroundImage: "",
       elements: [
-        makeText("CORPORATE", 50, 35, { fontSize: 28, fontWeight: 800, color: "#ffffff", align: "center", width: 80, letterSpacing: 5, label: "Company" }),
-        makeText("SOLUTIONS", 50, 52, { fontSize: 14, color: "#60a5fa", align: "center", width: 60, letterSpacing: 6, label: "Tagline" }),
+        makeText("COMPANY", 50, 35, { fontSize: 28, fontWeight: 800, color: "#ffffff", align: "center", width: 80, letterSpacing: 5, label: "Company" }),
+        makeText("TAGLINE", 50, 52, { fontSize: 14, color: "#60a5fa", align: "center", width: 60, letterSpacing: 6, label: "Tagline" }),
         makeShape("line", 50, 65, { width: 20, color: "#60a5fa", label: "Divider" }),
         makeText("www.example.com", 50, 78, { fontSize: 9, color: "#93c5fd", align: "center", width: 50, label: "Website" }),
       ],
@@ -168,21 +168,21 @@ const templates = {
     frontDesign: {
       background: "#ffffff", gradient: "linear-gradient(145deg, #ffffff 0 72%, #7c3aed 72%)", backgroundImage: "",
       elements: [
-        makeText("ALEX", 12, 22, { fontSize: 30, fontWeight: 800, width: 40, lineHeight: 1, label: "First Name" }),
-        makeText("MORGAN", 12, 36, { fontSize: 30, fontWeight: 800, width: 45, lineHeight: 1, label: "Last Name" }),
-        makeText("BRAND STRATEGIST", 12, 52, { fontSize: 9, color: "#7c3aed", letterSpacing: 3, width: 40, label: "Designation" }),
+        makeText("YOUR", 12, 22, { fontSize: 30, fontWeight: 800, width: 40, lineHeight: 1, label: "First Name" }),
+        makeText("NAME", 12, 36, { fontSize: 30, fontWeight: 800, width: 45, lineHeight: 1, label: "Last Name" }),
+        makeText("YOUR DESIGNATION", 12, 52, { fontSize: 9, color: "#7c3aed", letterSpacing: 3, width: 40, label: "Designation" }),
         makeShape("line", 12, 62, { width: 12, color: "#7c3aed", label: "Accent Line" }),
         makeIcon("Mail", 8, 74, { width: 3.5, color: "#7c3aed" }),
-        makeText("alex@example.com", 22, 74, { fontSize: 9, color: "#64748b", width: 35, label: "Email" }),
+        makeText("you@example.com", 22, 74, { fontSize: 9, color: "#64748b", width: 35, label: "Email" }),
         makeIcon("Phone", 8, 84, { width: 3.5, color: "#7c3aed" }),
-        makeText("+91 98765 43210", 22, 84, { fontSize: 9, color: "#64748b", width: 35, label: "Phone" }),
-        makeText("AM", 84, 86, { fontSize: 22, fontWeight: 800, color: "#ffffff", align: "center", width: 15, label: "Monogram" }),
+        makeText("+91 00000 00000", 22, 84, { fontSize: 9, color: "#64748b", width: 35, label: "Phone" }),
+        makeText("YN", 84, 86, { fontSize: 22, fontWeight: 800, color: "#ffffff", align: "center", width: 15, label: "Monogram" }),
       ],
     },
     backDesign: {
       background: "#7c3aed", gradient: "", backgroundImage: "",
       elements: [
-        makeText("AM", 50, 40, { fontSize: 60, fontWeight: 800, color: "rgba(255,255,255,0.12)", align: "center", width: 50, label: "Monogram" }),
+        makeText("YN", 50, 40, { fontSize: 60, fontWeight: 800, color: "rgba(255,255,255,0.12)", align: "center", width: 50, label: "Monogram" }),
         makeText("www.example.com", 50, 72, { fontSize: 10, color: "#e9d5ff", align: "center", width: 60, label: "Website" }),
       ],
     },
@@ -192,14 +192,14 @@ const templates = {
       background: "#fff7ed", gradient: "radial-gradient(circle at 85% 20%, #fb7185 0 18%, transparent 18%), linear-gradient(135deg, #fff7ed, #fef3c7)", backgroundImage: "",
       elements: [
         makeShape("circle", 87, 20, { width: 5, color: "#fbbf24", label: "Dot Accent" }),
-        makeText("Alex", 14, 24, { fontSize: 28, fontWeight: 800, color: "#7c2d12", width: 45, label: "First Name" }),
-        makeText("Morgan", 14, 40, { fontSize: 28, fontWeight: 800, color: "#ea580c", width: 45, label: "Last Name" }),
-        makeText("Designer & Illustrator", 14, 56, { fontSize: 11, color: "#ea580c", width: 50, label: "Designation" }),
+        makeText("Your", 14, 24, { fontSize: 28, fontWeight: 800, color: "#7c2d12", width: 45, label: "First Name" }),
+        makeText("Name", 14, 40, { fontSize: 28, fontWeight: 800, color: "#ea580c", width: 45, label: "Last Name" }),
+        makeText("Your Designation", 14, 56, { fontSize: 11, color: "#ea580c", width: 50, label: "Designation" }),
         makeShape("line", 14, 65, { width: 10, color: "#fb923c", label: "Accent Line" }),
         makeIcon("Mail", 10, 76, { width: 3.5, color: "#ea580c" }),
-        makeText("hello@studio.com", 22, 76, { fontSize: 9, color: "#9a3412", width: 35, label: "Email" }),
+        makeText("you@example.com", 22, 76, { fontSize: 9, color: "#9a3412", width: 35, label: "Email" }),
         makeIcon("AtSign", 10, 86, { width: 3.5, color: "#ea580c", icon: "Instagram" }),
-        makeText("@alexcreates", 22, 86, { fontSize: 9, color: "#9a3412", width: 35, label: "Social" }),
+        makeText("@yourhandle", 22, 86, { fontSize: 9, color: "#9a3412", width: 35, label: "Social" }),
       ],
     },
     backDesign: {
@@ -207,8 +207,8 @@ const templates = {
       elements: [
         makeShape("circle", 80, 25, { width: 28, color: "rgba(251,113,133,0.15)", label: "Circle Accent" }),
         makeShape("circle", 20, 75, { width: 16, color: "rgba(251,191,36,0.15)", label: "Circle Accent 2" }),
-        makeText("CREATIVE\nSTUDIO", 50, 40, { fontSize: 24, fontWeight: 800, color: "#7c2d12", align: "center", width: 70, lineHeight: 1.1, label: "Company" }),
-        makeText("www.studio.com", 50, 70, { fontSize: 9, color: "#9a3412", align: "center", width: 50, label: "Website" }),
+        makeText("YOUR\nCOMPANY", 50, 40, { fontSize: 24, fontWeight: 800, color: "#7c2d12", align: "center", width: 70, lineHeight: 1.1, label: "Company" }),
+        makeText("www.example.com", 50, 70, { fontSize: 9, color: "#9a3412", align: "center", width: 50, label: "Website" }),
       ],
     },
   },
@@ -493,9 +493,27 @@ export default function BusinessCardCustomizer() {
   const addToCart = useCallback(() => {
     if (!product) return;
     const customization = { productId: product.id, paperType: product.paperType, size: product.size, quantity: product.quantity || 100, frontDesign: design.front, backDesign: design.back, uploadedDesign: null, template };
+
+    /* design persist — Cart "Edit Design" isi key se restore karta hai */
+    try {
+      localStorage.setItem(
+        `businessCardDesign-${product.id}`,
+        JSON.stringify({
+          productId: product.id,
+          paperType: product.paperType,
+          size: product.size,
+          quantity: product.quantity,
+          frontDesign: design.front,
+          backDesign: design.back,
+          template,
+        })
+      );
+    } catch { /* storage full — ignore */ }
+
     const cartItem = {
       ...product,
       productId: product.id,
+      originalProductId: product.id,
       id: `custom-card-${product.id}-${Date.now()}`,
       name: product.name,
       image: product.image || product.images?.[0] || "",

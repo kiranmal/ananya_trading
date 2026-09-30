@@ -636,7 +636,7 @@ function OrderDrawer({ order, onClose }) {
     ) : null;
 
   const renderElement = (el, side) => {
-    if (el.hidden) return null;
+    if (el.hidden || el.visible === false) return null;
 
     if (el.type === "image") {
       return (
@@ -655,6 +655,44 @@ function OrderDrawer({ order, onClose }) {
       );
     }
 
+    if (el.type === "icon") {
+      return (
+        <div key={el.id} className="od-el">
+          <span className="od-el-side">{side}</span>
+          <span className="od-el-label">
+            {el.label || "Icon"}
+          </span>
+          <span className="od-el-text">
+            {el.icon} icon
+          </span>
+        </div>
+      );
+    }
+
+    if (el.type === "shape") {
+      return (
+        <div key={el.id} className="od-el">
+          <span className="od-el-side">{side}</span>
+          <span className="od-el-label">
+            {el.label || "Shape"}
+          </span>
+          <span className="od-el-text">
+            {el.shape} ·{" "}
+            <i
+              style={{
+                display: "inline-block",
+                width: "10px",
+                height: "10px",
+                borderRadius: "2px",
+                background: el.color,
+              }}
+            />{" "}
+            {el.color}
+          </span>
+        </div>
+      );
+    }
+
     if (el.type !== "text") return null;
 
     return (
@@ -667,7 +705,10 @@ function OrderDrawer({ order, onClose }) {
           className="od-el-text"
           style={{
             fontFamily: el.fontFamily,
-            fontWeight: el.bold ? 700 : 400,
+            fontWeight:
+              el.bold || Number(el.fontWeight) >= 600
+                ? 700
+                : 400,
             fontStyle: el.italic ? "italic" : "normal",
             textDecoration: el.underline
               ? "underline"
@@ -791,8 +832,25 @@ function OrderDrawer({ order, onClose }) {
 
         {/* ITEMS + CUSTOMIZATION */}
         {items.map((item, idx) => {
-          const front = item.designs?.front || [];
-          const back = item.designs?.back || [];
+          /* designs: tshirt format (arrays) + business-card
+             format ({elements} objects) dono support */
+          const cardEls = (d) =>
+            Array.isArray(d?.elements) ? d.elements : [];
+
+          const front =
+            item.designs?.front?.length
+              ? item.designs.front
+              : cardEls(
+                  item.frontDesign ||
+                    item.customization?.frontDesign
+                );
+          const back =
+            item.designs?.back?.length
+              ? item.designs.back
+              : cardEls(
+                  item.backDesign ||
+                    item.customization?.backDesign
+                );
           const hasDesign =
             front.length > 0 || back.length > 0;
 

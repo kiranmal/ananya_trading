@@ -73,6 +73,38 @@ const isItemCustomized = (item) =>
     item?.text
   );
 
+/* business-card design se labeled text fields nikaal —
+   cart summary (Name/Designation/Company) ke liye */
+const getCardFieldSummary = (item) => {
+  const elements =
+    item?.customization?.frontDesign?.elements ||
+    item?.frontDesign?.elements ||
+    [];
+
+  if (!Array.isArray(elements)) return [];
+
+  const wanted = [
+    "Name",
+    "Designation",
+    "Company",
+    "Company Name",
+    "Phone",
+  ];
+
+  return elements
+    .filter(
+      (el) =>
+        el?.type === "text" &&
+        wanted.includes(el.label) &&
+        String(el.text || "").trim() !== ""
+    )
+    .slice(0, 4)
+    .map((el) => ({
+      label: el.label,
+      text: String(el.text),
+    }));
+};
+
 // ============================================================
 // CREATE PRODUCT SNAPSHOT
 // ============================================================
@@ -1511,6 +1543,56 @@ function Cart() {
   };
 
   // ==========================================================
+  // EDIT DESIGN — cart item ka saved design editor mein kholna
+  // ==========================================================
+
+  const editCardDesign = (item) => {
+    const pid =
+      item?.productId ||
+      item?.originalProductId;
+
+    if (!pid) return;
+
+    /* BusinessCardCustomizer saved design isi key se load karta hai */
+    try {
+      localStorage.setItem(
+        `businessCardDesign-${pid}`,
+        JSON.stringify({
+          productId: pid,
+          frontDesign:
+            item.frontDesign ||
+            item.customization?.frontDesign ||
+            null,
+          backDesign:
+            item.backDesign ||
+            item.customization?.backDesign ||
+            null,
+          template:
+            item.template ||
+            item.customization?.template ||
+            null,
+          quantity: item.quantity,
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+
+    localStorage.setItem(
+      "selectedCustomizeProduct",
+      JSON.stringify({
+        ...item,
+        id: pid,
+        customizable: true,
+        customizationType:
+          item.customizationType || "business-card",
+      })
+    );
+
+    navigate("/customize");
+  };
+
+  // ==========================================================
   // CHECKOUT ALL
   // ==========================================================
 
@@ -1875,6 +1957,34 @@ function Cart() {
 
                         </div>
                       )}
+
+                      {/* CARD FIELD SUMMARY + EDIT DESIGN */}
+
+                      {customized &&
+                        item?.customizationType ===
+                          "business-card" && (
+                          <div className="card-design-summary">
+
+                            {getCardFieldSummary(
+                              item
+                            ).map((f) => (
+                              <p key={f.label}>
+                                {f.label}: {f.text}
+                              </p>
+                            ))}
+
+                            <button
+                              type="button"
+                              className="edit-design-btn"
+                              onClick={() =>
+                                editCardDesign(item)
+                              }
+                            >
+                              ✏️ Edit Design
+                            </button>
+
+                          </div>
+                        )}
 
                       {/* PRICE */}
 

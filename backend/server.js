@@ -1279,6 +1279,95 @@ const sanitizeDesigns = (designs) => {
   return Object.keys(clean).length > 0 ? clean : null;
 };
 
+/* business/visiting card design — {background, gradient,
+   backgroundImage, elements[]} shape; icon elements bhi */
+const sanitizeCardElement = (el) => {
+  if (!el || typeof el !== "object") return null;
+
+  const type = ["text", "image", "shape", "icon"].includes(
+    el.type
+  )
+    ? el.type
+    : "text";
+
+  const clean = {
+    type,
+    id: String(el.id || "").slice(0, 80),
+    label: String(el.label || "").slice(0, 80),
+    x: clampNum(el.x, -50, 150, 50),
+    y: clampNum(el.y, -50, 150, 50),
+    rotation: clampNum(el.rotation, -360, 360, 0),
+    opacity: clampNum(el.opacity, 0, 1, 1),
+    visible: el.visible !== false,
+    color: sanitizeColor(el.color),
+    width: clampNum(el.width, 1, 150, 30),
+  };
+
+  if (type === "text") {
+    clean.text = String(el.text || "").slice(0, 500);
+    clean.fontSize = clampNum(el.fontSize, 4, 200, 16);
+    clean.fontFamily = String(el.fontFamily || "Inter").slice(
+      0,
+      60
+    );
+    clean.fontWeight = clampNum(el.fontWeight, 100, 900, 500);
+    clean.italic = Boolean(el.italic);
+    clean.underline = Boolean(el.underline);
+    clean.align = ["left", "center", "right"].includes(el.align)
+      ? el.align
+      : "left";
+    clean.letterSpacing = clampNum(el.letterSpacing, -5, 30, 0);
+    clean.lineHeight = clampNum(el.lineHeight, 0.5, 4, 1.2);
+    if (el.preset) {
+      clean.preset = String(el.preset).slice(0, 40);
+    }
+  } else if (type === "image") {
+    clean.src =
+      typeof el.src === "string" && el.src.length < 2000000
+        ? el.src
+        : null;
+    clean.name = String(el.name || "").slice(0, 80);
+  } else if (type === "shape") {
+    clean.shape = ["rectangle", "circle", "line"].includes(
+      el.shape
+    )
+      ? el.shape
+      : "rectangle";
+  } else {
+    /* icon */
+    clean.icon = String(el.icon || "").slice(0, 40);
+  }
+
+  return clean;
+};
+
+const sanitizeCardDesign = (design) => {
+  if (!design || typeof design !== "object" || Array.isArray(design)) {
+    return null;
+  }
+
+  const elements = Array.isArray(design.elements)
+    ? design.elements
+        .slice(0, 60)
+        .map(sanitizeCardElement)
+        .filter(Boolean)
+    : [];
+
+  const gradient = String(design.gradient || "").slice(0, 300);
+
+  return {
+    background: sanitizeColor(design.background || "#ffffff"),
+    gradient: /^(linear|radial|conic)-gradient/.test(gradient)
+      ? gradient
+      : "",
+    backgroundImage: String(design.backgroundImage || "").slice(
+      0,
+      400
+    ),
+    elements,
+  };
+};
+
 function mapProduct(row) {
   return {
     id: row.id,
@@ -4787,6 +4876,33 @@ app.post(
           /* customization sanitize — text/color/design
              structure validate karke hi store */
           designs: sanitizeDesigns(item.designs),
+
+          /* business-card designs — front/back objects */
+          frontDesign: sanitizeCardDesign(
+            item.frontDesign ||
+              item.customization?.frontDesign
+          ),
+          backDesign: sanitizeCardDesign(
+            item.backDesign || item.customization?.backDesign
+          ),
+          customization: (() => {
+            const c = item.customization;
+            if (
+              !c ||
+              typeof c !== "object" ||
+              Array.isArray(c) ||
+              JSON.stringify(c).length > 300000
+            ) {
+              return null;
+            }
+            return {
+              ...c,
+              frontDesign: sanitizeCardDesign(c.frontDesign),
+              backDesign: sanitizeCardDesign(c.backDesign),
+            };
+          })(),
+          template:
+            String(item.template || "").slice(0, 40) || null,
           color:
             item.color !== undefined && item.color !== null
               ? sanitizeColor(item.color)
