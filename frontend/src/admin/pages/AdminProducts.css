@@ -140,10 +140,10 @@
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 
   min-height: 38px;
-  padding: 0 10px;
+  padding: 0 8px;
 
   border: none;
   border-radius: 9px;
@@ -212,20 +212,44 @@
 .admin-products .cat-chevron {
   flex-shrink: 0;
 
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
 
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
   border: none;
+  border-radius: 6px;
 
   background: transparent;
 
   color: #94a3b8;
 
   cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.admin-products .cat-chevron svg {
+  transition: transform 0.2s ease;
+}
+
+.admin-products .cat-chevron.open svg {
+  transform: rotate(90deg);
+}
+
+.admin-products .cat-chevron:hover {
+  background: #eaf2fc;
+
+  color: #1263bd;
+}
+
+.admin-products .cat-item-btn.active .cat-chevron {
+  color: #1263bd;
 }
 
 .admin-products .cat-main {
@@ -234,7 +258,7 @@
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 
   padding: 0;
 
@@ -248,6 +272,11 @@
   font-family: inherit;
 
   cursor: pointer;
+}
+
+/* chevron wali rows se name align rahe */
+.admin-products .cat-item-btn > .cat-main:only-child {
+  padding-left: 26px;
 }
 
 .admin-products .sub-list {

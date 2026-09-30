@@ -503,17 +503,15 @@ export default function AdminProducts() {
               {subs.length > 0 && (
                 <button
                   type="button"
-                  className="cat-chevron"
+                  className={`cat-chevron ${
+                    isOpen ? "open" : ""
+                  }`}
                   onClick={() =>
                     toggleExpand(cat.name)
                   }
                   aria-label="Toggle subcategories"
                 >
-                  {isOpen ? (
-                    <ChevronDown size={13} />
-                  ) : (
-                    <ChevronRight size={13} />
-                  )}
+                  <ChevronRight size={14} />
                 </button>
               )}
 
