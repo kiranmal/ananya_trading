@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 
 import { fetchProductById, isActiveProduct } from "../services/productApi";
-import { getProductById } from "../data/productStorage";
 import { saveInquiryContext } from "../services/inquiryApi";
 
 import "../styles/ProductDetails.css";
@@ -52,15 +51,7 @@ function ProductDetails() {
         setProduct(apiProduct);
       } catch (error) {
         console.error("Product loading error:", error);
-
-        const fallback = getProductById(id);
-
-        if (!fallback || !isActiveProduct(fallback)) {
-          navigate("/category");
-          return;
-        }
-
-        setProduct(fallback);
+        navigate("/category");
       }
     };
 

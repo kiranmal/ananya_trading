@@ -50,6 +50,9 @@ import MyOrders from "./components/profile/MyOrders";
 
 import AdminApp from "./admin/AdminApp";
 
+/* one-time cleanup: the product catalog used to be cached
+   in localStorage — API/DB is the only source now */
+localStorage.removeItem("ananyaProducts");
 
 function App() {
   return (

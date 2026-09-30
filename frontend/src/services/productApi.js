@@ -1,5 +1,4 @@
 import { API_URL } from "./apiConfig";
-const STORAGE_KEY = "ananyaProducts";
 const inFlight = new Map();
 
 const request = async (path, options = {}) => {
@@ -13,17 +12,9 @@ const request = async (path, options = {}) => {
   return data;
 };
 
-const syncProductCache = (products) => {
-  const serialized = JSON.stringify(products);
-
-  /* if data unchanged, skip write+dispatch —
-     ananyaProductsUpdated listener -> loadProducts ->
-     fetchProducts -> dispatch would loop infinitely */
-  if (localStorage.getItem(STORAGE_KEY) === serialized) {
-    return;
-  }
-
-  localStorage.setItem(STORAGE_KEY, serialized);
+/* notify listening pages (Home/Category/Navbar) to
+   refetch from the API — no catalog copy is stored */
+const notifyProductsUpdated = () => {
   window.dispatchEvent(new Event("ananyaProductsUpdated"));
 };
 
@@ -44,24 +35,14 @@ export const fetchProducts = (search = "", filters = {}) => {
   const searchTerm = String(search || "").trim();
   const category = String(filters.category || "").trim();
   const subcategory = String(filters.subcategory || "").trim();
-  const isFiltered = !!(searchTerm || category || subcategory);
 
-  /* same query already in flight — duplicate API request avoid */
+  /* same query already in flight — avoid duplicate requests */
   const key = `${searchTerm}|${category}|${subcategory}`;
   if (inFlight.has(key)) {
     return inFlight.get(key);
   }
 
   const promise = (async () => {
-    const cachedProducts = (() => {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
-
     const params = new URLSearchParams();
     if (searchTerm) params.set("search", searchTerm);
     if (category) params.set("category", category);
@@ -70,39 +51,7 @@ export const fetchProducts = (search = "", filters = {}) => {
     const path = `/products${qs ? `?${qs}` : ""}`;
 
     const data = await request(path);
-
-    let products = Array.isArray(data.products) ? data.products : [];
-
-    const token = localStorage.getItem("authToken");
-    const savedUser = localStorage.getItem("currentUser");
-
-    const isAdmin = (() => {
-      try {
-        return JSON.parse(savedUser || "null")?.role === "admin";
-      } catch {
-        return false;
-      }
-    })();
-
-    if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin && !isFiltered) {
-      const imported = await request("/products/import", {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ products: cachedProducts }),
-      });
-
-      products = Array.isArray(imported.products)
-        ? imported.products
-        : [];
-    }
-
-    /* do not cache filtered results —
-       otherwise other pages would only see filtered matches */
-    if (products.length > 0 && !isFiltered) {
-      syncProductCache(products);
-    }
-
-    return products;
+    return Array.isArray(data.products) ? data.products : [];
   })();
 
   inFlight.set(key, promise);
@@ -125,7 +74,7 @@ export const createProduct = async (product) => {
     headers: getAuthHeaders(),
     body: JSON.stringify(product),
   });
-  await fetchProducts();
+  notifyProductsUpdated();
   return data.product;
 };
 
@@ -135,7 +84,7 @@ export const updateProduct = async (id, product) => {
     headers: getAuthHeaders(),
     body: JSON.stringify(product),
   });
-  await fetchProducts();
+  notifyProductsUpdated();
   return data.product;
 };
 
@@ -144,5 +93,6 @@ export const deleteProduct = async (id) => {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
+  notifyProductsUpdated();
   return fetchProducts();
 };

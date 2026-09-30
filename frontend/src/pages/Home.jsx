@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 
 import "./Home.css";
-import defaultProducts from "../data/products";
 import CustomizeProducts from "../components/CustomizeProducts";
 import ContactSection from "../components/ContactSection";
 import { fetchProducts, isActiveProduct } from "../services/productApi";
@@ -142,12 +141,9 @@ function Home() {
   const loadProducts = async () => {
     try {
       const databaseProducts = await fetchProducts();
-      const sourceProducts = databaseProducts.length > 0
-        ? databaseProducts
-        : defaultProducts;
 
       setProducts(
-        sourceProducts
+        databaseProducts
           .filter(isActiveProduct)
           .map(
             (product, index) =>
@@ -160,22 +156,9 @@ function Home() {
         error
       );
 
-      const fallbackProducts =
-        Array.isArray(defaultProducts)
-          ? defaultProducts
-              .filter(isActiveProduct)
-              .map(
-                (product, index) =>
-                  normalizeProduct(
-                    product,
-                    `fallback-${index}`
-                  )
-              )
-          : [];
-
-      setProducts(
-        fallbackProducts
-      );
+      /* API is the source of truth — no static
+         or localStorage catalog fallback */
+      setProducts([]);
     }
   };
 

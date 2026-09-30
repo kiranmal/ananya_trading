@@ -11,8 +11,6 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import products from "../data/products";
-
 import {
   getFavorites,
   toggleFavorite,
@@ -79,9 +77,8 @@ function Category() {
       /*
        * IMPORTANT
        *
-       * productStorage.js ka same storage use hoga:
-       *
-       * ananya_products
+       * Products come from the API/database only —
+       * no localStorage catalog.
        */
 
       const databaseProducts =
@@ -92,32 +89,8 @@ function Category() {
         return;
       }
 
-      /* search hai aur backend empty ho —
-         static list ko search se filter karo,
-         saara catalog mat dikhao */
-      const combinedProducts =
-        databaseProducts.length > 0
-          ? databaseProducts
-          : urlSearch
-          ? products.filter((p) => {
-              const term =
-                urlSearch.toLowerCase();
-
-              return [
-                p.name,
-                p.category,
-                p.subcategory,
-                p.description,
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase()
-                .includes(term);
-            })
-          : products;
-
       const activeProducts =
-        combinedProducts.filter(isActiveProduct);
+        databaseProducts.filter(isActiveProduct);
 
 
       /*
@@ -236,26 +209,9 @@ function Category() {
       );
 
       if (requestId === searchRequestIdRef.current) {
-        setAllProducts(
-          urlSearch
-            ? products.filter((p) => {
-                const term = urlSearch.toLowerCase();
-
-                return [
-                  p.name,
-                  p.category,
-                  p.subcategory,
-                  p.description,
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-                  .toLowerCase()
-                  .includes(term)
-                  && isActiveProduct(p);
-              })
-            : (Array.isArray(products) ? products : [])
-                .filter(isActiveProduct)
-        );
+        /* API is the source of truth — no static
+           or localStorage catalog fallback */
+        setAllProducts([]);
       }
 
     } finally {
@@ -870,7 +826,7 @@ function Category() {
 
   const handleFavorite = (
     event,
-    productId
+    product
   ) => {
 
     event.preventDefault();
@@ -880,7 +836,7 @@ function Category() {
 
     const isNowFavorite =
       toggleFavorite(
-        productId
+        product
       );
 
 
@@ -1597,7 +1553,7 @@ function Category() {
                           ) =>
                             handleFavorite(
                               event,
-                              productId
+                              product
                             )
                           }
                           aria-label={
