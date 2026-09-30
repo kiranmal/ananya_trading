@@ -1,5 +1,21 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Link,
+  useSearchParams,
+} from "react-router-dom";
+import {
+  LayoutGrid,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  Layers,
+  PackageSearch,
+  ListFilter,
+} from "lucide-react";
 
 import AdminTable from "../components/AdminTable";
 import categoriesData from "../../data/categories";
@@ -11,101 +27,248 @@ import {
 
 import "./AdminProducts.css";
 
+/* categories API object ho ya static {items:[..]} —
+   sub list ko normalize karo */
+const catSubs = (cat) => {
+  if (Array.isArray(cat.subcategories) && cat.subcategories.length) {
+    return cat.subcategories
+      .filter((s) => (s.status || "Active") === "Active")
+      .map((s) => s.name);
+  }
+  return Array.isArray(cat.items) ? cat.items : [];
+};
+
 export default function AdminProducts() {
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [allProducts, setAllProducts] = useState([]);
   const [products, setProducts] = useState([]);
-  const [categoryList, setCategoryList] = useState(categoriesData);
+  const [categoryList, setCategoryList] =
+    useState(categoriesData);
+
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All Categories");
+  const [debouncedSearch, setDebouncedSearch] =
+    useState("");
 
+  /* selection: null => All Products */
+  const [selCat, setSelCat] = useState(null);
+  const [selSub, setSelSub] = useState(null);
 
-  // Load products
+  const [expanded, setExpanded] = useState(
+    () => new Set()
+  );
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const loadRef = React.useRef(0);
+
+  /* ---------- initial load: categories + all products ---------- */
+
   useEffect(() => {
-    const loadProducts = async () => {
+    let cancelled = false;
+
+    const load = async () => {
       try {
-        setProducts(await fetchProducts());
-      } catch (error) {
-        console.error("Products loading error:", error);
-        setProducts([]);
+        const [cats, prods] = await Promise.all([
+          fetchCategories(),
+          fetchProducts(),
+        ]);
+
+        if (cancelled) return;
+
+        setCategoryList(cats);
+        setAllProducts(prods);
+
+        /* ?category=<slug|name> param resolve */
+        const param = searchParams.get("category");
+        if (param) {
+          const match = cats.find(
+            (c) =>
+              c.slug === param ||
+              c.name.toLowerCase() ===
+                param.toLowerCase()
+          );
+          if (match) {
+            setSelCat(match);
+            const subParam =
+              searchParams.get("sub");
+            if (subParam) setSelSub(subParam);
+            setExpanded(
+              (prev) => new Set(prev).add(match.name)
+            );
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
-    loadProducts();
+    load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line
   }, []);
 
+  /* ---------- search debounce ---------- */
 
-  // Load categories from API
   useEffect(() => {
-    const loadCategories = async () => {
-      setCategoryList(await fetchCategories());
+    const t = setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      300
+    );
+    return () => clearTimeout(t);
+  }, [search]);
+
+  /* ---------- filtered list (server-side) ---------- */
+
+  useEffect(() => {
+    let cancelled = false;
+    const reqId = ++loadRef.current;
+
+    const run = async () => {
+      /* All + no search -> allProducts reuse, extra call nahi */
+      if (!selCat && !debouncedSearch) {
+        setProducts(allProducts);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const list = await fetchProducts(
+          debouncedSearch,
+          {
+            category: selCat?.name || "",
+            subcategory: selSub || "",
+          }
+        );
+        if (!cancelled && reqId === loadRef.current) {
+          setProducts(list);
+          setError("");
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
 
-    loadCategories();
-  }, []);
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line
+  }, [allProducts, selCat, selSub, debouncedSearch]);
 
+  /* ---------- helpers ---------- */
 
-  // Delete product
+  const countsByCat = useMemo(() => {
+    const map = new Map();
+    allProducts.forEach((p) => {
+      const c = p.category || "Uncategorized";
+      map.set(c, (map.get(c) || 0) + 1);
+    });
+    return map;
+  }, [allProducts]);
+
+  const countsBySub = useMemo(() => {
+    const map = new Map();
+    allProducts.forEach((p) => {
+      if (p.category && p.subcategory) {
+        const k = `${p.category}||${p.subcategory}`;
+        map.set(k, (map.get(k) || 0) + 1);
+      }
+    });
+    return map;
+  }, [allProducts]);
+
+  const selectCategory = (cat) => {
+    setSelCat(cat);
+    setSelSub(null);
+    setSearchParams(
+      cat
+        ? { category: cat.slug || cat.name }
+        : {},
+      { replace: true }
+    );
+    setSidebarOpen(false);
+  };
+
+  const selectSub = (cat, sub) => {
+    setSelCat(cat);
+    setSelSub(sub);
+    setSearchParams(
+      {
+        category: cat.slug || cat.name,
+        sub,
+      },
+      { replace: true }
+    );
+    setSidebarOpen(false);
+  };
+
+  const toggleExpand = (catName) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(catName)
+        ? next.delete(catName)
+        : next.add(catName);
+      return next;
+    });
+  };
+
   const deleteProduct = async (id) => {
-
-    const confirmDelete =
-      window.confirm(
+    if (
+      !window.confirm(
         "Are you sure you want to delete this product?"
-      );
-
-    if (!confirmDelete) {
+      )
+    ) {
       return;
     }
 
-
     try {
-      setProducts(
-        await deleteProductFromApi(id)
+      const updated = await deleteProductFromApi(id);
+      setAllProducts(updated);
+      setProducts((prev) =>
+        prev.filter((p) => p.id !== id)
       );
-    } catch (error) {
-      console.error("Product delete error:", error);
-      alert(error.message);
+    } catch (err) {
+      console.error("Product delete error:", err);
+      alert(err.message);
     }
-
   };
 
+  /* sidebar categories — active + jo products rakhti hain */
+  const sidebarCats = categoryList.filter(
+    (c) =>
+      (c.status || "Active") === "Active" ||
+      (countsByCat.get(c.name) || 0) > 0
+  );
 
-  // Categories list — master list + products mein jo extra ho
-  const categories = [
-    "All Categories",
-    ...new Set([
-      ...categoryList.map(cat => cat.name),
-      ...products
-        .map(product => product.category)
-        .filter(Boolean),
-    ]),
-  ];
+  const headerSubtitle = selCat
+    ? `${selCat.name}${
+        selSub ? ` / ${selSub}` : ""
+      } · ${products.length} product${
+        products.length === 1 ? "" : "s"
+      }`
+    : `${allProducts.length} products in your store`;
 
+  const addProductLink = selCat
+    ? `/admin/products/add?category=${encodeURIComponent(
+        selCat.name
+      )}`
+    : "/admin/products/add";
 
-  // Search + Category filter
-  const filteredProducts =
-    products.filter(product => {
-
-      const text =
-        `${product.name} ${product.category}`
-          .toLowerCase();
-
-      const matchesSearch =
-        text.includes(
-          search.toLowerCase()
-        );
-
-      const matchesCategory =
-        category === "All Categories" ||
-        product.category === category;
-
-      return matchesSearch && matchesCategory;
-
-    });
-
-
-  // Group products by category
+  /* group headers sirf All Products view mein */
   const groupedByCategory = {};
-  filteredProducts.forEach(product => {
+  products.forEach((product) => {
     const cat = product.category || "Uncategorized";
     if (!groupedByCategory[cat]) {
       groupedByCategory[cat] = [];
@@ -113,299 +276,520 @@ export default function AdminProducts() {
     groupedByCategory[cat].push(product);
   });
 
-  const categoryOrder = categories.filter(c => c !== "All Categories");
-  const sortedCategoryKeys = Object.keys(groupedByCategory).sort((a, b) => {
+  const categoryOrder = sidebarCats.map(
+    (c) => c.name
+  );
+  const sortedCategoryKeys = Object.keys(
+    groupedByCategory
+  ).sort((a, b) => {
     const ia = categoryOrder.indexOf(a);
     const ib = categoryOrder.indexOf(b);
     return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
   });
 
+  const showGroups = !selCat;
+
+  const productRow = (product) => (
+    <tr key={product.id}>
+
+      {/* PRODUCT */}
+      <td>
+        <div className="product-cell">
+          <div className="product-thumb">
+            {product.images?.[0] ? (
+              <img
+                src={product.images[0]}
+                alt={product.name}
+              />
+            ) : (
+              "🛍️"
+            )}
+          </div>
+
+          <div className="product-name">
+            <strong>{product.name}</strong>
+            <small>
+              {product.badge || "Standard"}
+            </small>
+          </div>
+        </div>
+      </td>
+
+      {/* CATEGORY */}
+      <td>
+        <span className="category-pill">
+          {product.subcategory
+            ? `${product.category} / ${product.subcategory}`
+            : product.category}
+        </span>
+      </td>
+
+      {/* PRICE */}
+      <td className="price-cell">
+        ₹
+        {Number(product.price).toLocaleString(
+          "en-IN"
+        )}
+      </td>
+
+      {/* STOCK */}
+      <td>
+        <span
+          className={`stock-pill ${
+            product.stock <= 10 ? "low" : "ok"
+          }`}
+        >
+          {product.stock} units
+        </span>
+      </td>
+
+      {/* STATUS */}
+      <td>
+        <span
+          className={`status ${
+            product.status === "Active"
+              ? "delivered"
+              : product.status === "Low Stock"
+              ? "pending"
+              : "cancelled"
+          }`}
+        >
+          {product.status}
+        </span>
+      </td>
+
+      {/* ACTION */}
+      <td>
+        <div className="actions">
+          <Link
+            className="action-btn edit-btn"
+            to={`/admin/products/edit/${product.id}`}
+            title="Edit product"
+          >
+            ✏️
+          </Link>
+
+          <button
+            type="button"
+            className="action-btn delete-btn"
+            title="Delete product"
+            onClick={() => deleteProduct(product.id)}
+          >
+            🗑️
+          </button>
+        </div>
+      </td>
+
+    </tr>
+  );
+
+  const productCard = (product) => (
+    <div
+      className="product-card"
+      key={product.id}
+    >
+      <div className="product-card-top">
+        <div className="product-thumb">
+          {product.images?.[0] ? (
+            <img
+              src={product.images[0]}
+              alt={product.name}
+            />
+          ) : (
+            "🛍️"
+          )}
+        </div>
+
+        <div className="product-card-info">
+          <strong>{product.name}</strong>
+          <span className="category-pill">
+            {product.subcategory
+              ? `${product.category} / ${product.subcategory}`
+              : product.category}
+          </span>
+        </div>
+      </div>
+
+      <div className="product-card-meta">
+        <span className="price-cell">
+          ₹
+          {Number(product.price).toLocaleString(
+            "en-IN"
+          )}
+        </span>
+        <span
+          className={`stock-pill ${
+            product.stock <= 10 ? "low" : "ok"
+          }`}
+        >
+          {product.stock} units
+        </span>
+        <span
+          className={`status ${
+            product.status === "Active"
+              ? "delivered"
+              : product.status === "Low Stock"
+              ? "pending"
+              : "cancelled"
+          }`}
+        >
+          {product.status}
+        </span>
+      </div>
+
+      <div className="product-card-actions">
+        <Link
+          className="action-btn edit-btn"
+          to={`/admin/products/edit/${product.id}`}
+          title="Edit product"
+        >
+          ✏️ Edit
+        </Link>
+        <button
+          type="button"
+          className="action-btn delete-btn"
+          title="Delete product"
+          onClick={() => deleteProduct(product.id)}
+        >
+          🗑️ Delete
+        </button>
+      </div>
+    </div>
+  );
+
+  const sidebarContent = (
+    <>
+      <div className="cat-sidebar-head">
+        <Layers size={15} />
+        Categories
+      </div>
+
+      <button
+        type="button"
+        className={`cat-item-btn ${
+          !selCat ? "active" : ""
+        }`}
+        onClick={() => selectCategory(null)}
+      >
+        <LayoutGrid size={15} />
+        <span className="cat-name">
+          All Products
+        </span>
+        <span className="cat-count">
+          {allProducts.length}
+        </span>
+      </button>
+
+      {sidebarCats.map((cat) => {
+        const subs = catSubs(cat);
+        const isOpen = expanded.has(cat.name);
+        const isActive =
+          selCat?.name === cat.name && !selSub;
+
+        return (
+          <div
+            className="cat-group"
+            key={cat.id || cat.name}
+          >
+            <div
+              className={`cat-item-btn ${
+                isActive ? "active" : ""
+              } ${
+                selCat?.name === cat.name
+                  ? "in-path"
+                  : ""
+              }`}
+            >
+              {subs.length > 0 && (
+                <button
+                  type="button"
+                  className="cat-chevron"
+                  onClick={() =>
+                    toggleExpand(cat.name)
+                  }
+                  aria-label="Toggle subcategories"
+                >
+                  {isOpen ? (
+                    <ChevronDown size={13} />
+                  ) : (
+                    <ChevronRight size={13} />
+                  )}
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="cat-main"
+                onClick={() => {
+                  selectCategory(cat);
+                  if (subs.length && !isOpen) {
+                    toggleExpand(cat.name);
+                  }
+                }}
+              >
+                <span className="cat-name">
+                  {cat.name}
+                </span>
+                <span className="cat-count">
+                  {countsByCat.get(cat.name) || 0}
+                </span>
+              </button>
+            </div>
+
+            {isOpen && subs.length > 0 && (
+              <div className="sub-list">
+                {subs.map((sub) => (
+                  <button
+                    type="button"
+                    key={sub}
+                    className={`sub-item-btn ${
+                      selCat?.name === cat.name &&
+                      selSub === sub
+                        ? "active"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      selectSub(cat, sub)
+                    }
+                  >
+                    <span className="cat-name">
+                      {sub}
+                    </span>
+                    <span className="cat-count">
+                      {countsBySub.get(
+                        `${cat.name}||${sub}`
+                      ) || 0}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
 
   return (
-
     <div className="admin-products">
 
       {/* PAGE HEADER */}
 
       <div className="page-heading">
-
         <div>
-
-          <h2>
-            Products
-          </h2>
-
-          <p>
-            {products.length} products in your store
-          </p>
-
+          <h2>Products</h2>
+          <p>{headerSubtitle}</p>
         </div>
-
 
         <Link
           className="primary-btn"
-          to="/admin/products/add"
+          to={addProductLink}
         >
           ＋ Add Product
         </Link>
-
       </div>
 
+      {/* MOBILE CATEGORY TOGGLE */}
 
-      {/* PRODUCT PANEL */}
+      <button
+        type="button"
+        className="cat-toggle-btn"
+        onClick={() =>
+          setSidebarOpen((v) => !v)
+        }
+      >
+        <ListFilter size={15} />
+        {selCat
+          ? selSub
+            ? `${selCat.name} / ${selSub}`
+            : selCat.name
+          : "All Products"}
+        <ChevronDown
+          size={14}
+          style={{
+            marginLeft: "auto",
+            transform: sidebarOpen
+              ? "rotate(180deg)"
+              : "none",
+          }}
+        />
+      </button>
 
-      <section className="panel">
+      {/* TWO-COLUMN LAYOUT */}
 
-        {/* TOOLBAR */}
+      <div className="products-layout">
 
-        <div className="toolbar">
-
-          <input
-            className="search-input"
-            type="text"
-            placeholder="🔎 Search products..."
-            value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
-          />
-
-
-          <select
-            className="filter"
-            value={category}
-            onChange={(e) =>
-              setCategory(e.target.value)
-            }
-          >
-
-            {categories.map(cat => (
-
-              <option
-                key={cat}
-                value={cat}
-              >
-                {cat}
-              </option>
-
-            ))}
-
-          </select>
-
-        </div>
-
-
-        {/* TABLE */}
-
-        <AdminTable
-          headers={[
-            "Product",
-            "Category",
-            "Price",
-            "Stock",
-            "Status",
-            "Action"
-          ]}
+        <aside
+          className={`cat-sidebar ${
+            sidebarOpen ? "open" : ""
+          }`}
         >
+          {sidebarContent}
+        </aside>
 
-          {sortedCategoryKeys.map(cat => (
+        {/* PRODUCT CONTENT */}
 
-            <React.Fragment key={cat}>
+        <section className="panel products-panel">
 
-              {/* CATEGORY HEADER ROW */}
+          {/* TOOLBAR */}
 
-              <tr>
-                <td
-                  colSpan="6"
-                  style={{
-                    background: "#f0f4ff",
-                    padding: "12px 16px",
-                    fontWeight: 700,
-                    fontSize: "15px",
-                    color: "#1e40af",
-                    borderBottom: "2px solid #dbeafe",
-                    letterSpacing: "0.3px",
-                  }}
-                >
-                  {cat}
-                  <span
-                    style={{
-                      marginLeft: "10px",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      color: "#6b7280",
-                    }}
-                  >
-                    ({groupedByCategory[cat].length} products)
-                  </span>
-                </td>
-              </tr>
+          <div className="toolbar">
+            <div className="search-wrap">
+              <Search
+                size={15}
+                className="search-icon"
+              />
+              <input
+                className="search-input"
+                type="search"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) =>
+                  setSearch(e.target.value)
+                }
+              />
+            </div>
 
-
-              {groupedByCategory[cat].map(
-                product => (
-
-                  <tr key={product.id}>
-
-                    {/* PRODUCT */}
-
-                    <td>
-
-                      <div className="product-cell">
-
-                        <div className="product-thumb">
-
-                          {product.images?.[0] ? (
-
-                            <img
-                              src={product.images[0]}
-                              alt={product.name}
-                            />
-
-                          ) : (
-
-                            "🛍️"
-
-                          )}
-
-                        </div>
-
-
-                        <div className="product-name">
-
-                          <strong>
-                            {product.name}
-                          </strong>
-
-                          <small>
-                            {product.badge || "Standard"}
-                          </small>
-
-                        </div>
-
-                      </div>
-
-                    </td>
-
-
-                    {/* CATEGORY */}
-
-                    <td>
-
-                      <span className="category-pill">
-                        {product.category}
-                      </span>
-
-                    </td>
-
-
-                    {/* PRICE */}
-
-                    <td className="price-cell">
-                      ₹{Number(product.price).toLocaleString("en-IN")}
-                    </td>
-
-
-                    {/* STOCK */}
-
-                    <td>
-
-                      <span
-                        className={`stock-pill ${
-                          product.stock <= 10
-                            ? "low"
-                            : "ok"
-                        }`}
-                      >
-                        {product.stock} units
-                      </span>
-
-                    </td>
-
-
-                    {/* STATUS */}
-
-                    <td>
-
-                      <span
-                        className={`status ${
-                          product.status === "Active"
-                            ? "delivered"
-                            : product.status === "Low Stock"
-                            ? "pending"
-                            : "cancelled"
-                        }`}
-                      >
-                        {product.status}
-                      </span>
-
-                    </td>
-
-
-                    {/* ACTION */}
-
-                    <td>
-
-                      <div className="actions">
-
-                        <Link
-                          className="action-btn edit-btn"
-                          to={`/admin/products/edit/${product.id}`}
-                          title="Edit product"
-                        >
-                          ✏️
-                        </Link>
-
-
-                        <button
-                          type="button"
-                          className="action-btn delete-btn"
-                          title="Delete product"
-                          onClick={() =>
-                            deleteProduct(product.id)
-                          }
-                        >
-                          🗑️
-                        </button>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                )
-              )}
-
-            </React.Fragment>
-
-          ))}
-
-
-          {/* EMPTY */}
-
-          {filteredProducts.length === 0 && (
-
-            <tr>
-
-              <td
-                colSpan="6"
-                className="empty-state"
+            {(selCat || debouncedSearch) && (
+              <button
+                type="button"
+                className="clear-btn"
+                onClick={() => {
+                  setSearch("");
+                  selectCategory(null);
+                }}
               >
+                Clear filters
+              </button>
+            )}
+          </div>
 
-                🛍️ No products found.
-
-              </td>
-
-            </tr>
-
+          {error && (
+            <div className="error-state">
+              {error}
+            </div>
           )}
 
-        </AdminTable>
+          {/* LOADING */}
 
-      </section>
+          {loading && (
+            <div className="skel-list">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  className="skel-row"
+                  key={i}
+                />
+              ))}
+            </div>
+          )}
 
+          {/* DESKTOP TABLE */}
+
+          {!loading && (
+            <>
+              <div className="products-table">
+                <AdminTable
+                  headers={[
+                    "Product",
+                    "Category",
+                    "Price",
+                    "Stock",
+                    "Status",
+                    "Action",
+                  ]}
+                >
+                  {showGroups &&
+                    sortedCategoryKeys.map((cat) => (
+                      <React.Fragment key={cat}>
+                        <tr>
+                          <td
+                            colSpan="6"
+                            className="cat-header-row"
+                          >
+                            {cat}
+                            <span className="cat-header-count">
+                              {
+                                groupedByCategory[
+                                  cat
+                                ].length
+                              }{" "}
+                              products
+                            </span>
+                          </td>
+                        </tr>
+
+                        {groupedByCategory[
+                          cat
+                        ].map(productRow)}
+                      </React.Fragment>
+                    ))}
+
+                  {!showGroups &&
+                    products.map(productRow)}
+
+                  {products.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="6"
+                        className="empty-state"
+                      >
+                        <PackageSearch
+                          size={26}
+                        />
+                        <div>
+                          {selCat
+                            ? `No products found in ${selCat.name}.`
+                            : "No products found."}
+                        </div>
+                        {selCat && (
+                          <button
+                            type="button"
+                            className="clear-btn"
+                            onClick={() =>
+                              selectCategory(null)
+                            }
+                          >
+                            View All Products
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </AdminTable>
+              </div>
+
+              {/* MOBILE CARDS */}
+
+              <div className="products-cards">
+                {products.map(productCard)}
+
+                {products.length === 0 && (
+                  <div className="empty-state">
+                    <PackageSearch size={26} />
+                    <div>
+                      {selCat
+                        ? `No products found in ${selCat.name}.`
+                        : "No products found."}
+                    </div>
+                    {selCat && (
+                      <button
+                        type="button"
+                        className="clear-btn"
+                        onClick={() =>
+                          selectCategory(null)
+                        }
+                      >
+                        View All Products
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+        </section>
+      </div>
     </div>
-
   );
 }

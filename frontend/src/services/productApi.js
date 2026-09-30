@@ -40,12 +40,16 @@ const getAuthHeaders = () => {
   };
 };
 
-export const fetchProducts = (search = "") => {
+export const fetchProducts = (search = "", filters = {}) => {
   const searchTerm = String(search || "").trim();
+  const category = String(filters.category || "").trim();
+  const subcategory = String(filters.subcategory || "").trim();
+  const isFiltered = !!(searchTerm || category || subcategory);
 
   /* same query already in flight — duplicate API request avoid */
-  if (inFlight.has(searchTerm)) {
-    return inFlight.get(searchTerm);
+  const key = `${searchTerm}|${category}|${subcategory}`;
+  if (inFlight.has(key)) {
+    return inFlight.get(key);
   }
 
   const promise = (async () => {
@@ -58,9 +62,12 @@ export const fetchProducts = (search = "") => {
       }
     })();
 
-    const path = searchTerm
-      ? `/products?search=${encodeURIComponent(searchTerm)}`
-      : "/products";
+    const params = new URLSearchParams();
+    if (searchTerm) params.set("search", searchTerm);
+    if (category) params.set("category", category);
+    if (subcategory) params.set("subcategory", subcategory);
+    const qs = params.toString();
+    const path = `/products${qs ? `?${qs}` : ""}`;
 
     const data = await request(path);
 
@@ -77,7 +84,7 @@ export const fetchProducts = (search = "") => {
       }
     })();
 
-    if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin && !searchTerm) {
+    if (products.length === 0 && cachedProducts.length > 0 && token && isAdmin && !isFiltered) {
       const imported = await request("/products/import", {
         method: "POST",
         headers: getAuthHeaders(),
@@ -89,17 +96,17 @@ export const fetchProducts = (search = "") => {
         : [];
     }
 
-    /* search result ko cache mein mat likho —
-       warna baaki pages ko sirf search matches milenge */
-    if (products.length > 0 && !searchTerm) {
+    /* filtered result ko cache mein mat likho —
+       warna baaki pages ko sirf filtered matches milenge */
+    if (products.length > 0 && !isFiltered) {
       syncProductCache(products);
     }
 
     return products;
   })();
 
-  inFlight.set(searchTerm, promise);
-  promise.finally(() => inFlight.delete(searchTerm));
+  inFlight.set(key, promise);
+  promise.finally(() => inFlight.delete(key));
 
   return promise;
 };

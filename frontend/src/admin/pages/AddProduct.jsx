@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   PackagePlus,
   Tag,
@@ -25,6 +25,7 @@ import { createProduct } from "../../services/productApi";
 
 export default function AddProduct() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
 
   const [categories, setCategories] = useState(
@@ -36,7 +37,17 @@ export default function AddProduct() {
       const list = await fetchCategories();
       setCategories(list);
 
-      const first = list[0];
+      /* Products page se aaya ho to selected category preselect */
+      const wanted = searchParams.get("category");
+      const first =
+        (wanted &&
+          list.find(
+            (c) =>
+              c.name.toLowerCase() ===
+              wanted.toLowerCase()
+          )) ||
+        list[0];
+
       if (first) {
         setCategory(first.name);
         setSubcategory(first.items?.[0] || "");
@@ -49,6 +60,7 @@ export default function AddProduct() {
       }
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [allTags, setAllTags] = useState([]);
