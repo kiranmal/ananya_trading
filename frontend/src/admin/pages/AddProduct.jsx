@@ -22,6 +22,8 @@ import {
   fetchAttributes,
 } from "../../services/categoryApi";
 import { createProduct } from "../../services/productApi";
+import { createProductTemplate } from "../../services/templateApi";
+import ProductTemplates from "../components/ProductTemplates";
 import { inferCustomizationType } from "../../services/customizationType";
 
 export default function AddProduct() {
@@ -129,6 +131,9 @@ export default function AddProduct() {
 
   const [customizationType, setCustomizationType] =
     useState("tshirt");
+
+  /* product-owned templates (saved after product create) */
+  const [templates, setTemplates] = useState([]);
 
   const [images, setImages] = useState([]);
 
@@ -390,7 +395,31 @@ export default function AddProduct() {
     };
 
     try {
-      await createProduct(newProduct);
+      const created = await createProduct(newProduct);
+
+      /* product-scoped templates — created AFTER the
+         product exists so they get the real product_id */
+      if (created?.id && templates.length > 0) {
+        let failed = 0;
+        for (const t of templates) {
+          try {
+            await createProductTemplate(created.id, {
+              name: t.name,
+              status: t.status || "Active",
+              sortOrder: t.sortOrder ?? 0,
+              design: t.design || null,
+              thumbnail: t.thumbnail || null,
+            });
+          } catch {
+            failed += 1;
+          }
+        }
+        if (failed > 0) {
+          alert(
+            `Product saved, but ${failed} template(s) could not be saved. Open Edit Product to retry.`
+          );
+        }
+      }
     } catch (error) {
       console.error(
         "Unable to save product:",
@@ -1074,6 +1103,17 @@ export default function AddProduct() {
                   </select>
                 </div>
               )}
+
+              {/* templates belong to THIS product —
+                  saved to the API after product create */}
+              <ProductTemplates
+                enabled={customizable}
+                customizationType={customizationType}
+                productId={null}
+                productName={name}
+                templates={templates}
+                onChange={setTemplates}
+              />
 
               <small
                 style={{

@@ -1626,6 +1626,369 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
+/* =========================================================
+   PRODUCT TEMPLATES — templates belong to ONE product.
+   Public GET: Active templates only.
+   Mutations: admin only (authenticateToken + requireAdmin).
+========================================================= */
+
+const { CARD_TEMPLATE_SEEDS } = require("./cardTemplateSeeds");
+
+let cardTemplatesSeeded = false;
+
+async function ensureProductTemplatesTable() {
+  await ensureProductsTable();
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS product_templates (
+      id INT NOT NULL AUTO_INCREMENT,
+      product_id INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      thumbnail TEXT DEFAULT NULL,
+      design_data LONGTEXT DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_pt_product (product_id),
+      CONSTRAINT fk_pt_product FOREIGN KEY (product_id)
+        REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  /* one-time migration: legacy hardcoded business-card
+     templates -> DB, once per customizable product */
+  if (cardTemplatesSeeded) return;
+  cardTemplatesSeeded = true;
+
+  try {
+    const [prods] = await db.execute(
+      `SELECT id FROM products
+       WHERE customizable = 1
+         AND (customization_type = 'business-card'
+              OR LOWER(name) LIKE '%visiting card%'
+              OR LOWER(name) LIKE '%business card%')`
+    );
+
+    for (const p of prods) {
+      const [c] = await db.execute(
+        "SELECT COUNT(*) AS n FROM product_templates WHERE product_id = ?",
+        [p.id]
+      );
+      if (Number(c[0].n) > 0) continue;
+
+      for (const t of CARD_TEMPLATE_SEEDS) {
+        await db.execute(
+          `INSERT INTO product_templates
+             (product_id, name, design_data, status, sort_order)
+           VALUES (?, ?, ?, 'Active', ?)`,
+          [p.id, t.name, JSON.stringify(t.design), t.sortOrder]
+        );
+      }
+    }
+  } catch (e) {
+    /* seed failure must never take the API down */
+    cardTemplatesSeeded = false;
+    console.error("TEMPLATE SEED ERROR:", e.message);
+  }
+}
+
+const mapTemplate = (row) => {
+  let design = null;
+  try {
+    design = row.design_data ? JSON.parse(row.design_data) : null;
+  } catch {
+    design = null;
+  }
+
+  return {
+    id: row.id,
+    productId: row.product_id,
+    name: row.name,
+    thumbnail: row.thumbnail || null,
+    status: row.status || "Active",
+    sortOrder: Number(row.sort_order || 0),
+    design,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
+
+/* sanitize a {frontDesign, backDesign} template payload —
+   reuses the card-design sanitizer used for orders */
+const sanitizeTemplateDesign = (design) => {
+  if (!design || typeof design !== "object") return null;
+
+  const front = sanitizeCardDesign(
+    design.frontDesign || design.front
+  );
+  const back = sanitizeCardDesign(
+    design.backDesign || design.back
+  );
+
+  if (!front && !back) return null;
+  return { frontDesign: front, backDesign: back };
+};
+
+/* PUBLIC — active templates for one product.
+   Admins (valid token) also get inactive ones. */
+app.get("/api/products/:id/templates", async (req, res) => {
+  try {
+    await ensureProductTemplatesTable();
+
+    const productId = Number(req.params.id);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid product id." });
+    }
+
+    /* optional admin check — only when a token is present */
+    let isAdmin = false;
+    const authHeader = req.headers.authorization || "";
+    if (authHeader.startsWith("Bearer ")) {
+      try {
+        const decoded = jwt.verify(
+          authHeader.slice(7),
+          JWT_SECRET
+        );
+        isAdmin =
+          decoded?.role === "admin" ||
+          decoded?.user?.role === "admin";
+      } catch {
+        isAdmin = false;
+      }
+    }
+
+    const [rows] = await db.execute(
+      `SELECT * FROM product_templates
+       WHERE product_id = ?
+       ${isAdmin ? "" : "AND status = 'Active'"}
+       ORDER BY sort_order ASC, id ASC`,
+      [productId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      templates: rows.map(mapTemplate),
+    });
+  } catch (error) {
+    console.error("GET TEMPLATES ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load templates.",
+    });
+  }
+});
+
+/* ADMIN — create template for a specific product */
+app.post(
+  "/api/products/:id/templates",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureProductTemplatesTable();
+
+      const productId = Number(req.params.id);
+      if (!Number.isFinite(productId) || productId <= 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid product id." });
+      }
+
+      /* product must exist */
+      const [prod] = await db.execute(
+        "SELECT id FROM products WHERE id = ? LIMIT 1",
+        [productId]
+      );
+      if (prod.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found." });
+      }
+
+      const name = String(req.body.name || "").trim().slice(0, 100);
+      if (!name) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Template name required." });
+      }
+
+      const design = sanitizeTemplateDesign(req.body.design);
+      const status =
+        req.body.status === "Inactive" ? "Inactive" : "Active";
+      const sortOrder = clampNum(req.body.sortOrder, 0, 9999, 0);
+
+      const [result] = await db.execute(
+        `INSERT INTO product_templates
+           (product_id, name, thumbnail, design_data, status, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          productId,
+          name,
+          String(req.body.thumbnail || "").slice(0, 2000000) || null,
+          design ? JSON.stringify(design) : null,
+          status,
+          sortOrder,
+        ]
+      );
+
+      const [rows] = await db.execute(
+        "SELECT * FROM product_templates WHERE id = ?",
+        [result.insertId]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Template created.",
+        template: mapTemplate(rows[0]),
+      });
+    } catch (error) {
+      console.error("CREATE TEMPLATE ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to create template.",
+      });
+    }
+  }
+);
+
+/* ADMIN — update a template (name/status/sortOrder/design) */
+app.put(
+  "/api/products/:id/templates/:templateId",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureProductTemplatesTable();
+
+      const productId = Number(req.params.id);
+      const templateId = Number(req.params.templateId);
+      if (!Number.isFinite(productId) || !Number.isFinite(templateId)) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid id." });
+      }
+
+      /* template must belong to THIS product — no cross-product edits */
+      const [existing] = await db.execute(
+        `SELECT * FROM product_templates
+         WHERE id = ? AND product_id = ? LIMIT 1`,
+        [templateId, productId]
+      );
+      if (existing.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Template not found." });
+      }
+
+      const row = existing[0];
+      const name =
+        req.body.name !== undefined
+          ? String(req.body.name).trim().slice(0, 100)
+          : row.name;
+      if (!name) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Template name required." });
+      }
+
+      const status =
+        req.body.status !== undefined
+          ? req.body.status === "Inactive"
+            ? "Inactive"
+            : "Active"
+          : row.status;
+
+      const sortOrder =
+        req.body.sortOrder !== undefined
+          ? clampNum(req.body.sortOrder, 0, 9999, row.sort_order)
+          : row.sort_order;
+
+      const design =
+        req.body.design !== undefined
+          ? sanitizeTemplateDesign(req.body.design)
+          : null;
+
+      await db.execute(
+        `UPDATE product_templates
+         SET name = ?, status = ?, sort_order = ?,
+             thumbnail = ?, design_data = COALESCE(?, design_data)
+         WHERE id = ? AND product_id = ?`,
+        [
+          name,
+          status,
+          sortOrder,
+          req.body.thumbnail !== undefined
+            ? String(req.body.thumbnail || "").slice(0, 2000000) ||
+              null
+            : row.thumbnail,
+          design ? JSON.stringify(design) : null,
+          templateId,
+          productId,
+        ]
+      );
+
+      const [rows] = await db.execute(
+        "SELECT * FROM product_templates WHERE id = ?",
+        [templateId]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Template updated.",
+        template: mapTemplate(rows[0]),
+      });
+    } catch (error) {
+      console.error("UPDATE TEMPLATE ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update template.",
+      });
+    }
+  }
+);
+
+/* ADMIN — delete a template belonging to the product */
+app.delete(
+  "/api/products/:id/templates/:templateId",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureProductTemplatesTable();
+
+      const productId = Number(req.params.id);
+      const templateId = Number(req.params.templateId);
+
+      const [result] = await db.execute(
+        `DELETE FROM product_templates
+         WHERE id = ? AND product_id = ?`,
+        [templateId, productId]
+      );
+
+      if (result.affectedRows === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Template not found." });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Template deleted.",
+      });
+    } catch (error) {
+      console.error("DELETE TEMPLATE ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete template.",
+      });
+    }
+  }
+);
+
 app.post(
   "/api/products/import",
   authenticateToken,

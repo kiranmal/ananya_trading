@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlignCenter,
@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 
 import "./BusinessCardCustomizer.css";
+import { fetchProductTemplates } from "../services/templateApi";
 
 /* ── icon registry ── */
 const iconMap = {
@@ -244,7 +245,7 @@ const layerIcon = (el) => {
 };
 
 /* ── mini template preview renderer ── */
-function TemplatePreview({ tpl }) {
+export function TemplatePreview({ tpl }) {
   const side = tpl.frontDesign;
   const bg = side.gradient || side.background || "#fff";
   return (
@@ -266,19 +267,30 @@ function TemplatePreview({ tpl }) {
   );
 }
 
-/* ══════════════════ MAIN COMPONENT ══════════════════ */
-export default function BusinessCardCustomizer() {
+/* ══════════════════ MAIN COMPONENT ══════════════════
+   embedded mode (admin template designer):
+   propProduct/initialDesign/onSaveTemplate/onCancel */
+export default function BusinessCardCustomizer({
+  embedded = false,
+  propProduct = null,
+  initialDesign = null,
+  onSaveTemplate = null,
+  onCancel = null,
+} = {}) {
   const navigate = useNavigate();
   const fileRef = useRef(null);
   const replaceFileRef = useRef(null);
   const backgroundRef = useRef(null);
 
-  const product = useMemo(() => {
+  const storedProduct = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("selectedCustomizeProduct") || "null"); }
     catch { return null; }
   }, []);
 
+  const product = propProduct || storedProduct;
+
   const savedDesign = useMemo(() => {
+    if (embedded) return null;
     try {
       const raw = JSON.parse(localStorage.getItem(`businessCardDesign-${product?.id || "draft"}`) || "null");
       /* stale/incompatible saved shapes must not crash the editor —
@@ -289,12 +301,29 @@ export default function BusinessCardCustomizer() {
         ? raw
         : null;
     } catch { return null; }
-  }, [product?.id]);
+  }, [product?.id, embedded]);
 
   const [side, setSide] = useState("front");
   const [design, setDesign] = useState(() => {
     if (savedDesign?.frontDesign && savedDesign?.backDesign) {
       return { front: savedDesign.frontDesign, back: savedDesign.backDesign };
+    }
+    /* embedded admin designer may pass an existing template */
+    const initFront = initialDesign?.frontDesign || initialDesign?.front;
+    const initBack = initialDesign?.backDesign || initialDesign?.back;
+    if (initFront || initBack) {
+      return {
+        front: {
+          background: "#ffffff", gradient: "", backgroundImage: "",
+          ...(initFront || {}),
+          elements: cloneElements(initFront?.elements || []),
+        },
+        back: {
+          background: "#ffffff", gradient: "", backgroundImage: "",
+          ...(initBack || {}),
+          elements: cloneElements(initBack?.elements || []),
+        },
+      };
     }
     return buildInitialDesign();
   });
@@ -305,6 +334,62 @@ export default function BusinessCardCustomizer() {
   const [preview, setPreview] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+
+  /* product-specific templates — API/DB authoritative,
+     builtin set is only an offline fallback */
+  const [tplMap, setTplMap] = useState(templates);
+  const tplAutoApplied = useRef(false);
+
+  useEffect(() => {
+    if (!product?.id) return;
+    let cancelled = false;
+
+    fetchProductTemplates(product.id)
+      .then((list) => {
+        if (cancelled || !Array.isArray(list) || !list.length) return;
+
+        const map = {};
+        list.forEach((t) => {
+          if (t.design?.frontDesign) map[t.name] = t.design;
+        });
+        if (!Object.keys(map).length) return;
+        setTplMap(map);
+
+        /* untouched canvas -> auto-load this product's
+           first template */
+        if (
+          !tplAutoApplied.current &&
+          !savedDesign &&
+          !initialDesign
+        ) {
+          tplAutoApplied.current = true;
+          const first = map[list[0].name];
+          if (first) {
+            setDesign({
+              front: {
+                ...first.frontDesign,
+                elements: cloneElements(
+                  first.frontDesign.elements
+                ),
+              },
+              back: {
+                ...(first.backDesign || {}),
+                elements: cloneElements(
+                  first.backDesign?.elements || []
+                ),
+              },
+            });
+            setTemplate(list[0].name);
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [product?.id]);
 
   const current = design[side];
   const elements = Array.isArray(current?.elements) ? current.elements : [];
@@ -402,19 +487,37 @@ export default function BusinessCardCustomizer() {
   }, [future, design]);
 
   const reset = useCallback(() => {
-    commit(buildInitialDesign());
-    setTemplate(defaultTemplate);
+    const tpl =
+      tplMap[template] ||
+      tplMap[defaultTemplate] ||
+      Object.values(tplMap)[0];
+
+    if (tpl) {
+      commit({
+        front: {
+          ...tpl.frontDesign,
+          elements: cloneElements(tpl.frontDesign.elements),
+        },
+        back: {
+          ...(tpl.backDesign || {}),
+          elements: cloneElements(tpl.backDesign?.elements || []),
+        },
+      });
+    } else {
+      commit(buildInitialDesign());
+    }
     setSelectedId(null);
-  }, [commit]);
+  }, [commit, tplMap, template]);
 
   /* ── template application with confirmation ── */
   const applyTemplate = useCallback((name) => {
     const hasElements = design.front.elements.length > 0 || design.back.elements.length > 0;
     const doApply = () => {
-      const tpl = templates[name];
+      const tpl = tplMap[name];
+      if (!tpl) return;
       const newDesign = {
         front: { ...tpl.frontDesign, elements: cloneElements(tpl.frontDesign.elements) },
-        back: { ...tpl.backDesign, elements: cloneElements(tpl.backDesign.elements) },
+        back: { ...(tpl.backDesign || {}), elements: cloneElements(tpl.backDesign?.elements || []) },
       };
       commit(() => newDesign);
       setTemplate(name);
@@ -431,7 +534,7 @@ export default function BusinessCardCustomizer() {
     } else {
       doApply();
     }
-  }, [commit, design, template]);
+  }, [commit, design, template, tplMap]);
 
   /* ── image upload ── */
   const uploadImage = useCallback((event, background = false) => {
@@ -590,14 +693,32 @@ export default function BusinessCardCustomizer() {
 
       {/* ── top bar ── */}
       <header className="bc-topbar">
-        <button type="button" className="bc-icon-btn" onClick={() => navigate(-1)}><ArrowLeft size={19} /></button>
-        <div className="bc-title"><span>BUSINESS CARD EDITOR</span><strong>{product?.name || "Custom Business Card"}</strong></div>
+        <button type="button" className="bc-icon-btn" onClick={() => (embedded ? onCancel?.() : navigate(-1))}><ArrowLeft size={19} /></button>
+        <div className="bc-title"><span>{embedded ? "TEMPLATE DESIGNER" : "BUSINESS CARD EDITOR"}</span><strong>{product?.name || "Custom Business Card"}</strong></div>
         <div className="bc-history-actions">
           <button type="button" onClick={undo} disabled={!history.length}><Undo2 size={17} /> Undo</button>
           <button type="button" onClick={redo} disabled={!future.length}><Redo2 size={17} /> Redo</button>
           <button type="button" onClick={() => setPreview((v) => !v)}><Eye size={17} /> Preview</button>
-          <button type="button" onClick={saveDesign}><Save size={17} /> Save Design</button>
-          <button type="button" className="bc-cart-btn" onClick={addToCart}><ShoppingCart size={17} /> Save &amp; Continue</button>
+          {embedded ? (
+            <button
+              type="button"
+              className="bc-cart-btn"
+              onClick={() =>
+                onSaveTemplate?.({
+                  frontDesign: design.front,
+                  backDesign: design.back,
+                  template,
+                })
+              }
+            >
+              <Save size={17} /> Save Template
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={saveDesign}><Save size={17} /> Save Design</button>
+              <button type="button" className="bc-cart-btn" onClick={addToCart}><ShoppingCart size={17} /> Save &amp; Continue</button>
+            </>
+          )}
         </div>
       </header>
 
@@ -646,7 +767,7 @@ export default function BusinessCardCustomizer() {
           <section>
             <h4>Templates</h4>
             <div className="bc-template-grid">
-              {Object.entries(templates).map(([name, tpl]) => (
+              {Object.entries(tplMap).map(([name, tpl]) => (
                 <button type="button" className={template === name ? "active" : ""} key={name} onClick={() => applyTemplate(name)}>
                   <TemplatePreview tpl={tpl} />
                   <span className="bc-tpl-label">{name}</span>
@@ -815,7 +936,23 @@ export default function BusinessCardCustomizer() {
 
           <div className="bc-bottom-actions">
             <button type="button" onClick={reset}><RotateCcw size={16} /> Reset</button>
-            <button type="button" className="primary" onClick={addToCart}><ShoppingCart size={16} /> Add to Cart</button>
+            {embedded ? (
+              <button
+                type="button"
+                className="primary"
+                onClick={() =>
+                  onSaveTemplate?.({
+                    frontDesign: design.front,
+                    backDesign: design.back,
+                    template,
+                  })
+                }
+              >
+                <Save size={16} /> Save Template
+              </button>
+            ) : (
+              <button type="button" className="primary" onClick={addToCart}><ShoppingCart size={16} /> Add to Cart</button>
+            )}
           </div>
         </aside>
       </div>

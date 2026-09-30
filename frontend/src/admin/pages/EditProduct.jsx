@@ -27,6 +27,7 @@ import {
   fetchAttributes,
 } from "../../services/categoryApi";
 import { inferCustomizationType } from "../../services/customizationType";
+import ProductTemplates from "../components/ProductTemplates";
 
 const defaultCategories = [
   {
@@ -187,6 +188,9 @@ export default function EditProduct() {
 
   const [customizationType, setCustomizationType] =
     useState("tshirt");
+
+  /* product-owned templates — loaded from API */
+  const [templates, setTemplates] = useState([]);
 
   const [images, setImages] = useState([]);
 
@@ -1383,6 +1387,17 @@ export default function EditProduct() {
                   </select>
                 </div>
               )}
+
+              {/* templates belong to THIS product —
+                  CRUD goes straight to the API */}
+              <ProductTemplates
+                enabled={customizable}
+                customizationType={customizationType}
+                productId={Number(id) || null}
+                productName={name}
+                templates={templates}
+                onChange={setTemplates}
+              />
             </div>
 
           </div>
