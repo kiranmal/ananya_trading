@@ -754,6 +754,41 @@ function OrderDrawer({ order, onClose }) {
           )}
         </div>
 
+        {/* PAYMENT */}
+        <div className="od-section">
+          <h4>Payment</h4>
+          <div className="od-row">
+            <span>Method</span>
+            <strong>
+              {order.paymentMethod ||
+                order.payment ||
+                "—"}
+            </strong>
+          </div>
+          <div className="od-row">
+            <span>Status</span>
+            <strong>
+              {order.paymentStatus || "Pending"}
+            </strong>
+          </div>
+          {order.razorpayOrderId && (
+            <div className="od-row">
+              <span>Razorpay Order</span>
+              <strong>
+                {order.razorpayOrderId}
+              </strong>
+            </div>
+          )}
+          {order.razorpayPaymentId && (
+            <div className="od-row">
+              <span>Razorpay Payment</span>
+              <strong>
+                {order.razorpayPaymentId}
+              </strong>
+            </div>
+          )}
+        </div>
+
         {/* ITEMS + CUSTOMIZATION */}
         {items.map((item, idx) => {
           const front = item.designs?.front || [];

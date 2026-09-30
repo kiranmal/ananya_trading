@@ -4,6 +4,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from "../services/apiConfig";
 import { saveOrderToServer } from "../services/orderApi";
 import { validateCoupon } from "../services/couponApi";
+import {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+  loadRazorpayScript,
+} from "../services/paymentApi";
 
 import {
   MapPin,
@@ -21,6 +26,73 @@ import {
 } from "lucide-react";
 
 import "./Checkout.css";
+
+/* =====================================================
+   RAZORPAY CHECKOUT
+   server razorpay order create karta hai (amount server
+   se), popup response sirf signature verify karke paid
+===================================================== */
+const openRazorpayCheckout = async (order) => {
+  const rzpOrder = await createRazorpayOrder(
+    order.orderNumber
+  );
+
+  if (!rzpOrder?.success || !rzpOrder.razorpayOrderId) {
+    alert(
+      rzpOrder?.message ||
+        "Unable to start online payment. Order saved as pending."
+    );
+    return false;
+  }
+
+  const loaded = await loadRazorpayScript();
+  if (!loaded || !window.Razorpay) {
+    alert(
+      "Payment library failed to load. Check your internet connection."
+    );
+    return false;
+  }
+
+  return await new Promise((resolve) => {
+    const razorpay = new window.Razorpay({
+      key: rzpOrder.keyId,
+      amount: rzpOrder.amount,
+      currency: rzpOrder.currency || "INR",
+      name: "Ananya Trading Company",
+      description: `Order ${order.orderNumber}`,
+      order_id: rzpOrder.razorpayOrderId,
+      prefill: {
+        name: order.customerName || "",
+        email: order.email || "",
+        contact: order.phone || "",
+      },
+      theme: { color: "#1162b9" },
+      modal: {
+        ondismiss: () => resolve(false),
+      },
+      handler: async (response) => {
+        const verified = await verifyRazorpayPayment(
+          order.orderNumber,
+          response.razorpay_order_id,
+          response.razorpay_payment_id,
+          response.razorpay_signature
+        );
+
+        if (verified?.success) {
+          resolve(true);
+        } else {
+          alert(
+            verified?.message ||
+              "Payment verification failed. Order saved as pending."
+          );
+          resolve(false);
+        }
+      },
+    });
+
+    razorpay.open();
+  });
+};
 
 function Checkout() {
   const location = useLocation();
@@ -876,6 +948,8 @@ function Checkout() {
     -----------------------------------------------
     */
 
+    let serverSaveOk = false;
+
     try {
       const savedOrders =
         localStorage.getItem(
@@ -906,7 +980,11 @@ function Checkout() {
       */
 
       try {
-        await saveOrderToServer(newOrder);
+        const apiResult =
+          await saveOrderToServer(newOrder);
+        serverSaveOk = Boolean(
+          apiResult?.success
+        );
       } catch (apiError) {
         console.error(
           "Order API save error:",
@@ -963,6 +1041,33 @@ function Checkout() {
     window.dispatchEvent(
       new Event("cartUpdated")
     );
+
+    /*
+    -----------------------------------------------
+    ONLINE PAYMENT — Razorpay (signature verify
+    karne ke baad hi paid; popup close/fail = pending)
+    -----------------------------------------------
+    */
+
+    if (paymentMethod === "online") {
+      if (!serverSaveOk) {
+        alert(
+          "Order could not be saved to the server, so online payment cannot start. Please try again or choose Cash on Delivery."
+        );
+        return;
+      }
+
+      const paid =
+        await openRazorpayCheckout(newOrder);
+
+      if (!paid) {
+        /* order server pe pending reh gaya — cart restore nahi
+           karte, user ko pending status dikhate hain */
+        alert(
+          "Payment was not completed. Your order is saved with payment pending."
+        );
+      }
+    }
 
     /*
     -----------------------------------------------

@@ -1,9 +1,11 @@
-
+﻿
 const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const Razorpay = require("razorpay");
 require("dotenv").config();
 
 const app = express();
@@ -60,7 +62,19 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "8mb" }));
+app.use(
+  express.json({
+    limit: "8mb",
+    /* raw body capture — Razorpay webhook HMAC */
+    verify: (req, _res, buf) => {
+      if (
+        req.originalUrl?.includes("/api/payments/razorpay/webhook")
+      ) {
+        req.rawBody = buf;
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
 /* =========================================================
@@ -4498,6 +4512,20 @@ async function ensureOrdersTable() {
   await addColumn(
     "ALTER TABLE orders ADD UNIQUE KEY order_id (order_id)"
   );
+
+  /* Razorpay payment fields */
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN razorpay_order_id VARCHAR(80) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN razorpay_payment_id VARCHAR(80) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN razorpay_signature VARCHAR(255) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN payment_attempts INT NOT NULL DEFAULT 0"
+  );
 }
 
 const buildOrderTracking = (status) => {
@@ -4544,6 +4572,14 @@ const parseOrderRow = (row) => {
     createdAt: payload.createdAt || row.created_at,
     updatedAt: row.updated_at,
     dbId: row.id,
+    paymentMethod:
+      payload.paymentMethod ||
+      row.payment_method ||
+      "",
+    paymentStatus:
+      row.payment_status || "Pending",
+    razorpayOrderId: row.razorpay_order_id || null,
+    razorpayPaymentId: row.razorpay_payment_id || null,
   };
 };
 
@@ -5844,6 +5880,428 @@ app.delete(
         success: false,
         message: "Unable to delete inquiry.",
       });
+    }
+  }
+);
+
+/* =========================================================
+   RAZORPAY PAYMENTS (TEST MODE)
+   - amount kabhi client se trust nahi — orders.total
+     server-side recalculated hai
+   - signature HMAC-SHA256 verified
+========================================================= */
+
+const RAZORPAY_KEY_ID =
+  process.env.RAZORPAY_KEY_ID || "";
+const RAZORPAY_KEY_SECRET =
+  process.env.RAZORPAY_KEY_SECRET || "";
+const RAZORPAY_WEBHOOK_SECRET =
+  process.env.RAZORPAY_WEBHOOK_SECRET || "";
+
+let razorpayClient = null;
+
+const getRazorpayClient = () => {
+  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    return null;
+  }
+  if (!razorpayClient) {
+    razorpayClient = new Razorpay({
+      key_id: RAZORPAY_KEY_ID,
+      key_secret: RAZORPAY_KEY_SECRET,
+    });
+  }
+  return razorpayClient;
+};
+
+const timingSafeCompare = (a, b) => {
+  const bufA = Buffer.from(String(a || ""));
+  const bufB = Buffer.from(String(b || ""));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+};
+
+/* ------------------------------------------------------------------
+   POST /api/payments/razorpay/order
+   local order ke server-stored total se razorpay order banao
+   (idempotent — same order ka existing rzp order reuse)
+------------------------------------------------------------------- */
+app.post(
+  "/api/payments/razorpay/order",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const client = getRazorpayClient();
+      if (!client) {
+        return res.status(503).json({
+          success: false,
+          message: "Payment gateway is not configured.",
+        });
+      }
+
+      const orderNumber = String(
+        req.body?.orderNumber || ""
+      ).trim();
+      if (!orderNumber) {
+        return res.status(400).json({
+          success: false,
+          message: "orderNumber is required.",
+        });
+      }
+
+      await ensureOrdersTable();
+
+      const [rows] = await db.execute(
+        `SELECT order_id, user_id, total,
+                payment_status, payment_method,
+                razorpay_order_id
+         FROM orders WHERE order_id = ? LIMIT 1`,
+        [orderNumber]
+      );
+
+      const order = rows?.[0];
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found.",
+        });
+      }
+
+      /* sirf owner ya admin */
+      const isAdmin = req.user?.role === "admin";
+      if (!isAdmin && Number(order.user_id) !== Number(req.user?.id)) {
+        return res.status(403).json({
+          success: false,
+          message: "This order does not belong to you.",
+        });
+      }
+
+      if (
+        String(order.payment_status).toLowerCase() === "paid"
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: "Order is already paid.",
+        });
+      }
+
+      const amountPaise = Math.round(
+        Number(order.total) * 100
+      );
+      if (!amountPaise || amountPaise <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid order amount.",
+        });
+      }
+
+      /* idempotent — pehle ka razorpay order reuse karo */
+      if (order.razorpay_order_id) {
+        return res.status(200).json({
+          success: true,
+          keyId: RAZORPAY_KEY_ID,
+          razorpayOrderId: order.razorpay_order_id,
+          amount: amountPaise,
+          currency: "INR",
+          orderNumber: order.order_id,
+        });
+      }
+
+      const rzpOrder = await client.orders.create({
+        amount: amountPaise,
+        currency: "INR",
+        receipt: orderNumber.slice(0, 40),
+        payment_capture: 1,
+      });
+
+      await db.execute(
+        `UPDATE orders
+         SET razorpay_order_id = ?,
+             payment_attempts = payment_attempts + 1
+         WHERE order_id = ?`,
+        [rzpOrder.id, orderNumber]
+      );
+
+      console.log(
+        `Razorpay order created: ${rzpOrder.id} -> ${orderNumber} (Rs.${order.total})`
+      );
+
+      return res.status(200).json({
+        success: true,
+        keyId: RAZORPAY_KEY_ID,
+        razorpayOrderId: rzpOrder.id,
+        amount: amountPaise,
+        currency: "INR",
+        orderNumber: order.order_id,
+      });
+    } catch (error) {
+      console.error(
+        "Razorpay order create error:",
+        error?.message
+      );
+      return res.status(500).json({
+        success: false,
+        message: "Unable to create payment order.",
+      });
+    }
+  }
+);
+
+/* ------------------------------------------------------------------
+   POST /api/payments/razorpay/verify
+   HMAC-SHA256(razorpay_order_id|razorpay_payment_id, secret)
+------------------------------------------------------------------- */
+app.post(
+  "/api/payments/razorpay/verify",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      if (!RAZORPAY_KEY_SECRET) {
+        return res.status(503).json({
+          success: false,
+          message: "Payment gateway is not configured.",
+        });
+      }
+
+      const {
+        orderNumber,
+        razorpay_order_id: rzpOrderId,
+        razorpay_payment_id: rzpPaymentId,
+        razorpay_signature: rzpSignature,
+      } = req.body || {};
+
+      if (
+        !orderNumber ||
+        !rzpOrderId ||
+        !rzpPaymentId ||
+        !rzpSignature
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing payment details.",
+        });
+      }
+
+      await ensureOrdersTable();
+
+      const [rows] = await db.execute(
+        `SELECT order_id, user_id, payment_status,
+                razorpay_order_id, razorpay_payment_id
+         FROM orders WHERE order_id = ? LIMIT 1`,
+        [String(orderNumber)]
+      );
+
+      const order = rows?.[0];
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found.",
+        });
+      }
+
+      const isAdmin = req.user?.role === "admin";
+      if (!isAdmin && Number(order.user_id) !== Number(req.user?.id)) {
+        return res.status(403).json({
+          success: false,
+          message: "This order does not belong to you.",
+        });
+      }
+
+      /* rzp order id DB ka hona chahiye — browser ka arbitrary id trust nahi */
+      if (
+        !order.razorpay_order_id ||
+        order.razorpay_order_id !== String(rzpOrderId)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Payment order does not match.",
+        });
+      }
+
+      /* idempotent — same payment dobara verify ho toh OK */
+      if (
+        String(order.payment_status).toLowerCase() ===
+          "paid" &&
+        order.razorpay_payment_id === String(rzpPaymentId)
+      ) {
+        return res.status(200).json({
+          success: true,
+          message: "Payment already verified.",
+          orderNumber: order.order_id,
+        });
+      }
+
+      const expectedSignature = crypto
+        .createHmac("sha256", RAZORPAY_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest("hex");
+
+      if (
+        !timingSafeCompare(
+          expectedSignature,
+          rzpSignature
+        )
+      ) {
+        console.log(
+          `Razorpay verify FAILED (bad signature): ${orderNumber} / ${rzpOrderId}`
+        );
+        return res.status(400).json({
+          success: false,
+          message: "Payment verification failed.",
+        });
+      }
+
+      await db.execute(
+        `UPDATE orders
+         SET payment_status = 'Paid',
+             razorpay_payment_id = ?,
+             razorpay_signature = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE order_id = ?`,
+        [
+          String(rzpPaymentId),
+          String(rzpSignature),
+          String(orderNumber),
+        ]
+      );
+
+      console.log(
+        `Razorpay payment PAID: ${rzpPaymentId} -> ${orderNumber}`
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Payment verified.",
+        orderNumber: order.order_id,
+      });
+    } catch (error) {
+      console.error(
+        "Razorpay verify error:",
+        error?.message
+      );
+      return res.status(500).json({
+        success: false,
+        message: "Unable to verify payment.",
+      });
+    }
+  }
+);
+
+/* ------------------------------------------------------------------
+   POST /api/payments/razorpay/webhook
+   - signature: x-razorpay-signature, HMAC webhook secret se
+   - idempotent: payment.captured / payment.failed
+------------------------------------------------------------------- */
+app.post(
+  "/api/payments/razorpay/webhook",
+  async (req, res) => {
+    try {
+      if (!RAZORPAY_WEBHOOK_SECRET) {
+        return res.status(503).json({
+          success: false,
+          message: "Webhook is not configured.",
+        });
+      }
+
+      const signature =
+        req.headers["x-razorpay-signature"] || "";
+      const raw = req.rawBody;
+
+      if (!raw || !signature) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid webhook request.",
+        });
+      }
+
+      const expected = crypto
+        .createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
+        .update(raw)
+        .digest("hex");
+
+      if (!timingSafeCompare(expected, signature)) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid webhook signature.",
+        });
+      }
+
+      const event = req.body || {};
+      const eventName = event.event;
+      const payment =
+        event.payload?.payment?.entity || null;
+
+      if (
+        payment &&
+        (eventName === "payment.captured" ||
+          eventName === "payment.failed")
+      ) {
+        const rzpOrderId = String(
+          payment.order_id || ""
+        );
+
+        const [rows] = await db.execute(
+          `SELECT order_id, payment_status,
+                  razorpay_payment_id
+           FROM orders
+           WHERE razorpay_order_id = ? LIMIT 1`,
+          [rzpOrderId]
+        );
+
+        const order = rows?.[0];
+        if (!order) {
+          /* humara order nahi — ack karo, retry rok do */
+          return res
+            .status(200)
+            .json({ success: true });
+        }
+
+        const paymentId = String(payment.id || "");
+
+        if (eventName === "payment.captured") {
+          if (
+            String(
+              order.payment_status
+            ).toLowerCase() !== "paid" ||
+            order.razorpay_payment_id !== paymentId
+          ) {
+            await db.execute(
+              `UPDATE orders
+               SET payment_status = 'Paid',
+                   razorpay_payment_id = ?,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE order_id = ?`,
+              [paymentId, order.order_id]
+            );
+            console.log(
+              `Webhook: payment captured ${paymentId} -> ${order.order_id}`
+            );
+          }
+        } else if (
+          String(
+            order.payment_status
+          ).toLowerCase() !== "paid"
+        ) {
+          await db.execute(
+            `UPDATE orders
+             SET payment_status = 'Failed',
+                 razorpay_payment_id = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE order_id = ?`,
+            [paymentId, order.order_id]
+          );
+          console.log(
+            `Webhook: payment failed ${paymentId} -> ${order.order_id}`
+          );
+        }
+      }
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error(
+        "Razorpay webhook error:",
+        error?.message
+      );
+      return res.status(500).json({ success: false });
     }
   }
 );
