@@ -66,6 +66,17 @@ export default function AddProduct() {
   const [allTags, setAllTags] = useState([]);
   const [selectedTagIds, setSelectedTagIds] = useState([]);
 
+  /* last selected tag = product badge,
+     kuch nahi to default NEW */
+  const previewBadge =
+    (
+      allTags.find(
+        (t) =>
+          t.id ===
+          selectedTagIds[selectedTagIds.length - 1]
+      )?.name || ""
+    ).toUpperCase() || "NEW";
+
   /* dynamic attributes — category/subcategory pe relevant */
   const [attrOptions, setAttrOptions] = useState([]);
   const [attrValueSel, setAttrValueSel] = useState({});
@@ -338,7 +349,7 @@ export default function AddProduct() {
 
       reviews: 0,
 
-      badge: "NEW",
+      badge: previewBadge,
 
       image: imageUrls[0],
 
@@ -1370,7 +1381,7 @@ export default function AddProduct() {
             )}
 
             <span className="preview-new">
-              NEW
+              {previewBadge}
             </span>
 
           </div>

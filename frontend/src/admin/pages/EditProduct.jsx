@@ -128,6 +128,18 @@ export default function EditProduct() {
   const [selectedTagIds, setSelectedTagIds] =
     useState([]);
 
+  /* last selected tag > existing badge > NEW */
+  const selectedBadge =
+    (
+      allTags.find(
+        (t) =>
+          t.id ===
+          selectedTagIds[selectedTagIds.length - 1]
+      )?.name ||
+      currentProduct?.badge ||
+      "NEW"
+    ).toUpperCase();
+
   /* dynamic attributes */
   const [attrOptions, setAttrOptions] = useState([]);
   const [attrValueSel, setAttrValueSel] = useState({});
@@ -557,8 +569,7 @@ export default function EditProduct() {
       reviews:
         currentProduct.reviews ?? 0,
 
-      badge:
-        currentProduct.badge || "NEW",
+      badge: selectedBadge,
 
       paperTypes:
         Array.isArray(
