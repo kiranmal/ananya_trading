@@ -247,12 +247,13 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
+  align-items: stretch;
 }
 
 .product-card {
   background: white;
   border: 1px solid #e4e8ef;
-  border-radius: 15px;
+  border-radius: 10px;
   overflow: hidden;
   transition: 0.3s ease;
 }
@@ -304,10 +305,20 @@
   display: grid;
   place-items: center;
   cursor: pointer;
+  color: #475467;
+  transition: 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,.10);
 }
 
 .wishlist:hover {
   color: #1263bd;
+  transform: scale(1.05);
+}
+
+/* active favorite — sirf tab red */
+.wishlist.active {
+  color: #e11d48;
+  background: #fff1f2;
 }
 
 .product-content {
@@ -322,7 +333,11 @@
 }
 
 .product-name {
-  display: block;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 44px;
   color: #101828;
   text-decoration: none;
   font-weight: 700;

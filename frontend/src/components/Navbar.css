@@ -52,7 +52,7 @@ body {
   padding: 20px 4%;
   display: flex;
   align-items: center;
-  gap: 55px;
+  gap: 30px;
   border-bottom: 1px solid #edf0f4;
 }
 
@@ -87,6 +87,7 @@ body {
   letter-spacing: 1px;
   color: #123d78;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .brand-content h2 {
@@ -94,6 +95,7 @@ body {
   font-size: 19px;
   letter-spacing: 1.5px;
   color: #123d78;
+  white-space: nowrap;
 }
 
 .brand-content span {
@@ -1852,10 +1854,10 @@ body {
 
 
 .search-wrapper .search-box:focus-within {
-  border-color: #16834b;
+  border-color: #1261b5;
 
   box-shadow:
-    0 0 0 3px rgba(22, 131, 75, 0.10);
+    0 0 0 3px rgba(18, 97, 181, 0.10);
 }
 
 
@@ -1897,7 +1899,7 @@ body {
 
   border: none;
 
-  background: #16834b;
+  background: #1162b9;
 
   color: #ffffff;
 
@@ -1915,7 +1917,7 @@ body {
 
 
 .search-wrapper .search-box button:hover {
-  background: #10663a;
+  background: #0d5db3;
 }
 
 
@@ -2678,8 +2680,8 @@ button.account-menu-item {
 }
 
 .mobile-search-form:focus-within {
-  border-color: #16834b;
-  box-shadow: 0 0 0 2px rgba(22, 131, 75, 0.1);
+  border-color: #1261b5;
+  box-shadow: 0 0 0 2px rgba(18, 97, 181, 0.1);
 }
 
 .mobile-search-form input {
@@ -2701,7 +2703,7 @@ button.account-menu-item {
   width: 42px;
   height: 100%;
   border: none;
-  background: #16834b;
+  background: #1162b9;
   color: #fff;
   display: flex;
   align-items: center;

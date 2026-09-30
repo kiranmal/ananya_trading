@@ -186,11 +186,29 @@
   color: #fff;
 }
 
-.cart-quantity span {
-  min-width: 55px;
+.cart-quantity input {
+  width: 60px;
+  border: 0;
+  outline: none;
   text-align: center;
   font-size: 13px;
   font-weight: 600;
+  color: #111;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.cart-quantity input::-webkit-outer-spin-button,
+.cart-quantity input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cart-quantity span {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 

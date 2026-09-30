@@ -436,13 +436,31 @@
   cursor: not-allowed;
 }
 
-.quantity span {
-  min-width: 110px;
-
-  text-align: center;
-
-  font-size: 14px;
+.quantity input {
+  border: none;
+  outline: none;
+  height: 42px;
+  min-width: 60px;
+  font-size: 15px;
   font-weight: 600;
+  color: #111827;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.quantity input::-webkit-outer-spin-button,
+.quantity input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.quantity span {
+  padding: 0 10px 0 4px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 
