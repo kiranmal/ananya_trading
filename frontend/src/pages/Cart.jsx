@@ -1032,39 +1032,6 @@ function Cart() {
   };
 
   // ==========================================================
-  // GET NOTIFICATIONS
-  // ==========================================================
-
-  const getExistingNotifications = () => {
-    try {
-      const savedNotifications =
-        localStorage.getItem(
-          "ananyaAdminNotifications"
-        );
-
-      if (!savedNotifications) {
-        return [];
-      }
-
-      const parsed =
-        JSON.parse(
-          savedNotifications
-        );
-
-      return Array.isArray(parsed)
-        ? parsed
-        : [];
-    } catch (error) {
-      console.error(
-        "Notifications loading error:",
-        error
-      );
-
-      return [];
-    }
-  };
-
-  // ==========================================================
   // ORDER NOW
   // ==========================================================
 
@@ -1383,78 +1350,6 @@ function Cart() {
     saveOrderToServer(order);
 
     // --------------------------------------------------------
-    // ADMIN NOTIFICATION
-    // --------------------------------------------------------
-
-    const notification = {
-      id:
-        `NOTIF-${Date.now()}-${Math.random()
-          .toString(36)
-          .substring(2, 6)
-          .toUpperCase()}`,
-
-      type:
-        "order",
-
-      title:
-        "New Order Received",
-
-      message:
-        `${customer.name} ordered ${product.productName}`,
-
-      orderId:
-        order.id,
-
-      productId:
-        product.productId,
-
-      productName:
-        product.productName,
-
-      productImage:
-        product.image,
-
-      quantity:
-        product.quantity,
-
-      total:
-        product.total,
-
-      customerName:
-        customer.name,
-
-      customerEmail:
-        customer.email,
-
-      customerPhone:
-        customer.phone,
-
-      status:
-        "New",
-
-      read:
-        false,
-
-      createdAt:
-        order.createdAt,
-    };
-
-    const existingNotifications =
-      getExistingNotifications();
-
-    const updatedNotifications = [
-      notification,
-      ...existingNotifications,
-    ];
-
-    localStorage.setItem(
-      "ananyaAdminNotifications",
-      JSON.stringify(
-        updatedNotifications
-      )
-    );
-
-    // --------------------------------------------------------
     // EVENTS
     // --------------------------------------------------------
 
@@ -1464,16 +1359,6 @@ function Cart() {
         {
           detail: order,
         }
-      )
-    );
-
-    window.dispatchEvent(
-      new CustomEvent(
-        "ananyaAdminNotification",
-        {
-          detail:
-            notification,
-        },
       )
     );
 

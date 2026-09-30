@@ -528,92 +528,6 @@ function Checkout() {
 
   /*
   =====================================================
-  CREATE ADMIN NOTIFICATION
-  =====================================================
-  */
-
-  const createAdminNotification = (order) => {
-    try {
-      const savedNotifications =
-        localStorage.getItem(
-          "ananyaAdminNotifications"
-        );
-
-      let notifications = savedNotifications
-        ? JSON.parse(savedNotifications)
-        : [];
-
-      if (!Array.isArray(notifications)) {
-        notifications = [];
-      }
-
-      const notification = {
-        id: `NOTIF-${Date.now()}`,
-
-        type: "order",
-
-        title: "New Order Received",
-
-        message: `${order.customer.name} placed order ${order.id}`,
-
-        orderId: order.id,
-
-        orderNumber: order.orderNumber,
-
-        productId:
-          order.products?.[0]?.productId ||
-          order.products?.[0]?.id ||
-          "",
-
-        productName:
-          order.products?.[0]?.name ||
-          "Multiple Products",
-
-        productImage:
-          order.products?.[0]?.image ||
-          order.products?.[0]?.images?.[0] ||
-          "",
-
-        products: order.products,
-
-        quantity: order.totalQuantity,
-
-        total: order.total,
-
-        customerName: order.customer.name,
-
-        customerEmail: order.customer.email,
-
-        customerPhone: order.customer.phone,
-
-        status: order.status,
-
-        read: false,
-
-        createdAt: new Date().toISOString(),
-      };
-
-      localStorage.setItem(
-        "ananyaAdminNotifications",
-        JSON.stringify([
-          notification,
-          ...notifications,
-        ])
-      );
-
-      window.dispatchEvent(
-        new Event("ananyaAdminNotification")
-      );
-    } catch (error) {
-      console.error(
-        "Admin notification error:",
-        error
-      );
-    }
-  };
-
-  /*
-  =====================================================
   PLACE ORDER
   =====================================================
   */
@@ -990,14 +904,6 @@ function Checkout() {
           apiError
         );
       }
-
-      /*
-      ADMIN NOTIFICATION
-      */
-
-      createAdminNotification(
-        newOrder
-      );
 
       /*
       EVENTS

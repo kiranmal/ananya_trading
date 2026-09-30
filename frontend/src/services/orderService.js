@@ -1,22 +1,16 @@
-import defaultOrders from "../data/orders";
+/* Real local orders only — checkout ka ananyaOrders mirror.
+   Demo/seed orders nahi — DB (/api/orders) hi source of truth hai. */
+
+const STORAGE_KEY = "ananyaOrders";
 
 export const getOrders = () => {
-  const savedOrders = localStorage.getItem("orders");
-
-  if (savedOrders) {
-    try {
-      return JSON.parse(savedOrders);
-    } catch {
-      console.error("Invalid orders data");
-    }
+  try {
+    const savedOrders = localStorage.getItem(STORAGE_KEY);
+    const parsedOrders = savedOrders ? JSON.parse(savedOrders) : [];
+    return Array.isArray(parsedOrders) ? parsedOrders : [];
+  } catch {
+    return [];
   }
-
-  localStorage.setItem(
-    "orders",
-    JSON.stringify(defaultOrders)
-  );
-
-  return defaultOrders;
 };
 
 export const getOrderById = (orderId) => {
@@ -26,36 +20,16 @@ export const getOrderById = (orderId) => {
     return undefined;
   }
 
-  const checkoutOrders = (() => {
-    try {
-      const savedOrders = localStorage.getItem("ananyaOrders");
-      const parsedOrders = savedOrders ? JSON.parse(savedOrders) : [];
-      return Array.isArray(parsedOrders) ? parsedOrders : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  const allOrders = [...checkoutOrders, ...getOrders()];
-
-  return allOrders.find((order) => {
+  return getOrders().find((order) => {
     const id = order?.orderNumber || order?.orderId || order?.id;
     return String(id || "").trim().toLowerCase() === normalizedId;
   });
 };
 
 export const saveOrder = (order) => {
-  const orders = getOrders();
+  const updatedOrders = [order, ...getOrders()];
 
-  const updatedOrders = [
-    order,
-    ...orders,
-  ];
-
-  localStorage.setItem(
-    "orders",
-    JSON.stringify(updatedOrders)
-  );
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrders));
 
   return updatedOrders;
 };

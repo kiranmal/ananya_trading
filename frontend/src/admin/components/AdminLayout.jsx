@@ -39,6 +39,8 @@ function AdminLayout() {
   const [search, setSearch] = useState("");
   const [inquiryCount, setInquiryCount] =
     useState(0);
+  const [notifications, setNotifications] =
+    useState([]);
 
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
@@ -220,22 +222,95 @@ function AdminLayout() {
     if (authChecking) return;
 
     const loadCount = async () => {
-      try {
-        const res = await fetch(
-          `${API_URL}/contact-inquiries?status=new`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem(
-                "authToken"
-              )}`,
-            },
-          }
-        );
-        const data = await res.json();
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
 
-        if (res.ok && Array.isArray(data.inquiries)) {
-          setInquiryCount(data.inquiries.length);
+      const headers = { Authorization: `Bearer ${token}` };
+      const items = [];
+
+      try {
+        const [ordersRes, inquiriesRes] =
+          await Promise.all([
+            fetch(`${API_URL}/admin/orders`, {
+              headers,
+            }),
+            fetch(
+              `${API_URL}/contact-inquiries?status=new`,
+              { headers }
+            ),
+          ]);
+
+        const ordersData = await ordersRes
+          .json()
+          .catch(() => ({}));
+        const inquiriesData = await inquiriesRes
+          .json()
+          .catch(() => ({}));
+
+        if (
+          ordersRes.ok &&
+          Array.isArray(ordersData.orders)
+        ) {
+          ordersData.orders
+            .slice(0, 5)
+            .forEach((order) => {
+              items.push({
+                id: `order-${
+                  order.orderNumber ||
+                  order.orderId ||
+                  order.id
+                }`,
+                title: "New order received",
+                text: `${
+                  order.customerName ||
+                  order.name ||
+                  "Customer"
+                } placed order ${
+                  order.orderNumber ||
+                  order.orderId ||
+                  order.id
+                }.`,
+                time: order.createdAt,
+                type: "order",
+              });
+            });
         }
+
+        if (
+          inquiriesRes.ok &&
+          Array.isArray(inquiriesData.inquiries)
+        ) {
+          setInquiryCount(
+            inquiriesData.inquiries.length
+          );
+
+          inquiriesData.inquiries
+            .slice(0, 5)
+            .forEach((inquiry) => {
+              items.push({
+                id: `inquiry-${inquiry.id}`,
+                title: "New inquiry",
+                text: `${
+                  inquiry.name || "Customer"
+                }: ${String(
+                  inquiry.subject ||
+                    inquiry.message ||
+                    ""
+                ).slice(0, 60)}`,
+                time:
+                  inquiry.created_at ||
+                  inquiry.createdAt,
+                type: "inquiry",
+              });
+            });
+        }
+
+        items.sort(
+          (a, b) =>
+            new Date(b.time) - new Date(a.time)
+        );
+
+        setNotifications(items.slice(0, 6));
       } catch {
         /* badge optional — ignore */
       }
@@ -291,34 +366,35 @@ function AdminLayout() {
   };
 
   /* =====================================================
-     NOTIFICATIONS
+     NOTIFICATIONS — DB se real orders + inquiries
   ===================================================== */
 
-  const notifications = [
-    {
-      id: 1,
-      title: "New order received",
-      text: "Order #ORD-1006 has been placed.",
-      time: "2 min ago",
-      type: "order",
-    },
+  const timeAgo = (date) => {
+    const diff = Date.now() - new Date(date).getTime();
 
-    {
-      id: 2,
-      title: "Payment received",
-      text: "Payment received for #ORD-1005.",
-      time: "18 min ago",
-      type: "payment",
-    },
+    if (Number.isNaN(diff) || diff < 0) {
+      return "";
+    }
 
-    {
-      id: 3,
-      title: "New customer",
-      text: "A new customer registered.",
-      time: "1 hour ago",
-      type: "user",
-    },
-  ];
+    const mins = Math.floor(diff / 60000);
+
+    if (mins < 1) {
+      return "Just now";
+    }
+
+    if (mins < 60) {
+      return `${mins} min ago`;
+    }
+
+    const hrs = Math.floor(mins / 60);
+
+    if (hrs < 24) {
+      return `${hrs} hour${hrs > 1 ? "s" : ""} ago`;
+    }
+
+    const days = Math.floor(hrs / 24);
+    return `${days} day${days > 1 ? "s" : ""} ago`;
+  };
 
   if (authChecking) {
     return (
@@ -661,9 +737,11 @@ function AdminLayout() {
 
                 <Bell size={19} />
 
-                <span className="notification-dot">
-                  3
-                </span>
+                {notifications.length > 0 && (
+                  <span className="notification-dot">
+                    {notifications.length}
+                  </span>
+                )}
 
               </button>
 
@@ -679,7 +757,8 @@ function AdminLayout() {
                       </h3>
 
                       <span>
-                        You have 3 new notifications
+                        You have {notifications.length} new
+                        notifications
                       </span>
                     </div>
 
@@ -722,6 +801,13 @@ function AdminLayout() {
                                 size={16}
                               />
                             )}
+
+                            {notification.type ===
+                              "inquiry" && (
+                              <MailQuestion
+                                size={16}
+                              />
+                            )}
                           </div>
 
                           <div className="notification-content">
@@ -739,9 +825,9 @@ function AdminLayout() {
                             </p>
 
                             <small>
-                              {
+                              {timeAgo(
                                 notification.time
-                              }
+                              )}
                             </small>
 
                           </div>

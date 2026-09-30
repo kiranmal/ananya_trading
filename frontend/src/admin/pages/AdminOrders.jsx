@@ -3,7 +3,6 @@ import { Eye, X, Palette } from "lucide-react";
 import {
   fetchAllOrders,
   updateOrderStatusRemote,
-  mergeOrders,
 } from "../../services/orderApi";
 import "./AdminOrders.css";
 
@@ -63,16 +62,11 @@ export default function AdminOrders() {
       );
     }
 
-    /* Server se saare orders — sabhi users ke */
+    /* Server = source of truth.
+       localStorage sirf tab jab API unreachable ho */
     const remoteOrders = await fetchAllOrders();
 
-    if (remoteOrders) {
-      setOrders(
-        mergeOrders(remoteOrders, localOrders)
-      );
-    } else {
-      setOrders(localOrders);
-    }
+    setOrders(remoteOrders || localOrders);
   }
 
   const getStatusClass = (status) => {
@@ -114,10 +108,38 @@ export default function AdminOrders() {
     });
 
     setOrders(updatedOrders);
-    localStorage.setItem(
-      "ananyaOrders",
-      JSON.stringify(updatedOrders)
-    );
+
+    /* Sirf local-originated orders update karo —
+       remote (sabhi customers ke) orders ko ananyaOrders
+       cache mein mat likho */
+    try {
+      const savedLocal = JSON.parse(
+        localStorage.getItem("ananyaOrders") || "[]"
+      );
+
+      if (Array.isArray(savedLocal)) {
+        const updatedLocal = savedLocal.map((item) => {
+          const itemId =
+            item.orderId || item.id || item.orderNumber;
+
+          return String(itemId) === String(orderId)
+            ? {
+                ...item,
+                status,
+                updatedAt: new Date().toISOString(),
+              }
+            : item;
+        });
+
+        localStorage.setItem(
+          "ananyaOrders",
+          JSON.stringify(updatedLocal)
+        );
+      }
+    } catch {
+      /* local cache optional */
+    }
+
     window.dispatchEvent(new Event("ananyaOrdersUpdated"));
     window.dispatchEvent(new Event("ordersUpdated"));
   };

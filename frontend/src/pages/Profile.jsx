@@ -38,26 +38,9 @@ const Profile = () => {
     getOrders()
   );
 
-  /* Track Order ke liye — real checkout orders prefer */
+  /* Track Order ke liye — real checkout orders */
   const [trackingOrders, setTrackingOrders] =
-    useState(() => {
-      try {
-        const saved =
-          localStorage.getItem("ananyaOrders");
-        const parsed = saved
-          ? JSON.parse(saved)
-          : [];
-        if (
-          Array.isArray(parsed) &&
-          parsed.length > 0
-        ) {
-          return parsed;
-        }
-      } catch {
-        // fall through
-      }
-      return getOrders();
-    });
+    useState(() => getOrders());
 
   /* Server se orders merge — doosre device ke bhi */
   useEffect(() => {

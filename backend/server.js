@@ -2502,9 +2502,10 @@ app.get(
   }
 );
 
-/* USER — order number se track */
+/* USER — order number se track (sirf apna order ya admin) */
 app.get(
   "/api/orders/track/:orderNumber",
+  authenticateToken,
   async (req, res) => {
     try {
       await ensureOrdersTable();
@@ -2522,9 +2523,21 @@ app.get(
         });
       }
 
+      const row = rows[0];
+      const isAdmin = req.user?.role === "admin";
+      const isOwner =
+        Number(row.user_id) === Number(req.user?.id);
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only track your own orders.",
+        });
+      }
+
       return res.status(200).json({
         success: true,
-        order: parseOrderRow(rows[0]),
+        order: parseOrderRow(row),
       });
     } catch (error) {
       console.error("Track order error:", error);

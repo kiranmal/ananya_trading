@@ -209,12 +209,16 @@ export function TrackOrder() {
     const query = orderId.trim();
     setSearching(true);
 
-    /* Pehle server pe dhundo — localStorage pe fallback */
+    /* Pehle server pe dhundo (login required) — localStorage pe fallback */
     let found = null;
 
     try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(
-        `${API_URL}/orders/track/${encodeURIComponent(query)}`
+        `${API_URL}/orders/track/${encodeURIComponent(query)}`,
+        token
+          ? { headers: { Authorization: `Bearer ${token}` } }
+          : {}
       );
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.order) {
@@ -261,10 +265,6 @@ export function TrackOrder() {
             {searching ? "Tracking..." : "Track Order"}
           </button>
         </form>
-        <p className="track-hint">
-          Demo IDs: ORD10001 (Shipped), ORD10002 (Delivered)
-        </p>
-
         {error && <div className="track-error">{error}</div>}
       </div>
 
