@@ -73,3 +73,123 @@ export const deleteCategory = async (id) => {
 
   return data;
 };
+
+
+/* =====================================================
+   SUBCATEGORIES
+===================================================== */
+
+export const fetchSubcategories = async (categoryId = null) => {
+  const query = categoryId ? `?category_id=${encodeURIComponent(categoryId)}` : "";
+  const res = await fetch(`${API_URL}/subcategories${query}`);
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to load subcategories.");
+  }
+
+  return Array.isArray(data.subcategories) ? data.subcategories : [];
+};
+
+export const createSubcategory = async (categoryId, name) => {
+  const res = await fetch(`${API_URL}/admin/subcategories`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ category_id: categoryId, name }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to add subcategory.");
+  }
+
+  return data.subcategory;
+};
+
+export const updateSubcategory = async (id, payload = {}) => {
+  const res = await fetch(`${API_URL}/admin/subcategories/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to update subcategory.");
+  }
+
+  return data.subcategory;
+};
+
+export const deleteSubcategory = async (id) => {
+  const res = await fetch(`${API_URL}/admin/subcategories/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to delete subcategory.");
+  }
+
+  return data;
+};
+
+/* =====================================================
+   TAGS
+===================================================== */
+
+export const fetchTags = async () => {
+  const res = await fetch(`${API_URL}/tags`);
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to load tags.");
+  }
+
+  return Array.isArray(data.tags) ? data.tags : [];
+};
+
+export const createTag = async (name) => {
+  const res = await fetch(`${API_URL}/admin/tags`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to add tag.");
+  }
+
+  return data.tag;
+};
+
+export const updateTag = async (id, payload = {}) => {
+  const res = await fetch(`${API_URL}/admin/tags/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to update tag.");
+  }
+
+  return data.tag;
+};
+
+export const deleteTag = async (id) => {
+  const res = await fetch(`${API_URL}/admin/tags/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.message || "Unable to delete tag.");
+  }
+
+  return data;
+};

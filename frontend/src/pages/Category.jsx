@@ -48,6 +48,12 @@ function Category() {
   const [selectedCategories, setSelectedCategories] =
     useState([]);
 
+  const [selectedSubcategories, setSelectedSubcategories] =
+    useState([]);
+
+  const [selectedTags, setSelectedTags] =
+    useState([]);
+
   const [selectedPaperTypes, setSelectedPaperTypes] =
     useState([]);
 
@@ -360,6 +366,73 @@ function Category() {
 
 
   /* =====================================================
+     SUBCATEGORY LIST — sirf current category context ke
+     products se derive (DB-loaded products)
+  ===================================================== */
+
+  const subcategories = useMemo(() => {
+
+    const contextProducts = allProducts.filter(
+      (product) => {
+
+        if (
+          urlCategory &&
+          product.category !== urlCategory
+        ) {
+          return false;
+        }
+
+        if (
+          selectedCategories.length > 0 &&
+          !selectedCategories.includes(
+            product.category
+          )
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+    );
+
+
+    return [
+      ...new Set(
+        contextProducts
+          .map((p) => p.subcategory)
+          .filter(Boolean)
+      ),
+    ];
+
+  }, [
+    allProducts,
+    urlCategory,
+    selectedCategories,
+  ]);
+
+
+  /* =====================================================
+     TAG LIST — products ke DB tags se
+  ===================================================== */
+
+  const productTags = useMemo(() => {
+
+    const tagList = [];
+
+    allProducts.forEach((product) => {
+      if (Array.isArray(product.tags)) {
+        product.tags.forEach((tag) => {
+          if (tag?.name) tagList.push(tag.name);
+        });
+      }
+    });
+
+    return [...new Set(tagList)];
+
+  }, [allProducts]);
+
+
+  /* =====================================================
      PAPER TYPE LIST
   ===================================================== */
 
@@ -531,6 +604,43 @@ function Category() {
     }
 
 
+    /* ================= SUBCATEGORY ================= */
+
+    if (
+      selectedSubcategories.length > 0
+    ) {
+
+      filtered =
+        filtered.filter(
+          (product) =>
+            selectedSubcategories.includes(
+              product.subcategory
+            )
+        );
+
+    }
+
+
+    /* ================= TAGS ================= */
+
+    if (
+      selectedTags.length > 0
+    ) {
+
+      filtered =
+        filtered.filter(
+          (product) =>
+            (Array.isArray(product.tags)
+              ? product.tags
+              : []
+            ).some((tag) =>
+              selectedTags.includes(tag.name)
+            )
+        );
+
+    }
+
+
     /* ================= PAPER TYPE ================= */
 
     if (
@@ -633,6 +743,10 @@ function Category() {
 
     selectedCategories,
 
+    selectedSubcategories,
+
+    selectedTags,
+
     selectedPaperTypes,
 
     maxPrice,
@@ -654,10 +768,31 @@ function Category() {
 
     setSelectedCategories([]);
 
+    setSelectedSubcategories([]);
+
+    setSelectedTags([]);
+
     setSelectedPaperTypes([]);
 
     setMaxPrice(2000);
 
+  };
+
+
+  const handleSubcategoryChange = (sub) => {
+    setSelectedSubcategories((previous) =>
+      previous.includes(sub)
+        ? previous.filter((item) => item !== sub)
+        : [...previous, sub]
+    );
+  };
+
+  const handleTagChange = (tag) => {
+    setSelectedTags((previous) =>
+      previous.includes(tag)
+        ? previous.filter((item) => item !== tag)
+        : [...previous, tag]
+    );
   };
 
 
@@ -1000,6 +1135,90 @@ function Category() {
             )}
 
           </div>
+
+
+          {/* =================================================
+              SUBCATEGORY — sirf current category context ke
+          ================================================= */}
+
+          {subcategories.length > 0 && (
+            <div className="filter-group">
+
+              <h4>
+                Subcategory
+              </h4>
+
+              {subcategories.map(
+                (sub) => (
+
+                  <label
+                    key={sub}
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedSubcategories.includes(
+                          sub
+                        )
+                      }
+                      onChange={() =>
+                        handleSubcategoryChange(
+                          sub
+                        )
+                      }
+                    />
+
+                    {sub}
+
+                  </label>
+
+                )
+              )}
+
+            </div>
+          )}
+
+
+          {/* =================================================
+              TAGS — DB product tags se
+          ================================================= */}
+
+          {productTags.length > 0 && (
+            <div className="filter-group">
+
+              <h4>
+                Tags
+              </h4>
+
+              {productTags.map(
+                (tag) => (
+
+                  <label
+                    key={tag}
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedTags.includes(
+                          tag
+                        )
+                      }
+                      onChange={() =>
+                        handleTagChange(tag)
+                      }
+                    />
+
+                    {tag}
+
+                  </label>
+
+                )
+              )}
+
+            </div>
+          )}
 
 
           {/* =================================================

@@ -5,6 +5,13 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  createSubcategory,
+  updateSubcategory,
+  deleteSubcategory,
+  fetchTags,
+  createTag,
+  updateTag,
+  deleteTag,
 } from "../../services/categoryApi";
 import {
   Tags,
@@ -16,6 +23,7 @@ import {
   Pencil,
   Trash2,
   X,
+  Tag,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -50,6 +58,13 @@ export default function AdminCategories() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
+  /* Subcategory + Tag state */
+  const [subInputs, setSubInputs] = useState({});
+  const [busySubId, setBusySubId] = useState(null);
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
+  const [busyTagId, setBusyTagId] = useState(null);
+
   /* =====================================================
      FETCH CATEGORIES + PRODUCT COUNTS
   ===================================================== */
@@ -83,10 +98,144 @@ export default function AdminCategories() {
       } finally {
         setLoading(false);
       }
+
+      loadTags();
     };
 
     load();
   }, []);
+
+  const loadTags = async () => {
+    try {
+      setTags(await fetchTags());
+    } catch {
+      // tags optional
+    }
+  };
+
+  /* =====================================================
+     SUBCATEGORY ACTIONS
+  ===================================================== */
+
+  const handleAddSubcategory = async (categoryId) => {
+    const name = (subInputs[categoryId] || "").trim();
+
+    if (name.length < 2) {
+      alert("Subcategory name must be at least 2 characters.");
+      return;
+    }
+
+    setBusySubId(`add-${categoryId}`);
+
+    try {
+      await createSubcategory(categoryId, name);
+      setSubInputs((prev) => ({ ...prev, [categoryId]: "" }));
+      await loadCategories();
+    } catch (error) {
+      alert(error.message || "Unable to add subcategory.");
+    } finally {
+      setBusySubId(null);
+    }
+  };
+
+  const handleToggleSubcategory = async (sub) => {
+    setBusySubId(sub.id);
+
+    try {
+      await updateSubcategory(sub.id, {
+        status: sub.status === "Active" ? "Inactive" : "Active",
+      });
+      await loadCategories();
+    } catch (error) {
+      alert(error.message || "Unable to update subcategory.");
+    } finally {
+      setBusySubId(null);
+    }
+  };
+
+  const handleDeleteSubcategory = async (sub) => {
+    if (
+      !window.confirm(
+        `Delete subcategory "${sub.name}"? If products use it, it will be deactivated instead.`
+      )
+    ) {
+      return;
+    }
+
+    setBusySubId(sub.id);
+
+    try {
+      const result = await deleteSubcategory(sub.id);
+      if (result?.message) alert(result.message);
+      await loadCategories();
+    } catch (error) {
+      alert(error.message || "Unable to delete subcategory.");
+    } finally {
+      setBusySubId(null);
+    }
+  };
+
+  /* =====================================================
+     TAG ACTIONS
+  ===================================================== */
+
+  const handleAddTag = async (e) => {
+    e.preventDefault();
+
+    const name = tagInput.trim();
+    if (name.length < 2) {
+      alert("Tag name must be at least 2 characters.");
+      return;
+    }
+
+    setBusyTagId("new");
+
+    try {
+      await createTag(name);
+      setTagInput("");
+      await loadTags();
+    } catch (error) {
+      alert(error.message || "Unable to add tag.");
+    } finally {
+      setBusyTagId(null);
+    }
+  };
+
+  const handleToggleTag = async (tag) => {
+    setBusyTagId(tag.id);
+
+    try {
+      await updateTag(tag.id, {
+        status: tag.status === "Active" ? "Inactive" : "Active",
+      });
+      await loadTags();
+    } catch (error) {
+      alert(error.message || "Unable to update tag.");
+    } finally {
+      setBusyTagId(null);
+    }
+  };
+
+  const handleDeleteTag = async (tag) => {
+    if (
+      !window.confirm(
+        `Delete tag "${tag.name}"? It will be removed from ${tag.productCount || 0} product(s).`
+      )
+    ) {
+      return;
+    }
+
+    setBusyTagId(tag.id);
+
+    try {
+      await deleteTag(tag.id);
+      await loadTags();
+    } catch (error) {
+      alert(error.message || "Unable to delete tag.");
+    } finally {
+      setBusyTagId(null);
+    }
+  };
 
   /* =====================================================
      FORM OPEN/CLOSE
@@ -612,12 +761,18 @@ export default function AdminCategories() {
                 </div>
               </div>
 
-              {/* Subcategories */}
+              {/* Subcategories — relational DB rows */}
               {isExpanded && (
                 <div style={{ padding: "8px 24px 20px" }}>
-                  {category.items.map((item) => (
+                  {(
+                    category.subcategories ||
+                    (category.items || []).map((n) => ({
+                      name: n,
+                      status: "Active",
+                    }))
+                  ).map((sub) => (
                     <div
-                      key={item}
+                      key={sub.id || sub.name}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -627,6 +782,8 @@ export default function AdminCategories() {
                         marginBottom: "4px",
                         transition: "background 0.15s",
                         cursor: "pointer",
+                        opacity:
+                          sub.status === "Inactive" ? 0.5 : 1,
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = "#f9fafb";
@@ -636,7 +793,7 @@ export default function AdminCategories() {
                       }}
                       onClick={() =>
                         navigate(
-                          `/category?type=${encodeURIComponent(item)}`
+                          `/category?type=${encodeURIComponent(sub.name)}`
                         )
                       }
                     >
@@ -652,7 +809,10 @@ export default function AdminCategories() {
                             width: "6px",
                             height: "6px",
                             borderRadius: "50%",
-                            background: color,
+                            background:
+                              sub.status === "Inactive"
+                                ? "#9ca3af"
+                                : color,
                             flexShrink: 0,
                           }}
                         />
@@ -662,17 +822,336 @@ export default function AdminCategories() {
                             color: "#374151",
                           }}
                         >
-                          {item}
+                          {sub.name}
                         </span>
+                        {sub.status === "Inactive" && (
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              color: "#dc2626",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Inactive
+                          </span>
+                        )}
                       </div>
-                      <Eye size={15} color="#9ca3af" />
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <Eye size={15} color="#9ca3af" />
+                        {sub.id && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={busySubId === sub.id}
+                              title={
+                                sub.status === "Active"
+                                  ? "Deactivate"
+                                  : "Activate"
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleSubcategory(sub);
+                              }}
+                              style={{
+                                border: "none",
+                                borderRadius: "6px",
+                                padding: "4px 8px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                background:
+                                  sub.status === "Active"
+                                    ? "#fef2f2"
+                                    : "#ecfdf5",
+                                color:
+                                  sub.status === "Active"
+                                    ? "#dc2626"
+                                    : "#059669",
+                              }}
+                            >
+                              {sub.status === "Active"
+                                ? "Off"
+                                : "On"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busySubId === sub.id}
+                              title="Delete subcategory"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSubcategory(sub);
+                              }}
+                              style={{
+                                border: "none",
+                                borderRadius: "6px",
+                                padding: "4px 6px",
+                                cursor: "pointer",
+                                background: "#fef2f2",
+                                color: "#dc2626",
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))}
+
+                  {/* Add subcategory */}
+                  {category.id && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        marginTop: "10px",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={subInputs[category.id] || ""}
+                        onChange={(e) =>
+                          setSubInputs((prev) => ({
+                            ...prev,
+                            [category.id]: e.target.value,
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddSubcategory(category.id);
+                          }
+                        }}
+                        placeholder="New subcategory name"
+                        style={{
+                          flex: 1,
+                          height: "34px",
+                          padding: "0 10px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "7px",
+                          fontSize: "13px",
+                          outline: "none",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={busySubId === `add-${category.id}`}
+                        onClick={() =>
+                          handleAddSubcategory(category.id)
+                        }
+                        style={{
+                          height: "34px",
+                          padding: "0 12px",
+                          border: "none",
+                          borderRadius: "7px",
+                          background: "#1263bd",
+                          color: "#fff",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      {/* =====================================================
+          TAGS MANAGEMENT
+      ===================================================== */}
+
+      <div
+        style={{
+          marginTop: "32px",
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          borderRadius: "14px",
+          padding: "22px 24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "16px",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <Tag size={18} color="#1263bd" />
+            <div>
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "#111827",
+                }}
+              >
+                Product Tags
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                Tags can be assigned to products from the
+                product form
+              </div>
+            </div>
+          </div>
+
+          <form
+            onSubmit={handleAddTag}
+            style={{ display: "flex", gap: "8px" }}
+          >
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="New tag (e.g. bestseller)"
+              style={{
+                height: "36px",
+                padding: "0 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                fontSize: "13px",
+                outline: "none",
+                width: "220px",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={busyTagId === "new"}
+              style={{
+                height: "36px",
+                padding: "0 16px",
+                border: "none",
+                borderRadius: "8px",
+                background: "#1263bd",
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <Plus size={14} /> Add Tag
+            </button>
+          </form>
+        </div>
+
+        {tags.length === 0 ? (
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#9ca3af",
+              margin: 0,
+            }}
+          >
+            No tags yet.
+          </p>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+            }}
+          >
+            {tags.map((tag) => (
+              <span
+                key={tag.id}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "6px 10px",
+                  borderRadius: "999px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  border: "1px solid #e5e7eb",
+                  background:
+                    tag.status === "Active"
+                      ? "#eff6ff"
+                      : "#f3f4f6",
+                  color:
+                    tag.status === "Active"
+                      ? "#1d4ed8"
+                      : "#6b7280",
+                  opacity:
+                    tag.status === "Inactive" ? 0.6 : 1,
+                }}
+              >
+                {tag.name}
+                <small style={{ color: "#6b7280" }}>
+                  {tag.productCount || 0}
+                </small>
+                <button
+                  type="button"
+                  disabled={busyTagId === tag.id}
+                  title={
+                    tag.status === "Active"
+                      ? "Deactivate"
+                      : "Activate"
+                  }
+                  onClick={() => handleToggleTag(tag)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    color:
+                      tag.status === "Active"
+                        ? "#dc2626"
+                        : "#059669",
+                    padding: 0,
+                  }}
+                >
+                  {tag.status === "Active" ? "Off" : "On"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busyTagId === tag.id}
+                  title="Delete tag"
+                  onClick={() => handleDeleteTag(tag)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "#dc2626",
+                    display: "flex",
+                    padding: 0,
+                  }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1253,22 +1253,32 @@ function getProductPayload(body) {
 
 app.get("/api/products", async (req, res) => {
   try {
-    await ensureProductsTable();
+    await ensureTaxonomy();
 
     const search = String(req.query.search || "").trim();
+    const category = String(req.query.category || "").trim();
+    const subcategory = String(
+      req.query.subcategory || ""
+    ).trim();
+    const tag = String(req.query.tag || "").trim();
 
     let sql = "SELECT * FROM products";
     const params = [];
+    const where = [];
 
     if (search) {
-      sql += `
-        WHERE
+      where.push(`(
           name LIKE ?
           OR category LIKE ?
           OR subcategory LIKE ?
           OR description LIKE ?
           OR badge LIKE ?
-      `;
+          OR id IN (
+            SELECT pt.product_id FROM product_tags pt
+            JOIN tags t ON t.id = pt.tag_id
+            WHERE t.name LIKE ?
+          )
+      )`);
 
       const keyword = `%${search}%`;
 
@@ -1277,17 +1287,54 @@ app.get("/api/products", async (req, res) => {
         keyword,
         keyword,
         keyword,
+        keyword,
         keyword
       );
+    }
+
+    if (category) {
+      where.push("(category = ? OR category_id = ?)");
+      params.push(category, Number(category) || -1);
+    }
+
+    if (subcategory) {
+      where.push("(subcategory = ? OR subcategory_id = ?)");
+      params.push(subcategory, Number(subcategory) || -1);
+    }
+
+    if (tag) {
+      where.push(`id IN (
+        SELECT pt.product_id FROM product_tags pt
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE t.name = ? OR t.id = ?
+      )`);
+      params.push(tag, Number(tag) || -1);
+    }
+
+    if (where.length > 0) {
+      sql += " WHERE " + where.join(" AND ");
     }
 
     sql += " ORDER BY id DESC";
 
     const [rows] = await db.execute(sql, params);
 
+    const tagMap = await getTagsForProducts(
+      rows.map((r) => r.id)
+    );
+
+    const products = rows.map((row) => {
+      const tags = tagMap.get(row.id) || [];
+      return {
+        ...mapProduct(row),
+        tags,
+        tagIds: tags.map((t) => t.id),
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      products: rows.map(mapProduct),
+      products,
     });
 
   } catch (error) {
@@ -1325,9 +1372,16 @@ app.get("/api/products/:id", async (req, res) => {
       });
     }
 
+    const tagMap = await getTagsForProducts([id]);
+    const tags = tagMap.get(id) || [];
+
     return res.status(200).json({
       success: true,
-      product: mapProduct(rows[0]),
+      product: {
+        ...mapProduct(rows[0]),
+        tags,
+        tagIds: tags.map((t) => t.id),
+      },
     });
   } catch (error) {
     console.error("GET PRODUCT ERROR:", error);
@@ -1437,7 +1491,7 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      await ensureProductsTable();
+      await ensureTaxonomy();
       const product = getProductPayload(req.body);
 
       if (!product.name || product.price <= 0) {
@@ -1447,17 +1501,35 @@ app.post(
         });
       }
 
+      /* categoryId/subcategoryId diya ho to naam wahi se resolve;
+         warna naam se id resolve */
+      const categoryRow = await resolveCategoryId(req.body);
+      const subcategoryRow = await resolveSubcategoryId(
+        req.body,
+        categoryRow?.id
+      );
+
+      if (categoryRow) {
+        product.category = categoryRow.name;
+      }
+      if (subcategoryRow) {
+        product.subcategory = subcategoryRow.name;
+      }
+
       const [result] = await db.execute(
         `INSERT INTO products
-          (name, category, subcategory, price, old_price, stock, status,
+          (name, category, subcategory, category_id, subcategory_id,
+           price, old_price, stock, status,
            badge, rating, reviews, discount, description, images,
            paper_types, sizes, features, quantity_step,
            customizable, customization_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           product.name,
           product.category,
           product.subcategory,
+          categoryRow?.id || null,
+          subcategoryRow?.id || null,
           product.price,
           product.oldPrice,
           product.stock,
@@ -1477,15 +1549,26 @@ app.post(
         ]
       );
 
+      if (Array.isArray(req.body?.tagIds)) {
+        await syncProductTags(result.insertId, req.body.tagIds);
+      }
+
       const [rows] = await db.execute(
         "SELECT * FROM products WHERE id = ? LIMIT 1",
         [result.insertId]
       );
 
+      const tagMap = await getTagsForProducts([result.insertId]);
+      const tags = tagMap.get(result.insertId) || [];
+
       return res.status(201).json({
         success: true,
         message: "Product created successfully.",
-        product: mapProduct(rows[0]),
+        product: {
+          ...mapProduct(rows[0]),
+          tags,
+          tagIds: tags.map((t) => t.id),
+        },
       });
     } catch (error) {
       console.error("CREATE PRODUCT ERROR:", error);
@@ -1503,7 +1586,7 @@ app.put(
   requireAdmin,
   async (req, res) => {
     try {
-      await ensureProductsTable();
+      await ensureTaxonomy();
       const product = getProductPayload(req.body);
 
       if (!product.name || product.price <= 0) {
@@ -1513,9 +1596,24 @@ app.put(
         });
       }
 
+      const categoryRow = await resolveCategoryId(req.body);
+      const subcategoryRow = await resolveSubcategoryId(
+        req.body,
+        categoryRow?.id
+      );
+
+      if (categoryRow) {
+        product.category = categoryRow.name;
+      }
+      if (subcategoryRow) {
+        product.subcategory = subcategoryRow.name;
+      }
+
       const [result] = await db.execute(
         `UPDATE products SET
-          name = ?, category = ?, subcategory = ?, price = ?, old_price = ?,
+          name = ?, category = ?, subcategory = ?,
+          category_id = ?, subcategory_id = ?,
+          price = ?, old_price = ?,
           stock = ?, status = ?, badge = ?, rating = ?, reviews = ?,
           discount = ?, description = ?, images = ?, paper_types = ?,
           sizes = ?, features = ?, quantity_step = ?,
@@ -1525,6 +1623,8 @@ app.put(
           product.name,
           product.category,
           product.subcategory,
+          categoryRow?.id || null,
+          subcategoryRow?.id || null,
           product.price,
           product.oldPrice,
           product.stock,
@@ -1552,15 +1652,26 @@ app.put(
         });
       }
 
+      if (Array.isArray(req.body?.tagIds)) {
+        await syncProductTags(Number(req.params.id), req.body.tagIds);
+      }
+
       const [rows] = await db.execute(
         "SELECT * FROM products WHERE id = ? LIMIT 1",
         [req.params.id]
       );
 
+      const tagMap = await getTagsForProducts([Number(req.params.id)]);
+      const tags = tagMap.get(Number(req.params.id)) || [];
+
       return res.status(200).json({
         success: true,
         message: "Product updated successfully.",
-        product: mapProduct(rows[0]),
+        product: {
+          ...mapProduct(rows[0]),
+          tags,
+          tagIds: tags.map((t) => t.id),
+        },
       });
     } catch (error) {
       console.error("UPDATE PRODUCT ERROR:", error);
@@ -1884,26 +1995,405 @@ async function ensureCategoriesTable() {
     }
     console.log("Default categories seeded");
   }
+
+  const addColumn = async (sql) => {
+    try {
+      await db.execute(sql);
+    } catch {
+      /* column already exists — skip */
+    }
+  };
+
+  await addColumn(
+    "ALTER TABLE categories ADD COLUMN slug VARCHAR(190) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE categories ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Active'"
+  );
+  await addColumn(
+    "ALTER TABLE categories ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+  );
 }
+
+/* =========================================================
+   TAXONOMY — subcategories + tags + product_tags
+   Relational store; categories.items JSON se migrate hota hai
+========================================================= */
+
+const slugify = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "item";
+
+async function ensureTaxonomyTables() {
+  const addColumn = async (sql) => {
+    try {
+      await db.execute(sql);
+    } catch {
+      /* column already exists — skip */
+    }
+  };
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS subcategories (
+      id INT NOT NULL AUTO_INCREMENT,
+      category_id INT NOT NULL,
+      name VARCHAR(150) NOT NULL,
+      slug VARCHAR(190) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY sub_cat_name (category_id, name),
+      KEY category_id (category_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id INT NOT NULL AUTO_INCREMENT,
+      name VARCHAR(100) NOT NULL,
+      slug VARCHAR(120) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'Active',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY tag_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS product_tags (
+      product_id INT NOT NULL,
+      tag_id INT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (product_id, tag_id),
+      KEY tag_id (tag_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+
+  await addColumn(
+    "ALTER TABLE products ADD COLUMN category_id INT DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE products ADD COLUMN subcategory_id INT DEFAULT NULL"
+  );
+}
+
+/* Ek baar per process — idempotent data migration */
+async function migrateTaxonomyOnce() {
+  /* 1. categories.items JSON -> subcategories rows */
+  const [cats] = await db.execute(
+    "SELECT id, name, items, slug FROM categories"
+  );
+
+  for (const cat of cats) {
+    if (!cat.slug) {
+      await db.execute(
+        "UPDATE categories SET slug = ? WHERE id = ?",
+        [slugify(cat.name), cat.id]
+      );
+    }
+
+    let items = [];
+    try {
+      items = JSON.parse(cat.items || "[]");
+    } catch {
+      items = [];
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const itemName = String(items[i] || "").trim();
+      if (!itemName) continue;
+
+      await db.execute(
+        `INSERT INTO subcategories (category_id, name, slug, sort_order)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE slug = VALUES(slug)`,
+        [cat.id, itemName, slugify(itemName), i]
+      );
+    }
+  }
+
+  /* 2. products.category/subcategory strings -> FK ids */
+  const [products] = await db.execute(
+    "SELECT id, category, subcategory, badge, customizable FROM products"
+  );
+
+  const [catRows] = await db.execute(
+    "SELECT id, name FROM categories"
+  );
+  const catByName = new Map(
+    catRows.map((c) => [String(c.name).toLowerCase(), c.id])
+  );
+
+  const [subRows] = await db.execute(
+    "SELECT id, category_id, name FROM subcategories"
+  );
+  const subByCatName = new Map(
+    subRows.map((s) => [
+      `${s.category_id}::${String(s.name).toLowerCase()}`,
+      s.id,
+    ])
+  );
+
+  for (const p of products) {
+    const categoryId =
+      catByName.get(String(p.category || "").toLowerCase()) ||
+      null;
+
+    let subcategoryId = null;
+
+    if (categoryId && p.subcategory) {
+      const subName = String(p.subcategory).trim();
+      const key = `${categoryId}::${subName.toLowerCase()}`;
+
+      if (!subByCatName.has(key)) {
+        const [ins] = await db.execute(
+          `INSERT INTO subcategories (category_id, name, slug)
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+          [categoryId, subName, slugify(subName)]
+        );
+        subByCatName.set(key, ins.insertId);
+      }
+
+      subcategoryId = subByCatName.get(key);
+    }
+
+    if (categoryId || subcategoryId) {
+      await db.execute(
+        `UPDATE products
+         SET category_id = COALESCE(?, category_id),
+             subcategory_id = COALESCE(?, subcategory_id)
+         WHERE id = ?`,
+        [categoryId, subcategoryId, p.id]
+      );
+    }
+  }
+
+  /* 3. badges + customizable -> tags (seed, idempotent) */
+  const tagNames = new Set();
+
+  products.forEach((p) => {
+    const badge = String(p.badge || "").trim();
+    if (badge) tagNames.add(badge);
+    if (p.customizable) tagNames.add("Customizable");
+  });
+
+  const tagIdByName = new Map();
+
+  for (const name of tagNames) {
+    const [ins] = await db.execute(
+      `INSERT INTO tags (name, slug)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [name, slugify(name)]
+    );
+    tagIdByName.set(name, ins.insertId);
+  }
+
+  for (const p of products) {
+    const wanted = [];
+
+    const badge = String(p.badge || "").trim();
+    if (badge && tagIdByName.has(badge)) {
+      wanted.push(tagIdByName.get(badge));
+    }
+
+    if (p.customizable && tagIdByName.has("Customizable")) {
+      wanted.push(tagIdByName.get("Customizable"));
+    }
+
+    for (const tagId of wanted) {
+      await db.execute(
+        `INSERT IGNORE INTO product_tags (product_id, tag_id)
+         VALUES (?, ?)`,
+        [p.id, tagId]
+      );
+    }
+  }
+}
+
+let taxonomyReadyPromise = null;
+function ensureTaxonomy() {
+  if (!taxonomyReadyPromise) {
+    taxonomyReadyPromise = (async () => {
+      await ensureProductsTable();
+      await ensureCategoriesTable();
+      await ensureTaxonomyTables();
+      await migrateTaxonomyOnce();
+    })().catch((err) => {
+      taxonomyReadyPromise = null;
+      throw err;
+    });
+  }
+  return taxonomyReadyPromise;
+}
+
+/* Saare product ids ke tags ek query mein */
+async function getTagsForProducts(productIds) {
+  const ids = (Array.isArray(productIds) ? productIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+
+  if (ids.length === 0) return new Map();
+
+  const placeholders = ids.map(() => "?").join(",");
+  const [rows] = await db.execute(
+    `SELECT pt.product_id, t.id, t.name
+     FROM product_tags pt
+     JOIN tags t ON t.id = pt.tag_id
+     WHERE pt.product_id IN (${placeholders})
+     ORDER BY t.name ASC`,
+    ids
+  );
+
+  const map = new Map();
+  rows.forEach((r) => {
+    if (!map.has(r.product_id)) map.set(r.product_id, []);
+    map.get(r.product_id).push({ id: r.id, name: r.name });
+  });
+  return map;
+}
+
+/* product_tags sync — tagIds replace karta hai */
+async function syncProductTags(productId, tagIds) {
+  const ids = (Array.isArray(tagIds) ? tagIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+
+  await db.execute(
+    "DELETE FROM product_tags WHERE product_id = ?",
+    [productId]
+  );
+
+  if (ids.length === 0) return;
+
+  const placeholders = ids.map(() => "?").join(",");
+  const [valid] = await db.execute(
+    `SELECT id FROM tags WHERE id IN (${placeholders})`,
+    ids
+  );
+
+  for (const row of valid) {
+    await db.execute(
+      `INSERT IGNORE INTO product_tags (product_id, tag_id)
+       VALUES (?, ?)`,
+      [productId, row.id]
+    );
+  }
+}
+
+/* name/id se category resolve */
+async function resolveCategoryId(body) {
+  const id = Number(body?.categoryId || body?.category_id);
+  if (Number.isFinite(id) && id > 0) {
+    const [rows] = await db.execute(
+      "SELECT id, name FROM categories WHERE id = ? LIMIT 1",
+      [id]
+    );
+    if (rows.length > 0) return rows[0];
+  }
+
+  const name = String(body?.category || "").trim();
+  if (name) {
+    const [rows] = await db.execute(
+      "SELECT id, name FROM categories WHERE name = ? LIMIT 1",
+      [name]
+    );
+    if (rows.length > 0) return rows[0];
+  }
+
+  return null;
+}
+
+/* name/id se subcategory resolve (parent category ke andar) */
+async function resolveSubcategoryId(body, categoryId) {
+  if (!categoryId) return null;
+
+  const id = Number(body?.subcategoryId || body?.subcategory_id);
+  if (Number.isFinite(id) && id > 0) {
+    const [rows] = await db.execute(
+      `SELECT id, name FROM subcategories
+       WHERE id = ? AND category_id = ? LIMIT 1`,
+      [id, categoryId]
+    );
+    if (rows.length > 0) return rows[0];
+  }
+
+  const name = String(body?.subcategory || "").trim();
+  if (name) {
+    const [rows] = await db.execute(
+      `SELECT id, name FROM subcategories
+       WHERE category_id = ? AND name = ? LIMIT 1`,
+      [categoryId, name]
+    );
+    if (rows.length > 0) return rows[0];
+
+    /* naam valid hai par row nahi — create karo */
+    const [ins] = await db.execute(
+      `INSERT INTO subcategories (category_id, name, slug)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [categoryId, name, slugify(name)]
+    );
+    return { id: ins.insertId, name };
+  }
+
+  return null;
+}
+
+/* =========================================================
+   PUBLIC — categories with subcategories
+========================================================= */
 
 app.get("/api/categories", async (req, res) => {
   try {
-    await ensureCategoriesTable();
+    await ensureTaxonomy();
+
     const [rows] = await db.execute(
-      "SELECT id, name, items, sort_order FROM categories ORDER BY sort_order ASC, id ASC"
+      `SELECT id, name, slug, status, sort_order
+       FROM categories
+       ORDER BY sort_order ASC, id ASC`
     );
 
-    const categories = rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      items: (() => {
-        try {
-          return JSON.parse(row.items || "[]");
-        } catch {
-          return [];
-        }
-      })(),
-    }));
+    const [subs] = await db.execute(
+      `SELECT id, category_id, name, slug, status, sort_order
+       FROM subcategories
+       ORDER BY sort_order ASC, id ASC`
+    );
+
+    const subsByCat = new Map();
+    subs.forEach((s) => {
+      if (!subsByCat.has(s.category_id)) {
+        subsByCat.set(s.category_id, []);
+      }
+      subsByCat.get(s.category_id).push({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        status: s.status,
+      });
+    });
+
+    const categories = rows.map((row) => {
+      const detail = subsByCat.get(row.id) || [];
+      return {
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        status: row.status || "Active",
+        /* backward compat — storefront nav sirf Active subs */
+        items: detail
+          .filter((s) => s.status === "Active")
+          .map((s) => s.name),
+        subcategories: detail,
+      };
+    });
 
     return res.status(200).json({ success: true, categories });
   } catch (error) {
@@ -1911,6 +2401,79 @@ app.get("/api/categories", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Unable to load categories.",
+    });
+  }
+});
+
+/* =========================================================
+   PUBLIC — subcategories (?category_id= optional)
+========================================================= */
+
+app.get("/api/subcategories", async (req, res) => {
+  try {
+    await ensureTaxonomy();
+
+    const categoryId = Number(req.query.category_id);
+    let sql = `SELECT s.id, s.category_id, s.name, s.slug, s.status,
+                      s.sort_order, c.name AS category_name
+               FROM subcategories s
+               LEFT JOIN categories c ON c.id = s.category_id`;
+    const params = [];
+
+    if (Number.isFinite(categoryId) && categoryId > 0) {
+      sql += " WHERE s.category_id = ?";
+      params.push(categoryId);
+    }
+
+    sql += " ORDER BY s.category_id ASC, s.sort_order ASC, s.id ASC";
+
+    const [rows] = await db.execute(sql, params);
+
+    return res.status(200).json({
+      success: true,
+      subcategories: rows,
+    });
+  } catch (error) {
+    console.error("Subcategories fetch error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load subcategories.",
+    });
+  }
+});
+
+/* =========================================================
+   PUBLIC — tags
+========================================================= */
+
+app.get("/api/tags", async (req, res) => {
+  try {
+    await ensureTaxonomy();
+
+    const [rows] = await db.execute(
+      `SELECT t.id, t.name, t.slug, t.status,
+              COUNT(pt.product_id) AS productCount
+       FROM tags t
+       LEFT JOIN product_tags pt ON pt.tag_id = t.id
+       GROUP BY t.id
+       ORDER BY t.name ASC`
+    );
+
+    return res.status(200).json({
+      success: true,
+      tags: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        status: r.status,
+        productCount: Number(r.productCount || 0),
+      })),
+    });
+  } catch (error) {
+    console.error("Tags fetch error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load tags.",
     });
   }
 });
@@ -1935,7 +2498,7 @@ app.post(
         });
       }
 
-      await ensureCategoriesTable();
+      await ensureTaxonomy();
 
       const [existing] = await db.execute(
         "SELECT id FROM categories WHERE name = ? LIMIT 1",
@@ -1954,9 +2517,19 @@ app.post(
       );
 
       const [result] = await db.execute(
-        "INSERT INTO categories (name, items, sort_order) VALUES (?, ?, ?)",
-        [name, JSON.stringify(items), maxRow[0].maxOrder + 1]
+        "INSERT INTO categories (name, items, slug, sort_order) VALUES (?, ?, ?, ?)",
+        [name, JSON.stringify(items), slugify(name), maxRow[0].maxOrder + 1]
       );
+
+      /* items -> subcategories rows */
+      for (let i = 0; i < items.length; i++) {
+        await db.execute(
+          `INSERT INTO subcategories (category_id, name, slug, sort_order)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE slug = VALUES(slug)`,
+          [result.insertId, items[i], slugify(items[i]), i]
+        );
+      }
 
       return res.status(201).json({
         success: true,
@@ -2005,10 +2578,10 @@ app.put(
         });
       }
 
-      await ensureCategoriesTable();
+      await ensureTaxonomy();
 
       const [existing] = await db.execute(
-        "SELECT id FROM categories WHERE id = ? LIMIT 1",
+        "SELECT id, name, status FROM categories WHERE id = ? LIMIT 1",
         [id]
       );
 
@@ -2031,15 +2604,76 @@ app.put(
         });
       }
 
+      const status = ["Active", "Inactive"].includes(
+        req.body?.status
+      )
+        ? req.body.status
+        : existing[0].status || "Active";
+
+      const oldName = existing[0].name;
+
       await db.execute(
-        "UPDATE categories SET name = ?, items = ? WHERE id = ?",
-        [name, JSON.stringify(items), id]
+        "UPDATE categories SET name = ?, items = ?, slug = ?, status = ? WHERE id = ?",
+        [name, JSON.stringify(items), slugify(name), status, id]
       );
+
+      /* category rename -> products.category sync */
+      if (oldName && oldName !== name) {
+        await db.execute(
+          "UPDATE products SET category = ? WHERE category = ?",
+          [name, oldName]
+        );
+      }
+
+      /* items -> subcategories sync (add missing; removed ones
+         delete karo sirf jab koi product use na kar raha ho,
+         warna Inactive mark karo) */
+      const wanted = new Set(
+        items.map((i) => String(i).toLowerCase())
+      );
+
+      const [existingSubs] = await db.execute(
+        "SELECT id, name FROM subcategories WHERE category_id = ?",
+        [id]
+      );
+
+      for (let i = 0; i < items.length; i++) {
+        await db.execute(
+          `INSERT INTO subcategories (category_id, name, slug, sort_order, status)
+           VALUES (?, ?, ?, ?, 'Active')
+           ON DUPLICATE KEY UPDATE status = 'Active', sort_order = VALUES(sort_order)`,
+          [id, items[i], slugify(items[i]), i]
+        );
+      }
+
+      for (const sub of existingSubs) {
+        if (wanted.has(String(sub.name).toLowerCase())) {
+          continue;
+        }
+
+        const [used] = await db.execute(
+          `SELECT COUNT(*) AS c FROM products
+           WHERE subcategory = ? AND (category_id = ? OR category = ?)`,
+          [sub.name, id, name]
+        );
+
+        if (Number(used[0].c) > 0) {
+          await db.execute(
+            "UPDATE subcategories SET status = 'Inactive' WHERE id = ?",
+            [sub.id]
+          );
+        } else {
+          await db.execute(
+            "DELETE FROM subcategories WHERE id = ?",
+            [sub.id]
+          );
+        }
+      }
 
       return res.status(200).json({
         success: true,
         message: "Category updated.",
-        category: { id, name, items },
+        category: { id, name, items, status },
       });
     } catch (error) {
       console.error("Category update error:", error);
@@ -2065,10 +2699,10 @@ app.delete(
         });
       }
 
-      await ensureCategoriesTable();
+      await ensureTaxonomy();
 
       const [existing] = await db.execute(
-        "SELECT id FROM categories WHERE id = ? LIMIT 1",
+        "SELECT id, name FROM categories WHERE id = ? LIMIT 1",
         [id]
       );
 
@@ -2076,6 +2710,29 @@ app.delete(
         return res.status(404).json({
           success: false,
           message: "Category not found.",
+        });
+      }
+
+      /* Dependency check — products/subcategories use kar rahe
+         hain to delete nahi; deactivate karna safer hai */
+      const [productUse] = await db.execute(
+        `SELECT COUNT(*) AS c FROM products
+         WHERE category_id = ? OR category = ?`,
+        [id, existing[0].name]
+      );
+
+      const [subUse] = await db.execute(
+        "SELECT COUNT(*) AS c FROM subcategories WHERE category_id = ?",
+        [id]
+      );
+
+      if (
+        Number(productUse[0].c) > 0 ||
+        Number(subUse[0].c) > 0
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: `Category has ${Number(productUse[0].c)} product(s) and ${Number(subUse[0].c)} subcategory(ies). Deactivate it or reassign them first.`,
         });
       }
 
@@ -2090,6 +2747,477 @@ app.delete(
       return res.status(500).json({
         success: false,
         message: "Unable to delete category.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN — SUBCATEGORIES CRUD
+========================================================= */
+
+app.post(
+  "/api/admin/subcategories",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const categoryId = Number(
+        req.body?.category_id ?? req.body?.categoryId
+      );
+      const name = String(req.body?.name || "").trim();
+
+      if (!Number.isFinite(categoryId) || categoryId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid parent category is required.",
+        });
+      }
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Subcategory name must be at least 2 characters.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [cat] = await db.execute(
+        "SELECT id FROM categories WHERE id = ? LIMIT 1",
+        [categoryId]
+      );
+
+      if (cat.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Parent category does not exist.",
+        });
+      }
+
+      const [dup] = await db.execute(
+        `SELECT id FROM subcategories
+         WHERE category_id = ? AND name = ? LIMIT 1`,
+        [categoryId, name]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Subcategory already exists in this category.",
+        });
+      }
+
+      const [maxRow] = await db.execute(
+        `SELECT COALESCE(MAX(sort_order), -1) AS maxOrder
+         FROM subcategories WHERE category_id = ?`,
+        [categoryId]
+      );
+
+      const [result] = await db.execute(
+        `INSERT INTO subcategories (category_id, name, slug, sort_order)
+         VALUES (?, ?, ?, ?)`,
+        [categoryId, name, slugify(name), maxRow[0].maxOrder + 1]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Subcategory added.",
+        subcategory: {
+          id: result.insertId,
+          category_id: categoryId,
+          name,
+          slug: slugify(name),
+          status: "Active",
+        },
+      });
+    } catch (error) {
+      console.error("Subcategory add error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to add subcategory.",
+      });
+    }
+  }
+);
+
+app.put(
+  "/api/admin/subcategories/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid subcategory id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id, category_id, name, status FROM subcategories WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Subcategory not found.",
+        });
+      }
+
+      const current = existing[0];
+
+      const name =
+        req.body?.name !== undefined
+          ? String(req.body.name).trim()
+          : current.name;
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Subcategory name must be at least 2 characters.",
+        });
+      }
+
+      const categoryId =
+        req.body?.category_id !== undefined ||
+        req.body?.categoryId !== undefined
+          ? Number(req.body.category_id ?? req.body.categoryId)
+          : current.category_id;
+
+      if (!Number.isFinite(categoryId) || categoryId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid parent category is required.",
+        });
+      }
+
+      const status = ["Active", "Inactive"].includes(
+        req.body?.status
+      )
+        ? req.body.status
+        : current.status;
+
+      const [cat] = await db.execute(
+        "SELECT id FROM categories WHERE id = ? LIMIT 1",
+        [categoryId]
+      );
+
+      if (cat.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Parent category does not exist.",
+        });
+      }
+
+      const [dup] = await db.execute(
+        `SELECT id FROM subcategories
+         WHERE category_id = ? AND name = ? AND id != ? LIMIT 1`,
+        [categoryId, name, id]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Subcategory already exists in this category.",
+        });
+      }
+
+      await db.execute(
+        `UPDATE subcategories
+         SET category_id = ?, name = ?, slug = ?, status = ?
+         WHERE id = ?`,
+        [categoryId, name, slugify(name), status, id]
+      );
+
+      /* rename -> products.subcategory sync */
+      if (current.name !== name) {
+        await db.execute(
+          `UPDATE products SET subcategory = ?
+           WHERE subcategory = ? AND (subcategory_id = ? OR category_id = ?)`,
+          [name, current.name, id, categoryId]
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Subcategory updated.",
+        subcategory: {
+          id,
+          category_id: categoryId,
+          name,
+          slug: slugify(name),
+          status,
+        },
+      });
+    } catch (error) {
+      console.error("Subcategory update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update subcategory.",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/subcategories/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid subcategory id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id, name, category_id FROM subcategories WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Subcategory not found.",
+        });
+      }
+
+      const [used] = await db.execute(
+        `SELECT COUNT(*) AS c FROM products
+         WHERE subcategory_id = ? OR subcategory = ?`,
+        [id, existing[0].name]
+      );
+
+      if (Number(used[0].c) > 0) {
+        await db.execute(
+          "UPDATE subcategories SET status = 'Inactive' WHERE id = ?",
+          [id]
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: `Subcategory is used by ${Number(used[0].c)} product(s) — deactivated instead of deleted.`,
+        });
+      }
+
+      await db.execute(
+        "DELETE FROM subcategories WHERE id = ?",
+        [id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Subcategory deleted.",
+      });
+    } catch (error) {
+      console.error("Subcategory delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete subcategory.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN — TAGS CRUD
+========================================================= */
+
+app.post(
+  "/api/admin/tags",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Tag name must be at least 2 characters.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [dup] = await db.execute(
+        "SELECT id FROM tags WHERE name = ? LIMIT 1",
+        [name]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Tag already exists.",
+        });
+      }
+
+      const [result] = await db.execute(
+        "INSERT INTO tags (name, slug) VALUES (?, ?)",
+        [name, slugify(name)]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Tag added.",
+        tag: {
+          id: result.insertId,
+          name,
+          slug: slugify(name),
+          status: "Active",
+        },
+      });
+    } catch (error) {
+      console.error("Tag add error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to add tag.",
+      });
+    }
+  }
+);
+
+app.put(
+  "/api/admin/tags/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid tag id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id, name, status FROM tags WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Tag not found.",
+        });
+      }
+
+      const name =
+        req.body?.name !== undefined
+          ? String(req.body.name).trim()
+          : existing[0].name;
+
+      if (name.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "Tag name must be at least 2 characters.",
+        });
+      }
+
+      const status = ["Active", "Inactive"].includes(
+        req.body?.status
+      )
+        ? req.body.status
+        : existing[0].status;
+
+      const [dup] = await db.execute(
+        "SELECT id FROM tags WHERE name = ? AND id != ? LIMIT 1",
+        [name, id]
+      );
+
+      if (dup.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "Another tag with this name already exists.",
+        });
+      }
+
+      await db.execute(
+        "UPDATE tags SET name = ?, slug = ?, status = ? WHERE id = ?",
+        [name, slugify(name), status, id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Tag updated.",
+        tag: { id, name, slug: slugify(name), status },
+      });
+    } catch (error) {
+      console.error("Tag update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update tag.",
+      });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/tags/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid tag id.",
+        });
+      }
+
+      await ensureTaxonomy();
+
+      const [existing] = await db.execute(
+        "SELECT id FROM tags WHERE id = ? LIMIT 1",
+        [id]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Tag not found.",
+        });
+      }
+
+      /* products delete nahi hote — sirf assignments detach */
+      const [ref] = await db.execute(
+        "SELECT COUNT(*) AS c FROM product_tags WHERE tag_id = ?",
+        [id]
+      );
+
+      await db.execute(
+        "DELETE FROM product_tags WHERE tag_id = ?",
+        [id]
+      );
+      await db.execute("DELETE FROM tags WHERE id = ?", [id]);
+
+      return res.status(200).json({
+        success: true,
+        message: `Tag deleted (removed from ${Number(ref[0].c)} product(s)).`,
+      });
+    } catch (error) {
+      console.error("Tag delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete tag.",
       });
     }
   }

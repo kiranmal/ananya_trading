@@ -16,7 +16,10 @@ import {
 
 import "./AddProduct.css";
 import defaultCategories from "../../data/categories";
-import { fetchCategories } from "../../services/categoryApi";
+import {
+  fetchCategories,
+  fetchTags,
+} from "../../services/categoryApi";
 import { createProduct } from "../../services/productApi";
 
 export default function AddProduct() {
@@ -37,9 +40,26 @@ export default function AddProduct() {
         setCategory(first.name);
         setSubcategory(first.items?.[0] || "");
       }
+
+      try {
+        setAllTags(await fetchTags());
+      } catch {
+        // tags optional
+      }
     };
     load();
   }, []);
+
+  const [allTags, setAllTags] = useState([]);
+  const [selectedTagIds, setSelectedTagIds] = useState([]);
+
+  const handleTagToggle = (tagId) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId)
+        ? prev.filter((id) => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState(
@@ -208,7 +228,16 @@ export default function AddProduct() {
 
       category,
 
+      categoryId: selectedCategory?.id || null,
+
       subcategory,
+
+      subcategoryId:
+        (
+          selectedCategory?.subcategories || []
+        ).find((s) => s.name === subcategory)?.id || null,
+
+      tagIds: selectedTagIds,
 
       price: priceNumber,
 
@@ -452,6 +481,63 @@ export default function AddProduct() {
             </div>
 
           </div>
+
+          {/* TAGS (multi-select) */}
+
+          {allTags.length > 0 && (
+            <div className="form-group">
+              <label>Tags</label>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  padding: "6px 0",
+                }}
+              >
+                {allTags
+                  .filter((t) => t.status !== "Inactive")
+                  .map((tag) => (
+                    <label
+                      key={tag.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                        border: "1px solid #d1d5db",
+                        background: selectedTagIds.includes(
+                          tag.id
+                        )
+                          ? "#eff6ff"
+                          : "#fff",
+                        color: selectedTagIds.includes(tag.id)
+                          ? "#1d4ed8"
+                          : "#374151",
+                        fontWeight: selectedTagIds.includes(
+                          tag.id
+                        )
+                          ? 600
+                          : 400,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTagIds.includes(
+                          tag.id
+                        )}
+                        onChange={() => handleTagToggle(tag.id)}
+                      />
+                      {tag.name}
+                    </label>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* PRICE */}
 

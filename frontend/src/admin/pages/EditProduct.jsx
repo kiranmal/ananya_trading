@@ -21,8 +21,12 @@ import {
   fetchProductById,
   updateProduct,
 } from "../../services/productApi";
+import {
+  fetchCategories,
+  fetchTags,
+} from "../../services/categoryApi";
 
-const categories = [
+const defaultCategories = [
   {
     name: "Visiting Cards",
     items: [
@@ -116,6 +120,21 @@ export default function EditProduct() {
   const [productLoaded, setProductLoaded] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
 
+  const [categories, setCategories] = useState(
+    defaultCategories
+  );
+  const [allTags, setAllTags] = useState([]);
+  const [selectedTagIds, setSelectedTagIds] =
+    useState([]);
+
+  const handleTagToggle = (tagId) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId)
+        ? prev.filter((t) => t !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Visiting Cards");
   const [subcategory, setSubcategory] = useState(
@@ -148,12 +167,24 @@ export default function EditProduct() {
   useEffect(() => {
     const loadProduct = async () => {
       try {
-        const product = await fetchProductById(id);
+        const [catList, product] = await Promise.all([
+          fetchCategories(),
+          fetchProductById(id),
+        ]);
+
+        setCategories(catList);
+
+        try {
+          setAllTags(await fetchTags());
+        } catch {
+          // tags optional
+        }
+
         setCurrentProduct(product);
         setName(product.name || "");
         setCategory(product.category || "Visiting Cards");
 
-        const productCategory = categories.find(
+        const productCategory = catList.find(
           (item) => item.name === product.category
         );
         const availableSubcategories = productCategory?.items || [];
@@ -189,6 +220,13 @@ export default function EditProduct() {
         }
 
         setDescription(product.description || "");
+
+        setSelectedTagIds(
+          Array.isArray(product.tagIds)
+            ? product.tagIds
+            : []
+        );
+
         setProductLoaded(true);
       } catch (error) {
         console.error("Edit product loading error:", error);
@@ -367,7 +405,16 @@ export default function EditProduct() {
 
       category,
 
+      categoryId: selectedCategory?.id || null,
+
       subcategory,
+
+      subcategoryId:
+        (
+          selectedCategory?.subcategories || []
+        ).find((s) => s.name === subcategory)?.id || null,
+
+      tagIds: selectedTagIds,
 
       price: priceNumber,
 
@@ -731,6 +778,63 @@ export default function EditProduct() {
             </div>
 
           </div>
+
+          {/* TAGS (multi-select) */}
+
+          {allTags.length > 0 && (
+            <div className="form-group">
+              <label>Tags</label>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  padding: "6px 0",
+                }}
+              >
+                {allTags
+                  .filter((t) => t.status !== "Inactive")
+                  .map((tag) => (
+                    <label
+                      key={tag.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                        border: "1px solid #d1d5db",
+                        background: selectedTagIds.includes(
+                          tag.id
+                        )
+                          ? "#eff6ff"
+                          : "#fff",
+                        color: selectedTagIds.includes(tag.id)
+                          ? "#1d4ed8"
+                          : "#374151",
+                        fontWeight: selectedTagIds.includes(
+                          tag.id
+                        )
+                          ? 600
+                          : 400,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTagIds.includes(
+                          tag.id
+                        )}
+                        onChange={() => handleTagToggle(tag.id)}
+                      />
+                      {tag.name}
+                    </label>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* PRICE */}
 
