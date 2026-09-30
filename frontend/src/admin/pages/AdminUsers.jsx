@@ -5,6 +5,11 @@ import "./AdminUsers.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+  "Content-Type": "application/json",
+});
+
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
@@ -16,7 +21,8 @@ export default function AdminUsers() {
   const loadUsers = async () => {
     try {
       const response = await fetch(
-        `${API_URL}/admin/users`
+        `${API_URL}/admin/users`,
+        { headers: authHeaders() }
       );
 
       const data = await response.json();
@@ -102,10 +108,7 @@ export default function AdminUsers() {
         {
           method: "PUT",
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+          headers: authHeaders(),
 
           body: JSON.stringify({
             status: newStatus,

@@ -33,13 +33,17 @@ export default function StatCard({
           {value}
         </h3>
 
-        <span className="stat-change">
-          {change}
-        </span>
+        {change && (
+          <>
+            <span className="stat-change">
+              {change}
+            </span>
 
-        <span className="stat-period">
-          {" "}from last month
-        </span>
+            <span className="stat-period">
+              {" "}from last month
+            </span>
+          </>
+        )}
 
       </div>
 
