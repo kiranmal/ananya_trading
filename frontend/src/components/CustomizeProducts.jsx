@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import "./CustomizeProducts.css";
+import { saveCustomizeSelection } from "../services/productApi";
 
 /* ============================================================
    CUSTOMIZABLE PRODUCTS
@@ -256,30 +257,19 @@ function CustomizeProducts() {
     };
 
     /* ----------------------------------------------------------
-       DEBUG
+       SAVE SELECTED PRODUCT — lean payload (quota-safe),
+       the editor hydrates the full product from the API
     ---------------------------------------------------------- */
 
-    console.log(
-      "Selected Customize Product:",
-      selectedProduct
-    );
-
-    /* ----------------------------------------------------------
-       SAVE SELECTED PRODUCT
-    ---------------------------------------------------------- */
-
-    localStorage.setItem(
-      "selectedCustomizeProduct",
-      JSON.stringify(
-        selectedProduct
-      )
-    );
+    saveCustomizeSelection(selectedProduct, {
+      type: selectedProduct.type,
+      color: selectedProduct.color,
+      customizationPrice:
+        selectedProduct.customizationPrice,
+    });
 
     /* ----------------------------------------------------------
        CUSTOMIZER PAGE
-
-       state ke through bhi product bhej rahe hain.
-       Isse page refresh/navigation cases me flexibility rahegi.
     ---------------------------------------------------------- */
 
     navigate("/customize", {

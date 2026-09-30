@@ -17,7 +17,7 @@ import {
 } from "../data/productStorage";
 
 import "../styles/Category.css";
-import { fetchProducts, isActiveProduct } from "../services/productApi";
+import { fetchProducts, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
 
 function Category() {
 
@@ -1726,10 +1726,7 @@ function Category() {
                             to="/customize"
                             className="card-customize-link"
                             onClick={() =>
-                              localStorage.setItem(
-                                "selectedCustomizeProduct",
-                                JSON.stringify(product)
-                              )
+                              saveCustomizeSelection(product)
                             }
                           >
 

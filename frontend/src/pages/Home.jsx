@@ -11,7 +11,7 @@ import {
 import "./Home.css";
 import CustomizeProducts from "../components/CustomizeProducts";
 import ContactSection from "../components/ContactSection";
-import { fetchProducts, isActiveProduct } from "../services/productApi";
+import { fetchProducts, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
 
 function Home() {
   const navigate = useNavigate();
@@ -490,26 +490,17 @@ function Home() {
         ) || 199,
     };
 
-    console.log(
-      "CUSTOMIZE PRODUCT:",
-      customizeProduct
-    );
-
-    /* ===================================================
-       LOCAL STORAGE
-    =================================================== */
-
-    localStorage.setItem(
-      "selectedCustomizeProduct",
-      JSON.stringify(
-        customizeProduct
-      )
-    );
+    /* lean payload only — quota-safe; editor hydrates
+       the full product from the API */
+    saveCustomizeSelection(customizeProduct, {
+      type: customizeProduct.type,
+      color: customizeProduct.color,
+      customizationPrice:
+        customizeProduct.customizationPrice,
+    });
 
     /* ===================================================
        OPEN CUSTOMIZE PAGE
-
-       State + localStorage dono me data bhej rahe hain.
     =================================================== */
 
     navigate("/customize", {

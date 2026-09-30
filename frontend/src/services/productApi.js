@@ -68,6 +68,58 @@ export const fetchProductById = async (id) => {
 export const isActiveProduct = (product) =>
   product?.status !== "Inactive";
 
+/* lean selection payload for /customize — the full product
+   (and never the catalog) must not hit localStorage; the
+   editor re-hydrates the product via the API */
+export const saveCustomizeSelection = (product, extras = {}) => {
+  const smallImage = (src) =>
+    typeof src === "string" && src.length < 200000 ? src : "";
+
+  const lean = {
+    id: product?.id ?? product?.productId ?? null,
+    name: product?.name || "Custom Product",
+    category: product?.category || "",
+    subcategory: product?.subcategory || "",
+    price: Number(product?.price || 0),
+    image: smallImage(
+      product?.image || product?.images?.[0]
+    ),
+    images: Array.isArray(product?.images)
+      ? product.images
+          .filter((i) => String(i).length < 5000)
+          .slice(0, 6)
+      : [],
+    paperTypes: Array.isArray(product?.paperTypes)
+      ? product.paperTypes
+      : [],
+    sizes: Array.isArray(product?.sizes) ? product.sizes : [],
+    customizable: true,
+    customizationType:
+      product?.customizationType || product?.type || "",
+    ...extras,
+  };
+
+  try {
+    localStorage.setItem(
+      "selectedCustomizeProduct",
+      JSON.stringify(lean)
+    );
+  } catch {
+    /* storage full — retry with bare minimum */
+    try {
+      const { images, ...rest } = lean;
+      localStorage.setItem(
+        "selectedCustomizeProduct",
+        JSON.stringify(rest)
+      );
+    } catch {
+      /* give up — editor will show its not-found state */
+    }
+  }
+
+  return lean;
+};
+
 export const createProduct = async (product) => {
   const data = await request("/products", {
     method: "POST",

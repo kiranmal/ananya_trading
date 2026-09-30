@@ -16,7 +16,7 @@ import {
 
 import "./Cart.css";
 import { saveOrderToServer } from "../services/orderApi";
-import { fetchProducts, isActiveProduct } from "../services/productApi";
+import { fetchProducts, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
 
 // ============================================================
 // HELPERS
@@ -1578,15 +1578,14 @@ function Cart() {
       /* ignore */
     }
 
-    localStorage.setItem(
-      "selectedCustomizeProduct",
-      JSON.stringify({
-        ...item,
-        id: pid,
-        customizable: true,
+    /* lean selection — the item's design objects must not
+       go into localStorage via the product payload */
+    saveCustomizeSelection(
+      { ...item, id: pid },
+      {
         customizationType:
           item.customizationType || "business-card",
-      })
+      }
     );
 
     navigate("/customize");

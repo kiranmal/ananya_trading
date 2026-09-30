@@ -20,7 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { fetchProductById, isActiveProduct } from "../services/productApi";
+import { fetchProductById, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
 import { saveInquiryContext } from "../services/inquiryApi";
 
 import "../styles/ProductDetails.css";
@@ -661,18 +661,11 @@ function ProductDetails() {
   );
 
   const handleCustomize = () => {
-    const selectedProduct = {
-      ...product,
-      image: images[0],
+    saveCustomizeSelection(product, {
       paperType: paper,
       size,
       quantity,
-    };
-
-    localStorage.setItem(
-      "selectedCustomizeProduct",
-      JSON.stringify(selectedProduct)
-    );
+    });
 
     navigate("/customize");
   };
