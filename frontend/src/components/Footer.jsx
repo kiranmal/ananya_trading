@@ -1,7 +1,70 @@
-import React from "react";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  MapPin,
+  Phone,
+  Mail,
+  Truck,
+  ShieldCheck,
+  RotateCcw,
+  Headphones,
+} from "lucide-react";
 import "./Footer.css";
 
+/* Social brand icons — lucide v1 removed them, inline SVGs */
+const FacebookIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M13.5 21v-8.2h2.8l.4-3.2h-3.2V7.5c0-.9.3-1.6 1.6-1.6h1.7V3.1C16.4 3 15.4 3 14.3 3c-2.3 0-3.8 1.4-3.8 3.9v2.7H7.7v3.2h2.8V21h3Z" />
+  </svg>
+);
+
+const XIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M17.5 3h3.1l-6.8 7.8L21.9 21h-6.3l-4.9-6.4L5 21H1.9l7.3-8.3L1.7 3H8l4.4 5.9L17.5 3Zm-1.1 16.1h1.7L7.1 4.8H5.3l11.1 14.3Z" />
+  </svg>
+);
+
+const InstagramIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M12 2.2c3.2 0 3.6 0 4.9.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.9.1-3.2 0-3.6 0-4.8-.1-3.3-.1-4.8-1.7-4.9-4.9-.1-1.3-.1-1.6-.1-4.8s0-3.6.1-4.8C2.4 4 4 2.4 7.2 2.3c1.2-.1 1.6-.1 4.8-.1Zm0 3.6a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4Zm0 10.2a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm6.4-11.8a1.4 1.4 0 1 0 0 2.9 1.4 1.4 0 0 0 0-2.9Z" />
+  </svg>
+);
+
+const LinkedinIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm6.5 0h3.8v1.7h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V21h-4v-5.5c0-1.3 0-3-1.9-3-1.8 0-2.1 1.4-2.1 2.9V21h-4V9Z" />
+  </svg>
+);
+
+const YoutubeIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.3 5 12 5 12 5s-6.3 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8c1.5.4 7.8.4 7.8.4s6.3 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8ZM10 15.2V8.8l5.2 3.2-5.2 3.2Z" />
+  </svg>
+);
+
+/* real catalog categories — /category?category= filter */
+const FOOTER_CATEGORIES = [
+  "Visiting Cards",
+  "Stationery & Office",
+  "Marketing Materials",
+  "Stickers & Labels",
+  "Packaging",
+  "Clothing & Bags",
+  "Mugs & Gifts",
+  "Pens & Drinkware",
+];
+
 function Footer() {
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = (e) => {
+    e.preventDefault();
+    const email = e.target.elements.email.value.trim();
+    if (!email || !email.includes("@")) return;
+    setSubscribed(true);
+    e.target.reset();
+  };
+
   return (
     <footer className="premium-footer">
 
@@ -17,13 +80,20 @@ function Footer() {
             </p>
           </div>
 
-          <div className="newsletter-form">
+          <form
+            className="newsletter-form"
+            onSubmit={handleSubscribe}
+          >
             <input
+              name="email"
               type="email"
               placeholder="Enter your email address"
+              required
             />
-            <button>Subscribe</button>
-          </div>
+            <button type="submit">
+              {subscribed ? "Subscribed ✓" : "Subscribe"}
+            </button>
+          </form>
         </div>
       </div>
 
@@ -42,27 +112,43 @@ function Footer() {
 
           <div className="footer-contact">
             <p>
-              <strong>📍</strong>
+              <strong>
+                <MapPin size={15} />
+              </strong>
               India
             </p>
 
             <p>
-              <strong>📞</strong>
+              <strong>
+                <Phone size={15} />
+              </strong>
               +91 98765 43210
             </p>
 
             <p>
-              <strong>✉</strong>
+              <strong>
+                <Mail size={15} />
+              </strong>
               support@ananyatrading.com
             </p>
           </div>
 
           <div className="footer-social">
-            <a href="/">f</a>
-            <a href="/">𝕏</a>
-            <a href="/">◎</a>
-            <a href="/">in</a>
-            <a href="/">▶</a>
+            <a href="https://facebook.com" target="_blank" rel="noreferrer" aria-label="Facebook">
+              <FacebookIcon />
+            </a>
+            <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="X (Twitter)">
+              <XIcon />
+            </a>
+            <a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram">
+              <InstagramIcon />
+            </a>
+            <a href="https://linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">
+              <LinkedinIcon />
+            </a>
+            <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube">
+              <YoutubeIcon />
+            </a>
           </div>
         </div>
 
@@ -70,52 +156,51 @@ function Footer() {
         <div className="footer-column">
           <h3>Shop</h3>
 
-          <a href="/category">All Products</a>
-          <a href="/category">New Arrivals</a>
-          <a href="/category">Best Sellers</a>
-          <a href="/category">Featured Products</a>
-          <a href="/category">Special Offers</a>
-          <a href="/category">Customized Products</a>
-          <a href="/category">Printing Products</a>
+          <Link to="/category">All Products</Link>
+          <Link to="/category?type=new">New Arrivals</Link>
+          <Link to="/category">Best Sellers</Link>
+          <Link to="/category">Featured Products</Link>
+          <Link to="/category">Special Offers</Link>
+          <Link to="/category">Customized Products</Link>
         </div>
 
         {/* Categories */}
         <div className="footer-column">
           <h3>Categories</h3>
 
-          <a href="/category">T-Shirts</a>
-          <a href="/category">Hoodies</a>
-          <a href="/category">Mugs</a>
-          <a href="/category">Bottles</a>
-          <a href="/category">Caps</a>
-          <a href="/category">Bags</a>
-          <a href="/category">Corporate Gifts</a>
-          <a href="/category">Customized Gifts</a>
+          {FOOTER_CATEGORIES.map((cat) => (
+            <Link
+              key={cat}
+              to={`/category?category=${encodeURIComponent(cat)}`}
+            >
+              {cat}
+            </Link>
+          ))}
         </div>
 
         {/* Customer Service */}
         <div className="footer-column">
           <h3>Customer Service</h3>
 
-          <a href="/contact">Contact Us</a>
-          <a href="/track-order">Track Your Order</a>
-          <a href="/shipping">Shipping Information</a>
-          <a href="/returns">Returns & Refunds</a>
-          <a href="/faq">FAQs</a>
-          <a href="/help">Help Center</a>
-          <a href="/support">Customer Support</a>
+          <Link to="/contact">Contact Us</Link>
+          <Link to="/track-order">Track Your Order</Link>
+          <Link to="/shipping">Shipping Information</Link>
+          <Link to="/returns">Returns & Refunds</Link>
+          <Link to="/faq">FAQs</Link>
+          <Link to="/help">Help Center</Link>
+          <Link to="/support">Customer Support</Link>
         </div>
 
         {/* Account */}
         <div className="footer-column">
           <h3>My Account</h3>
 
-          <a href="/profile">My Profile</a>
-          <a href="/orders">My Orders</a>
-          <a href="/wishlist">Wishlist</a>
-          <a href="/cart">Shopping Cart</a>
-          <a href="/login">Login</a>
-          <a href="/signup">Create Account</a>
+          <Link to="/profile">My Profile</Link>
+          <Link to="/orders">My Orders</Link>
+          <Link to="/favorites">Wishlist</Link>
+          <Link to="/cart">Shopping Cart</Link>
+          <Link to="/login">Login</Link>
+          <Link to="/signup">Create Account</Link>
         </div>
 
       </div>
@@ -124,7 +209,9 @@ function Footer() {
       <div className="footer-trust">
 
         <div className="trust-item">
-          <span>🚚</span>
+          <span>
+            <Truck size={22} />
+          </span>
           <div>
             <strong>Fast Delivery</strong>
             <p>Quick & reliable shipping</p>
@@ -132,7 +219,9 @@ function Footer() {
         </div>
 
         <div className="trust-item">
-          <span>🔒</span>
+          <span>
+            <ShieldCheck size={22} />
+          </span>
           <div>
             <strong>Secure Payment</strong>
             <p>100% secure transactions</p>
@@ -140,7 +229,9 @@ function Footer() {
         </div>
 
         <div className="trust-item">
-          <span>↩</span>
+          <span>
+            <RotateCcw size={22} />
+          </span>
           <div>
             <strong>Easy Returns</strong>
             <p>Simple return process</p>
@@ -148,7 +239,9 @@ function Footer() {
         </div>
 
         <div className="trust-item">
-          <span>💬</span>
+          <span>
+            <Headphones size={22} />
+          </span>
           <div>
             <strong>24/7 Support</strong>
             <p>We're here to help</p>
@@ -168,10 +261,10 @@ function Footer() {
         </div>
 
         <div className="footer-policies">
-          <a href="/privacy">Privacy Policy</a>
-          <a href="/terms">Terms & Conditions</a>
-          <a href="/refund">Refund Policy</a>
-          <a href="/shipping">Shipping Policy</a>
+          <Link to="/privacy">Privacy Policy</Link>
+          <Link to="/terms">Terms & Conditions</Link>
+          <Link to="/refund">Refund Policy</Link>
+          <Link to="/shipping">Shipping Policy</Link>
         </div>
 
         <div className="payment-methods">
