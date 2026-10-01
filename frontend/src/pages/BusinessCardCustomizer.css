@@ -77,6 +77,10 @@
 .bc-canvas-element.bc-el-hidden { opacity: 0.12 !important; pointer-events: none; }
 .bc-canvas-element.bc-el-hidden > * { pointer-events: none; }
 .bc-canvas-element img { object-fit: contain; }
+
+/* direct-in-canvas text editing — overlays the text element
+   with identical typography so typing feels native */
+.bc-inline-edit { display: block; box-sizing: border-box; margin: 0; padding: 0; border: none; outline: 1.5px dashed rgba(37, 99, 235, 0.55); outline-offset: 3px; background: rgba(255, 255, 255, 0.18); resize: none; overflow: auto; cursor: text; pointer-events: auto; caret-color: #2563eb; word-break: break-word; }
 .bc-dimensions { margin: 13px 0 0; color: #64748b; font-size: 11px; }
 
 /* ── properties panel ── */

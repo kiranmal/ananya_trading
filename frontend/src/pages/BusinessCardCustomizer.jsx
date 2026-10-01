@@ -281,6 +281,7 @@ export default function BusinessCardCustomizer({
   const fileRef = useRef(null);
   const replaceFileRef = useRef(null);
   const backgroundRef = useRef(null);
+  const tapRef = useRef(null);
 
   const storedProduct = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("selectedCustomizeProduct") || "null"); }
@@ -328,6 +329,7 @@ export default function BusinessCardCustomizer({
     return buildInitialDesign();
   });
   const [selectedId, setSelectedId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
   const [template, setTemplate] = useState(savedDesign?.template || (savedDesign ? null : defaultTemplate));
@@ -418,6 +420,37 @@ export default function BusinessCardCustomizer({
     else setDesign(apply);
   }, [commit, side, selectedId]);
 
+  /* update any element by id — keystroke typing must not
+     spam undo history */
+  const updateElementById = useCallback((id, changes) => {
+    setDesign((v) => ({
+      ...v,
+      [side]: {
+        ...v[side],
+        elements: v[side].elements.map((el) =>
+          el.id === id ? { ...el, ...changes } : el
+        ),
+      },
+    }));
+  }, [side]);
+
+  /* direct-in-canvas text editing — double-click/double-tap.
+     One undo checkpoint per edit session; typing itself is
+     committed live without history entries. */
+  const startTextEdit = useCallback(
+    (element) => {
+      if (preview || element.type !== "text" || element.visible === false)
+        return;
+      setSelectedId(element.id);
+      if (editingId !== element.id) {
+        setHistory((h) => [...h.slice(-29), design]);
+        setFuture([]);
+      }
+      setEditingId(element.id);
+    },
+    [preview, editingId, design]
+  );
+
   const addElement = useCallback((element) => {
     const existingPreset = element.preset ? elements.find((el) => el.preset === element.preset) : null;
     if (existingPreset) { setSelectedId(existingPreset.id); return; }
@@ -429,6 +462,7 @@ export default function BusinessCardCustomizer({
     if (!selectedId) return;
     commit((v) => ({ ...v, [side]: { ...v[side], elements: v[side].elements.filter((el) => el.id !== selectedId) } }));
     setSelectedId(null);
+    setEditingId(null);
   }, [commit, side, selectedId]);
 
   const duplicateSelected = useCallback(() => {
@@ -476,6 +510,7 @@ export default function BusinessCardCustomizer({
     setDesign(history[history.length - 1]);
     setHistory((h) => h.slice(0, -1));
     setSelectedId(null);
+    setEditingId(null);
   }, [history, design]);
 
   const redo = useCallback(() => {
@@ -484,6 +519,7 @@ export default function BusinessCardCustomizer({
     setDesign(future[future.length - 1]);
     setFuture((f) => f.slice(0, -1));
     setSelectedId(null);
+    setEditingId(null);
   }, [future, design]);
 
   const reset = useCallback(() => {
@@ -522,6 +558,7 @@ export default function BusinessCardCustomizer({
       commit(() => newDesign);
       setTemplate(name);
       setSelectedId(null);
+      setEditingId(null);
       setConfirmDialog(null);
     };
     if (hasElements && template !== name) {
@@ -573,16 +610,22 @@ export default function BusinessCardCustomizer({
   const startDrag = useCallback((event, element) => {
     if (preview) return;
     if (element.visible === false) return;
+    /* dragging must never start while a text field is open —
+       the textarea stops propagation, this is a safety net */
+    if (editingId === element.id) return;
     event.preventDefault();
     setSelectedId(element.id);
     const canvas = event.currentTarget.parentElement.getBoundingClientRect();
     const startX = event.clientX;
     const startY = event.clientY;
+    const downAt = Date.now();
+    let moved = false;
     const origX = element.x;
     const origY = element.y;
     setHistory((h) => [...h.slice(-29), design]);
     setFuture([]);
     const move = (e) => {
+      if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) moved = true;
       const x = Math.max(0, Math.min(100, origX + ((e.clientX - startX) / canvas.width) * 100));
       const y = Math.max(0, Math.min(100, origY + ((e.clientY - startY) / canvas.height) * 100));
       setDesign((v) => ({
@@ -590,10 +633,28 @@ export default function BusinessCardCustomizer({
         [side]: { ...v[side], elements: v[side].elements.map((el) => el.id === element.id ? { ...el, x, y } : el) },
       }));
     };
-    const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      /* quick tap on the same text element twice = enter
+         edit mode (covers touch where dblclick is unreliable) */
+      const quickTap = !moved && Date.now() - downAt < 350;
+      if (quickTap && element.type === "text") {
+        if (tapRef.current === element.id) {
+          tapRef.current = null;
+          startTextEdit(element);
+        } else {
+          tapRef.current = element.id;
+        }
+      } else if (moved) {
+        tapRef.current = null;
+      }
+      /* a click with no movement created a needless history
+         entry — pop it back unless a tap pair just fired */
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
-  }, [preview, design, side]);
+  }, [preview, design, side, editingId, startTextEdit]);
 
   /* ── save / cart ── */
   const saveDesign = useCallback(() => {
@@ -656,14 +717,49 @@ export default function BusinessCardCustomizer({
       opacity: element.opacity ?? 1, color: element.color,
     };
     if (element.type === "text") {
-      return (
-        <div style={{
-          ...style, fontFamily: element.fontFamily, fontSize: `${element.fontSize}px`,
-          fontWeight: element.fontWeight, fontStyle: element.italic ? "italic" : "normal",
-          textDecoration: element.underline ? "underline" : "none", textAlign: element.align,
-          letterSpacing: `${element.letterSpacing}px`, lineHeight: element.lineHeight, whiteSpace: "pre-line",
-        }}>{element.text}</div>
-      );
+      const textStyle = {
+        ...style, fontFamily: element.fontFamily, fontSize: `${element.fontSize}px`,
+        fontWeight: element.fontWeight, fontStyle: element.italic ? "italic" : "normal",
+        textDecoration: element.underline ? "underline" : "none", textAlign: element.align,
+        letterSpacing: `${element.letterSpacing}px`, lineHeight: element.lineHeight, whiteSpace: "pre-line",
+      };
+      /* direct-in-canvas editing: textarea overlays the text
+         element with identical styling; updates are live */
+      if (editingId === element.id) {
+        return (
+          <textarea
+            className="bc-inline-edit"
+            style={textStyle}
+            value={element.text}
+            rows={Math.max(1, String(element.text).split("\n").length)}
+            maxLength={500}
+            ref={(el) => {
+              if (el && !el.dataset.focused) {
+                el.dataset.focused = "1";
+                el.focus({ preventScroll: true });
+                const end = el.value.length;
+                el.setSelectionRange(end, end);
+              }
+            }}
+            onChange={(e) =>
+              updateElementById(element.id, { text: e.target.value })
+            }
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (
+                e.key === "Escape" ||
+                (e.key === "Enter" && (e.ctrlKey || e.metaKey))
+              ) {
+                e.target.blur();
+              }
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={() => setEditingId(null)}
+          />
+        );
+      }
+      return <div style={textStyle}>{element.text}</div>;
     }
     if (element.type === "image") return <img src={element.src} alt={element.name || "Design element"} style={style} />;
     if (element.type === "shape") {
@@ -698,7 +794,7 @@ export default function BusinessCardCustomizer({
         <div className="bc-history-actions">
           <button type="button" onClick={undo} disabled={!history.length}><Undo2 size={17} /> Undo</button>
           <button type="button" onClick={redo} disabled={!future.length}><Redo2 size={17} /> Redo</button>
-          <button type="button" onClick={() => setPreview((v) => !v)}><Eye size={17} /> Preview</button>
+          <button type="button" onClick={() => setPreview((v) => { setEditingId(null); return !v; })}><Eye size={17} /> Preview</button>
           {embedded ? (
             <button
               type="button"
@@ -804,14 +900,14 @@ export default function BusinessCardCustomizer({
         {/* ── CENTER: canvas ── */}
         <section className="bc-stage">
           <div className="bc-side-tabs">
-            <button type="button" className={side === "front" ? "active" : ""} onClick={() => { setSide("front"); setSelectedId(null); }}>Front Side</button>
-            <button type="button" className={side === "back" ? "active" : ""} onClick={() => { setSide("back"); setSelectedId(null); }}>Back Side</button>
+            <button type="button" className={side === "front" ? "active" : ""} onClick={() => { setSide("front"); setSelectedId(null); setEditingId(null); }}>Front Side</button>
+            <button type="button" className={side === "back" ? "active" : ""} onClick={() => { setSide("back"); setSelectedId(null); setEditingId(null); }}>Back Side</button>
           </div>
           <div className="bc-card-shell">
             <div
               className={`bc-card-canvas ${preview ? "preview" : ""}`}
               style={{ background: current.gradient || current.background, backgroundImage: current.backgroundImage ? `url(${current.backgroundImage})` : current.gradient || "none" }}
-              onClick={() => setSelectedId(null)}
+              onClick={() => { setSelectedId(null); setEditingId(null); }}
             >
               {elements.map((element) => (
                 <div
@@ -819,6 +915,7 @@ export default function BusinessCardCustomizer({
                   className={`bc-canvas-element ${selectedId === element.id ? "selected" : ""} ${element.visible === false ? "bc-el-hidden" : ""}`}
                   onPointerDown={(e) => startDrag(e, element)}
                   onClick={(e) => { e.stopPropagation(); if (element.visible !== false) setSelectedId(element.id); }}
+                  onDoubleClick={(e) => { e.stopPropagation(); startTextEdit(element); }}
                 >
                   {renderElement(element)}
                 </div>
