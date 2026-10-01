@@ -202,11 +202,12 @@ export default function ProductTemplates({
   return (
     <div className="pt-section">
       <label className="pt-heading">
-        Templates
-        <span className="pt-sub">
-          belong to this product only
-        </span>
+        CUSTOMIZATION TEMPLATES
       </label>
+      <p className="pt-sub">
+        Create templates that customers can choose when
+        customizing this product.
+      </p>
 
       {error && <p className="pt-error">{error}</p>}
 
