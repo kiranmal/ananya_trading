@@ -63,6 +63,14 @@ export const updateProductTemplate = async (
   return data.template;
 };
 
+/* ADMIN — grouped list: every product with its templates */
+export const fetchAllTemplatesGrouped = async () => {
+  const data = await request(`/admin/templates`, {
+    headers: getAuthHeaders(),
+  });
+  return Array.isArray(data.groups) ? data.groups : [];
+};
+
 export const deleteProductTemplate = async (productId, templateId) => {
   await request(
     `/products/${productId}/templates/${templateId}`,

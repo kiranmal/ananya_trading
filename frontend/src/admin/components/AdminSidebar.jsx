@@ -59,6 +59,14 @@ export default function AdminSidebar() {
 
 
         <NavLink
+          to="/admin/templates"
+          className="admin-menu-item"
+        >
+          🧩 Templates
+        </NavLink>
+
+
+        <NavLink
           to="/admin/orders"
           className="admin-menu-item"
         >

@@ -1912,11 +1912,38 @@ app.put(
           ? sanitizeTemplateDesign(req.body.design)
           : null;
 
+      /* optional: template ko doosre product pe move karo */
+      let newProductId = productId;
+      if (req.body.productId !== undefined) {
+        const candidate = Number(req.body.productId);
+        if (
+          !Number.isFinite(candidate) ||
+          candidate <= 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid product id.",
+          });
+        }
+        const [prod] = await db.execute(
+          "SELECT id FROM products WHERE id = ? LIMIT 1",
+          [candidate]
+        );
+        if (prod.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "Target product not found.",
+          });
+        }
+        newProductId = candidate;
+      }
+
       await db.execute(
         `UPDATE product_templates
          SET name = ?, status = ?, sort_order = ?,
-             thumbnail = ?, design_data = COALESCE(?, design_data)
-         WHERE id = ? AND product_id = ?`,
+             thumbnail = ?, design_data = COALESCE(?, design_data),
+             product_id = ?
+         WHERE id = ?`,
         [
           name,
           status,
@@ -1926,8 +1953,8 @@ app.put(
               null
             : row.thumbnail,
           design ? JSON.stringify(design) : null,
+          newProductId,
           templateId,
-          productId,
         ]
       );
 
@@ -1946,6 +1973,56 @@ app.put(
       return res.status(500).json({
         success: false,
         message: "Unable to update template.",
+      });
+    }
+  }
+);
+
+/* ADMIN — saare templates grouped by product.
+   Admin Templates page ke liye ek hi call. */
+app.get(
+  "/api/admin/templates",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureProductTemplatesTable();
+
+      const [rows] = await db.execute(
+        `SELECT t.*, p.name AS product_name,
+                p.customization_type AS product_type,
+                p.customizable AS product_customizable
+         FROM product_templates t
+         JOIN products p ON p.id = t.product_id
+         ORDER BY p.name ASC, t.sort_order ASC, t.id ASC`
+      );
+
+      const grouped = new Map();
+      for (const row of rows) {
+        const pid = row.product_id;
+        if (!grouped.has(pid)) {
+          grouped.set(pid, {
+            productId: pid,
+            productName: row.product_name,
+            productType: row.product_type || "",
+            customizable: Number(
+              row.product_customizable || 0
+            ),
+            templates: [],
+          });
+        }
+        grouped.get(pid).templates.push(mapTemplate(row));
+      }
+
+      return res.status(200).json({
+        success: true,
+        groups: Array.from(grouped.values()),
+      });
+    } catch (error) {
+      console.error("ADMIN TEMPLATES ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load templates.",
       });
     }
   }

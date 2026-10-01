@@ -9,6 +9,7 @@ import AdminLayout from "./components/AdminLayout";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminProducts from "./pages/AdminProducts";
 import AdminCategories from "./pages/AdminCategories";
+import AdminTemplates from "./pages/AdminTemplates";
 import AdminPayments from "./pages/AdminPayments";
 import AdminInventory from "./pages/AdminInventory";
 import AdminUsers from "./pages/AdminUsers";
@@ -97,6 +98,17 @@ export default function AdminApp() {
         <Route
           path="categories"
           element={<AdminCategories />}
+        />
+
+
+        {/* =================================================
+            TEMPLATES — product-wise customization templates
+            URL: /admin/templates
+        ================================================= */}
+
+        <Route
+          path="templates"
+          element={<AdminTemplates />}
         />
 
 
