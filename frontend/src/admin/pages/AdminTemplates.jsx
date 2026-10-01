@@ -30,6 +30,102 @@ import "./AdminTemplates.css";
 const CARD_TYPES = ["business-card"];
 
 /* ============================================================
+   GENERIC PREVIEW — renders {front:[els], back:[els]} designs
+   from the non-card customizer (print-area % coordinates)
+============================================================ */
+const GenericTemplatePreview = ({ design }) => {
+  const els = Array.isArray(design?.front)
+    ? design.front.filter((e) => !e.hidden).slice(0, 12)
+    : [];
+
+  return (
+    <div className="at-generic-preview">
+      {els.map((el, i) => {
+        const s = {
+          position: "absolute",
+          left: `${el.x}%`,
+          top: `${el.y}%`,
+          transform: `translate(-50%,-50%) rotate(${
+            el.rotation || 0
+          }deg)`,
+          opacity: el.opacity ?? 1,
+        };
+
+        if (el.type === "text")
+          return (
+            <div
+              key={i}
+              style={{
+                ...s,
+                fontFamily: el.fontFamily,
+                fontSize: `${Math.max(
+                  3,
+                  (el.fontSize || 12) * 0.3
+                )}px`,
+                fontWeight: el.bold ? 700 : 400,
+                fontStyle: el.italic ? "italic" : "normal",
+                textDecoration: el.underline
+                  ? "underline"
+                  : "none",
+                color: el.color,
+                textAlign: el.align || "center",
+                letterSpacing: `${
+                  (el.letterSpacing || 0) * 0.3
+                }px`,
+                whiteSpace: "pre-line",
+                lineHeight: 1.25,
+              }}
+            >
+              {el.text}
+            </div>
+          );
+
+        if (el.type === "shape")
+          return (
+            <div
+              key={i}
+              style={{
+                ...s,
+                width: `${el.width}%`,
+                height:
+                  el.shape === "line"
+                    ? "1.5px"
+                    : `${el.height}%`,
+                background: el.color,
+                borderRadius:
+                  el.shape === "circle"
+                    ? "50%"
+                    : "3px",
+              }}
+            />
+          );
+
+        if (el.type === "qr")
+          return (
+            <div
+              key={i}
+              className="at-generic-qr"
+              style={{ ...s, width: `${el.width}%` }}
+            />
+          );
+
+        if (el.type === "image" && el.src)
+          return (
+            <img
+              key={i}
+              src={el.src}
+              alt=""
+              style={{ ...s, width: `${el.width}%` }}
+            />
+          );
+
+        return null;
+      })}
+    </div>
+  );
+};
+
+/* ============================================================
    ADMIN → TEMPLATES
    product-wise grouped template catalog.
    har template ek specific product ka hota hai.
@@ -359,14 +455,15 @@ export default function AdminTemplates() {
                   key={t.id}
                 >
                   <div className="at-preview">
-                    {t.design?.frontDesign ||
-                    t.design?.front ? (
+                    {t.design?.frontDesign ? (
                       <TemplatePreview
                         tpl={{
-                          frontDesign:
-                            t.design.frontDesign ||
-                            t.design.front,
+                          frontDesign: t.design.frontDesign,
                         }}
+                      />
+                    ) : Array.isArray(t.design?.front) ? (
+                      <GenericTemplatePreview
+                        design={t.design}
                       />
                     ) : (
                       <span className="at-no-design">
@@ -560,13 +657,18 @@ export default function AdminTemplates() {
 
             {modal.design && (
               <div className="at-modal-preview">
-                <TemplatePreview
-                  tpl={{
-                    frontDesign:
-                      modal.design.frontDesign ||
-                      modal.design.front,
-                  }}
-                />
+                {modal.design.frontDesign ? (
+                  <TemplatePreview
+                    tpl={{
+                      frontDesign:
+                        modal.design.frontDesign,
+                    }}
+                  />
+                ) : Array.isArray(modal.design.front) ? (
+                  <GenericTemplatePreview
+                    design={modal.design}
+                  />
+                ) : null}
               </div>
             )}
 

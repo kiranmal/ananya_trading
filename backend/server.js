@@ -1663,6 +1663,45 @@ async function ensureProductTemplatesTable() {
   cardTemplatesSeeded = true;
 
   try {
+    /* non-card customizable products get their own
+       product-appropriate template set */
+    const { genericSeedsFor } = require("./genericTemplateSeeds");
+    const [allCust] = await db.execute(
+      `SELECT id, name, customization_type
+       FROM products
+       WHERE customizable = 1`
+    );
+
+    for (const p of allCust) {
+      const type = String(p.customization_type || "").toLowerCase();
+      if (
+        type === "business-card" ||
+        /visiting card|business card/.test(p.name.toLowerCase())
+      ) {
+        continue; /* card seeds handle these below */
+      }
+
+      const [c] = await db.execute(
+        "SELECT COUNT(*) AS n FROM product_templates WHERE product_id = ?",
+        [p.id]
+      );
+      if (Number(c[0].n) > 0) continue;
+
+      const seeds = genericSeedsFor({
+        name: p.name,
+        customizationType: p.customization_type,
+      });
+
+      for (const t of seeds) {
+        await db.execute(
+          `INSERT INTO product_templates
+             (product_id, name, design_data, status, sort_order)
+           VALUES (?, ?, ?, 'Active', ?)`,
+          [p.id, t.name, JSON.stringify(t.design), t.sortOrder]
+        );
+      }
+    }
+
     const [prods] = await db.execute(
       `SELECT id FROM products
        WHERE customizable = 1
@@ -1715,20 +1754,85 @@ const mapTemplate = (row) => {
   };
 };
 
-/* sanitize a {frontDesign, backDesign} template payload —
-   reuses the card-design sanitizer used for orders */
+/* sanitize one element of the generic (non-card) customizer
+   format — text/shape/image/qr with kind/bold/hidden fields */
+const sanitizeGenericElement = (el) => {
+  if (!el || typeof el !== "object") return null;
+
+  const type = ["text", "shape", "image", "qr"].includes(el.type)
+    ? el.type
+    : "text";
+
+  const clean = {
+    type,
+    kind: String(el.kind || "custom").slice(0, 40),
+    label: String(el.label || "").slice(0, 80),
+    x: clampNum(el.x, -50, 150, 50),
+    y: clampNum(el.y, -50, 150, 50),
+    width: clampNum(el.width, 1, 150, 30),
+    height: clampNum(el.height, 0, 200, 10),
+    rotation: clampNum(el.rotation, -360, 360, 0),
+    opacity: clampNum(el.opacity, 0, 1, 1),
+    hidden: Boolean(el.hidden),
+    color: sanitizeColor(el.color || "#172033"),
+  };
+
+  if (type === "text") {
+    clean.text = String(el.text || "").slice(0, 500);
+    clean.fontSize = clampNum(el.fontSize, 4, 200, 14);
+    clean.fontFamily = String(el.fontFamily || "Poppins").slice(0, 60);
+    clean.bold = Boolean(el.bold);
+    clean.italic = Boolean(el.italic);
+    clean.underline = Boolean(el.underline);
+    clean.align = ["left", "center", "right"].includes(el.align)
+      ? el.align
+      : "center";
+    clean.letterSpacing = clampNum(el.letterSpacing, -5, 30, 0);
+  } else if (type === "image") {
+    clean.src =
+      typeof el.src === "string" && el.src.length < 2000000
+        ? el.src
+        : null;
+    clean.name = String(el.name || "").slice(0, 80);
+  } else if (type === "shape") {
+    clean.shape = ["rect", "rectangle", "circle", "line"].includes(
+      el.shape
+    )
+      ? el.shape
+      : "rect";
+  }
+
+  return clean;
+};
+
+const sanitizeGenericSide = (els) => {
+  if (!Array.isArray(els)) return [];
+  return els.slice(0, 80).map(sanitizeGenericElement).filter(Boolean);
+};
+
+/* sanitize a template payload — supports BOTH formats:
+   card engine: {frontDesign:{...}, backDesign:{...}}
+   generic engine: {front:[elements], back:[elements]}   */
 const sanitizeTemplateDesign = (design) => {
   if (!design || typeof design !== "object") return null;
 
-  const front = sanitizeCardDesign(
-    design.frontDesign || design.front
-  );
-  const back = sanitizeCardDesign(
-    design.backDesign || design.back
-  );
+  /* business-card format */
+  if (design.frontDesign || design.backDesign) {
+    const front = sanitizeCardDesign(design.frontDesign);
+    const back = sanitizeCardDesign(design.backDesign);
+    if (!front && !back) return null;
+    return { frontDesign: front, backDesign: back };
+  }
 
-  if (!front && !back) return null;
-  return { frontDesign: front, backDesign: back };
+  /* generic customizer format */
+  if (Array.isArray(design.front) || Array.isArray(design.back)) {
+    return {
+      front: sanitizeGenericSide(design.front),
+      back: sanitizeGenericSide(design.back),
+    };
+  }
+
+  return null;
 };
 
 /* PUBLIC — active templates for one product.

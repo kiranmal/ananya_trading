@@ -197,6 +197,30 @@
   color: #9ca3af;
 }
 
+/* generic (non-card) template preview tile */
+.at-generic-preview {
+  position: relative;
+  width: 92%;
+  height: 82%;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.at-generic-qr {
+  aspect-ratio: 1;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #111827 0 2px,
+      transparent 2px 4px
+    );
+  border: 1px solid #111827;
+  border-radius: 2px;
+}
+
 .at-card-body {
   padding: 10px 12px 4px;
   display: flex;

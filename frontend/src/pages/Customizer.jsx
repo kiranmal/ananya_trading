@@ -46,6 +46,7 @@ import { useNavigate } from "react-router-dom";
 
 import { saveOrderToServer } from "../services/orderApi";
 import { saveInquiryContext } from "../services/inquiryApi";
+import { fetchProductTemplates } from "../services/templateApi";
 
 import "./Customizer.css";
 
@@ -1500,6 +1501,9 @@ function Customizer() {
     back: [],
   });
 
+  /* product-specific templates — API/DB authoritative */
+  const [dbTemplates, setDbTemplates] = useState([]);
+
   const [selectedId, setSelectedId] =
     useState(null);
 
@@ -1555,6 +1559,25 @@ function Customizer() {
       const product = JSON.parse(savedProduct);
 
       setSelectedProduct(product);
+
+      /* product-specific templates from API —
+         customer gets Active only */
+      if (product?.id) {
+        fetchProductTemplates(product.id)
+          .then((list) => {
+            if (Array.isArray(list) && list.length) {
+              setDbTemplates(
+                list.filter(
+                  (t) =>
+                    t.design &&
+                    (Array.isArray(t.design.front) ||
+                      Array.isArray(t.design.back))
+                )
+              );
+            }
+          })
+          .catch(() => {});
+      }
 
       const shirtColor =
         product?.color || "#ffffff";
@@ -3337,7 +3360,7 @@ function Customizer() {
             </span>
           </button>
 
-          {isNotebook && (
+          {(isNotebook || dbTemplates.length > 0) && (
             <button
               className={
                 activeTool === "templates"
@@ -4286,7 +4309,48 @@ function Customizer() {
               </p>
 
               <div className="template-list">
-                {NOTEBOOK_TEMPLATES.map(
+                {dbTemplates.length > 0 &&
+                  dbTemplates.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      className="template-btn"
+                      onClick={() => {
+                        saveHistory();
+
+                        const clone = (arr) =>
+                          (Array.isArray(arr)
+                            ? arr
+                            : []
+                          ).map((e) => ({
+                            ...e,
+                            id: uid(),
+                          }));
+
+                        setDesigns({
+                          front: clone(tpl.design?.front),
+                          back: clone(tpl.design?.back),
+                        });
+
+                        setSelectedId(null);
+                      }}
+                    >
+                      <span className="template-name">
+                        {tpl.name}
+                      </span>
+
+                      <span className="template-desc">
+                        {(tpl.design?.front?.length ||
+                          0) +
+                          (tpl.design?.back?.length ||
+                            0)}{" "}
+                        editable elements
+                      </span>
+                    </button>
+                  ))}
+
+                {dbTemplates.length === 0 &&
+                  NOTEBOOK_TEMPLATES.map(
                   (tpl) => (
                     <button
                       key={tpl.id}
