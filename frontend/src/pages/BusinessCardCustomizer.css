@@ -44,7 +44,7 @@
 .bc-template-grid button { display: flex; flex-direction: column; gap: 0; overflow: hidden; padding: 0; border-radius: 10px; }
 .bc-template-grid button:hover { border-color: #6d5dfc; }
 .bc-template-grid button.active { border-color: #6d5dfc; box-shadow: 0 0 0 2px rgba(109,93,252,.15); }
-.bc-tpl-preview { position: relative; width: 100%; aspect-ratio: 1.75; border-radius: 8px 8px 0 0; overflow: hidden; background-size: cover !important; background-position: center !important; pointer-events: none; }
+.bc-tpl-preview { position: relative; width: 100%; aspect-ratio: 1.75; border-radius: 6px; overflow: hidden; background-size: cover !important; background-position: center !important; pointer-events: none; border: 1px solid rgba(15, 23, 42, 0.09); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
 .bc-tpl-label { display: block; padding: 6px 9px; font-size: 10px; font-weight: 700; color: #334155; text-align: center; background: #fff; border-top: 1px solid #eef2f7; }
 
 /* ── layers panel ── */

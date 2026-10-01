@@ -252,7 +252,7 @@ export function TemplatePreview({ tpl }) {
     <div className="bc-tpl-preview" style={{ background: bg, backgroundImage: side.backgroundImage ? `url(${side.backgroundImage})` : side.gradient || "none" }}>
       {side.elements.slice(0, 8).map((el) => {
         const s = { position: "absolute", left: `${el.x}%`, top: `${el.y}%`, width: `${el.width}%`, transform: "translate(-50%,-50%)", opacity: el.opacity ?? 1 };
-        if (el.type === "text") return <div key={el.id} style={{ ...s, fontFamily: el.fontFamily, fontSize: `${Math.max(3, el.fontSize * 0.28)}px`, fontWeight: el.fontWeight, color: el.color, textAlign: el.align, whiteSpace: "pre-line", lineHeight: el.lineHeight, letterSpacing: `${(el.letterSpacing || 0) * 0.28}px`, overflow: "hidden" }}>{el.text}</div>;
+        if (el.type === "text") return <div key={el.id} style={{ ...s, fontFamily: el.fontFamily, fontSize: `${Math.max(3, el.fontSize * 0.3)}px`, fontWeight: el.fontWeight, fontStyle: el.italic ? "italic" : "normal", color: el.color, textAlign: el.align, whiteSpace: "pre-line", lineHeight: el.lineHeight, letterSpacing: `${(el.letterSpacing || 0) * 0.3}px`, overflow: "hidden" }}>{el.text}</div>;
         if (el.type === "shape") {
           if (el.shape === "line") return <div key={el.id} style={{ ...s, height: "1px", background: el.color }} />;
           return <div key={el.id} style={{ ...s, aspectRatio: el.shape === "circle" ? "1" : "2", borderRadius: el.shape === "circle" ? "50%" : "2px", background: el.color }} />;
