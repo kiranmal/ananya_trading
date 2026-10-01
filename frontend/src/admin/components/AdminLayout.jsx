@@ -4,6 +4,7 @@ import { API_URL } from "../../services/apiConfig";
 
 import {
   LayoutDashboard,
+  LayoutTemplate,
   Package,
   Tags,
   CreditCard,
@@ -67,6 +68,12 @@ function AdminLayout() {
       name: "Products",
       path: "/admin/products",
       icon: Package,
+    },
+
+    {
+      name: "Templates",
+      path: "/admin/templates",
+      icon: LayoutTemplate,
     },
 
     {
