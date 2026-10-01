@@ -43,43 +43,6 @@ function AdminLayout() {
   const [notifications, setNotifications] =
     useState([]);
 
-  /* read-state is device-local (no notifications table) —
-     badge/dot counts only unread items */
-  const [readIds, setReadIds] = useState(() => {
-    try {
-      return new Set(
-        JSON.parse(
-          localStorage.getItem("adminReadNotifications") ||
-            "[]"
-        )
-      );
-    } catch {
-      return new Set();
-    }
-  });
-
-  const markRead = (ids) => {
-    setReadIds((prev) => {
-      const next = new Set(prev);
-      ids.forEach((id) => next.add(id));
-      localStorage.setItem(
-        "adminReadNotifications",
-        JSON.stringify([...next].slice(-500))
-      );
-      return next;
-    });
-  };
-
-  const openNotification = (n) => {
-    markRead([n.id]);
-    setNotificationOpen(false);
-    navigate(
-      n.type === "inquiry"
-        ? "/admin/inquiries"
-        : "/admin/orders"
-    );
-  };
-
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -354,8 +317,7 @@ function AdminLayout() {
             new Date(b.time) - new Date(a.time)
         );
 
-        /* saare new/unread — sirf 6 tak limited nahi */
-        setNotifications(items.slice(0, 30));
+        setNotifications(items.slice(0, 6));
       } catch {
         /* badge optional — ignore */
       }
@@ -440,10 +402,6 @@ function AdminLayout() {
     const days = Math.floor(hrs / 24);
     return `${days} day${days > 1 ? "s" : ""} ago`;
   };
-
-  const unreadCount = notifications.filter(
-    (n) => !readIds.has(n.id)
-  ).length;
 
   if (authChecking) {
     return (
@@ -786,9 +744,9 @@ function AdminLayout() {
 
                 <Bell size={19} />
 
-                {unreadCount > 0 && (
+                {notifications.length > 0 && (
                   <span className="notification-dot">
-                    {unreadCount}
+                    {notifications.length}
                   </span>
                 )}
 
@@ -806,19 +764,12 @@ function AdminLayout() {
                       </h3>
 
                       <span>
-                        You have {unreadCount} unread
-                        notification
-                        {unreadCount === 1 ? "" : "s"}
+                        You have {notifications.length} new
+                        notifications
                       </span>
                     </div>
 
-                    <button
-                      onClick={() =>
-                        markRead(
-                          notifications.map((n) => n.id)
-                        )
-                      }
-                    >
+                    <button>
                       Mark all read
                     </button>
 
@@ -826,37 +777,14 @@ function AdminLayout() {
 
                   <div className="notification-list">
 
-                    {notifications.length === 0 && (
-                      <p
-                        style={{
-                          padding: "18px",
-                          fontSize: "12px",
-                          color: "#6b7280",
-                          textAlign: "center",
-                          margin: 0,
-                        }}
-                      >
-                        No new notifications
-                      </p>
-                    )}
-
                     {notifications.map(
                       (notification) => (
 
                         <div
-                          className={`notification-item ${
-                            readIds.has(notification.id)
-                              ? "read"
-                              : ""
-                          }`}
+                          className="notification-item"
                           key={
                             notification.id
                           }
-                          onClick={() =>
-                            openNotification(notification)
-                          }
-                          role="button"
-                          style={{ cursor: "pointer" }}
                         >
 
                           <div className="notification-icon">
@@ -911,11 +839,7 @@ function AdminLayout() {
 
                           </div>
 
-                          {!readIds.has(
-                            notification.id
-                          ) && (
-                            <span className="notification-unread" />
-                          )}
+                          <span className="notification-unread" />
 
                         </div>
                       )

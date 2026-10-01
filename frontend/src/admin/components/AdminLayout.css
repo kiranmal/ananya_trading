@@ -760,10 +760,6 @@
     #f9fafb;
 }
 
-.notification-item.read {
-  opacity: 0.55;
-}
-
 .notification-icon {
   width: 34px;
   height: 34px;
