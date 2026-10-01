@@ -28,6 +28,7 @@ import {
 } from "../../services/categoryApi";
 import { inferCustomizationType } from "../../services/customizationType";
 import ProductTemplates from "../components/ProductTemplates";
+import AttributeManager from "../components/AttributeManager";
 
 const defaultCategories = [
   {
@@ -353,6 +354,38 @@ export default function EditProduct() {
     };
     loadAttrs();
   }, [selectedCategory?.id, selectedSubcategoryId]);
+
+  /* refresh attributes after CRUD — selections preserve
+     hote hain, sirf ab-invalid value ids prune hote hain */
+  const reloadAttributes = async () => {
+    try {
+      const list = await fetchAttributes(
+        selectedCategory?.id || null,
+        selectedSubcategoryId
+      );
+      const active = list.filter(
+        (a) => a.status === "Active"
+      );
+      setAttrOptions(active);
+      const valid = new Set(
+        active.flatMap((a) =>
+          (a.values || []).map((v) => v.id)
+        )
+      );
+      setAttrValueSel((prev) =>
+        Object.fromEntries(
+          Object.entries(prev)
+            .map(([k, v]) => [
+              k,
+              v.filter((id) => valid.has(id)),
+            ])
+            .filter(([, v]) => v.length > 0)
+        )
+      );
+    } catch {
+      /* keep current state on fetch failure */
+    }
+  };
 
   /* =====================================================
      CATEGORY CHANGE
@@ -966,170 +999,28 @@ export default function EditProduct() {
             </div>
           )}
 
-          {/* DYNAMIC ATTRIBUTES — category/subcategory scoped */}
+          {/* DYNAMIC ATTRIBUTES — category/subcategory scoped,
+             CRUD via AttributeManager */}
 
-          {attrOptions.length > 0 && (
-            <div className="form-group">
-              <label>Product Attributes</label>
-
-              <div
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "10px",
-                  padding: "12px 16px",
-                }}
-              >
-                {attrOptions.map((attr) => (
-                  <div
-                    key={attr.id}
-                    style={{ marginBottom: "12px" }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "#374151",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      {attr.name}
-                    </div>
-
-                    {attr.type === "multi-select" && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "6px",
-                        }}
-                      >
-                        {(attr.values || [])
-                          .filter((v) => v.status !== "Inactive")
-                          .map((val) => (
-                            <label
-                              key={val.id}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "5px",
-                                padding: "4px 10px",
-                                borderRadius: "999px",
-                                fontSize: "12px",
-                                cursor: "pointer",
-                                border: "1px solid #d1d5db",
-                                background: (
-                                  attrValueSel[attr.id] || []
-                                ).includes(val.id)
-                                  ? "#eff6ff"
-                                  : "#fff",
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={(
-                                  attrValueSel[attr.id] || []
-                                ).includes(val.id)}
-                                onChange={() =>
-                                  toggleAttrValue(attr.id, val.id)
-                                }
-                              />
-                              {val.value}
-                            </label>
-                          ))}
-                      </div>
-                    )}
-
-                    {attr.type === "select" && (
-                      <select
-                        value={
-                          (attrValueSel[attr.id] || [])[0] || ""
-                        }
-                        onChange={(e) =>
-                          setAttrValueSel((prev) => ({
-                            ...prev,
-                            [attr.id]: e.target.value
-                              ? [Number(e.target.value)]
-                              : [],
-                          }))
-                        }
-                        style={{
-                          height: "38px",
-                          padding: "0 10px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "8px",
-                          fontSize: "14px",
-                          background: "#fff",
-                          minWidth: "220px",
-                        }}
-                      >
-                        <option value="">—</option>
-                        {(attr.values || [])
-                          .filter((v) => v.status !== "Inactive")
-                          .map((val) => (
-                            <option key={val.id} value={val.id}>
-                              {val.value}
-                            </option>
-                          ))}
-                      </select>
-                    )}
-
-                    {(attr.type === "text" ||
-                      attr.type === "number") && (
-                      <input
-                        type={
-                          attr.type === "number"
-                            ? "number"
-                            : "text"
-                        }
-                        value={attrTexts[attr.id] || ""}
-                        onChange={(e) =>
-                          setAttrTexts((prev) => ({
-                            ...prev,
-                            [attr.id]: e.target.value,
-                          }))
-                        }
-                        style={{
-                          height: "38px",
-                          padding: "0 12px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "8px",
-                          fontSize: "14px",
-                          minWidth: "220px",
-                        }}
-                      />
-                    )}
-
-                    {attr.type === "boolean" && (
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          fontSize: "13px",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={
-                            attrTexts[attr.id] === "true"
-                          }
-                          onChange={(e) =>
-                            setAttrTexts((prev) => ({
-                              ...prev,
-                              [attr.id]: e.target.checked
-                                ? "true"
-                                : "",
-                            }))
-                          }
-                        />
-                        Yes
-                      </label>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="form-group">
+            <label>Product Attributes</label>
+            <AttributeManager
+              attributes={attrOptions}
+              selected={attrValueSel}
+              texts={attrTexts}
+              onToggleValue={toggleAttrValue}
+              onSelectValue={(attrId, valueId) =>
+                setAttrValueSel((prev) => ({
+                  ...prev,
+                  [attrId]: valueId ? [valueId] : [],
+                }))
+              }
+              onTextChange={(attrId, v) =>
+                setAttrTexts((prev) => ({ ...prev, [attrId]: v }))
+              }
+              onRefresh={reloadAttributes}
+            />
+          </div>
 
           {/* PRICE */}
 
