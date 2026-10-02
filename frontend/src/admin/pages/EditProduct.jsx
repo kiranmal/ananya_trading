@@ -146,7 +146,6 @@ export default function EditProduct() {
   const [attrOptions, setAttrOptions] = useState([]);
   const [attrValueSel, setAttrValueSel] = useState({});
   const [attrTexts, setAttrTexts] = useState({});
-  const [attrsLoaded, setAttrsLoaded] = useState(false);
 
   const toggleAttrValue = (attrId, valueId) => {
     setAttrValueSel((prev) => {
@@ -293,7 +292,14 @@ export default function EditProduct() {
             tx[a.attributeId] = String(a.value);
           }
         });
-        pendingAttrPrefill.current = { vs, tx };
+        /* saved selections directly apply — attrOptions
+           load hone ka wait nahi karna (values sirf
+           attribute_value ids hain) */
+        setAttrValueSel(vs);
+        setAttrTexts(tx);
+        productLoadedRef.current = true;
+        appliedCatRef.current =
+          `${product.category || ""}|${product.subcategory || ""}`;
 
         setProductLoaded(true);
       } catch (error) {
@@ -321,12 +327,14 @@ export default function EditProduct() {
       (s) => s.name === subcategory
     )?.id || null;
 
-  /* product load ke time prefill yahan park hota hai —
-     effect usse consume karta hai */
-  const pendingAttrPrefill = useRef(null);
+  /* product load ke baad user ka MANUAL category/subcategory
+     change hi selections reset kare — resolved-id changes
+     (categories list late aana) ko ignore karo */
+  const productLoadedRef = useRef(false);
+  const appliedCatRef = useRef(null);
 
   /* category/subcategory change -> relevant attributes load;
-     prefill pending hai to apply, warna reset */
+     manual scope change pe selections reset */
   useEffect(() => {
     const loadAttrs = async () => {
       try {
@@ -341,13 +349,17 @@ export default function EditProduct() {
         setAttrOptions([]);
       }
 
-      if (pendingAttrPrefill.current) {
-        setAttrValueSel(pendingAttrPrefill.current.vs);
-        setAttrTexts(pendingAttrPrefill.current.tx);
-        pendingAttrPrefill.current = null;
-      } else {
+      const key = `${category}|${subcategory}`;
+      if (
+        productLoadedRef.current &&
+        appliedCatRef.current !== null &&
+        appliedCatRef.current !== key
+      ) {
         setAttrValueSel({});
         setAttrTexts({});
+      }
+      if (productLoadedRef.current) {
+        appliedCatRef.current = key;
       }
     };
     loadAttrs();

@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "dev:local": "node --env-file=.env.local server.js",
+    "seed:local": "node --env-file=.env.local seed.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
