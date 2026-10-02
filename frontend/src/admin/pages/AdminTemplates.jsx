@@ -6,6 +6,7 @@ import React, {
 import {
   ArrowDown,
   ArrowUp,
+  Copy,
   LayoutTemplate,
   Pencil,
   Plus,
@@ -17,6 +18,7 @@ import {
 import BusinessCardCustomizer, {
   TemplatePreview,
 } from "../../pages/BusinessCardCustomizer";
+import MugDesigner from "../components/MugDesigner";
 import { fetchProducts } from "../../services/productApi";
 import {
   createProductTemplate,
@@ -28,6 +30,7 @@ import {
 import "./AdminTemplates.css";
 
 const CARD_TYPES = ["business-card"];
+const MUG_TYPES = ["mug"];
 
 /* ============================================================
    GENERIC PREVIEW — renders {front:[els], back:[els]} designs
@@ -337,6 +340,20 @@ export default function AdminTemplates() {
     }
   };
 
+  const duplicate = async (group, t) => {
+    try {
+      await createProductTemplate(group.productId, {
+        name: `${t.name} (Copy)`.slice(0, 100),
+        status: "Inactive",
+        design: t.design,
+        sortOrder: (t.sortOrder || 0) + 1,
+      });
+      await load();
+    } catch (e) {
+      alert(e.message || "Unable to duplicate template.");
+    }
+  };
+
   const move = async (group, index, dir) => {
     const list = group.templates;
     const target = index + dir;
@@ -368,7 +385,9 @@ export default function AdminTemplates() {
       modalProduct?.type ||
       ""
   ).toLowerCase();
-  const designerSupported = CARD_TYPES.includes(modalType);
+  const designerSupported =
+    CARD_TYPES.includes(modalType) ||
+    MUG_TYPES.includes(modalType);
 
   /* ---------- render ---------- */
 
@@ -546,6 +565,16 @@ export default function AdminTemplates() {
                     </button>
                     <button
                       type="button"
+                      className="at-act"
+                      title="Duplicate template"
+                      onClick={() =>
+                        duplicate(group, t)
+                      }
+                    >
+                      <Copy size={13} />
+                    </button>
+                    <button
+                      type="button"
                       className="at-act danger"
                       title="Delete template"
                       onClick={() =>
@@ -673,8 +702,8 @@ export default function AdminTemplates() {
             {modalProduct && !designerSupported && (
               <p className="at-note">
                 Visual designer is available for Business
-                Card products. Other types store name /
-                status only.
+                Card and Mug products. Other types store
+                name / status only.
               </p>
             )}
 
@@ -772,19 +801,31 @@ export default function AdminTemplates() {
                 <X size={15} />
               </button>
             </div>
-            <BusinessCardCustomizer
-              embedded
-              propProduct={{
-                id: modalProduct.id,
-                name: modalProduct.name,
-              }}
-              initialDesign={modal.design}
-              onSaveTemplate={(design) => {
-                setModal({ ...modal, design });
-                setDesignerOpen(false);
-              }}
-              onCancel={() => setDesignerOpen(false)}
-            />
+            {MUG_TYPES.includes(modalType) ? (
+              <MugDesigner
+                productName={modalProduct.name}
+                initialDesign={modal.design}
+                onSaveTemplate={(design) => {
+                  setModal({ ...modal, design });
+                  setDesignerOpen(false);
+                }}
+                onCancel={() => setDesignerOpen(false)}
+              />
+            ) : (
+              <BusinessCardCustomizer
+                embedded
+                propProduct={{
+                  id: modalProduct.id,
+                  name: modalProduct.name,
+                }}
+                initialDesign={modal.design}
+                onSaveTemplate={(design) => {
+                  setModal({ ...modal, design });
+                  setDesignerOpen(false);
+                }}
+                onCancel={() => setDesignerOpen(false)}
+              />
+            )}
           </div>
         </div>
       )}

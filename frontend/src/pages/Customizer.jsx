@@ -788,7 +788,7 @@ function BottleSvg({ color }) {
    MUG MOCKUP (vector — mug color changeable)
 ========================================================= */
 
-function MugSvg({ color }) {
+export function MugSvg({ color }) {
   const c = color || "#ffffff";
   const dark = isDarkColor(c);
   const rim = dark ? shadeHex(c, 0.15) : "#e8edf3";
