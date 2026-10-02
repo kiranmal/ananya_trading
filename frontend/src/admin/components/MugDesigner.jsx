@@ -36,7 +36,7 @@ import "./MugDesigner.css";
 
 const REF_PRINT_H = 260; // px reference print-area height
 const MAX_TEXT = 500; // matches server sanitizer
-const MAX_IMG_BYTES = 1200 * 1000; // ~1.2MB file → base64 < 2M char limit
+const MAX_IMG_BYTES = 4 * 1000 * 1000; // ~4MB file → base64 < 6M char limit
 
 const FONT_OPTIONS = [
   "Poppins",
@@ -405,7 +405,7 @@ export default function MugDesigner({
       return;
     }
     if (file.size > MAX_IMG_BYTES) {
-      setNotice("Image too large — keep under 1.2MB.");
+      setNotice("Image too large — keep under 4MB.");
       return;
     }
     const reader = new FileReader();
@@ -436,7 +436,7 @@ export default function MugDesigner({
       return;
     }
     if (file.size > MAX_IMG_BYTES) {
-      setNotice("Image too large — keep under 1.2MB.");
+      setNotice("Image too large — keep under 4MB.");
       return;
     }
     const reader = new FileReader();

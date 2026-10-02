@@ -1,4 +1,4 @@
-ï»¿
+
 const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise");
@@ -64,8 +64,8 @@ app.use(
 
 app.use(
   express.json({
-    limit: "8mb",
-    /* raw body capture â€” Razorpay webhook HMAC */
+    limit: "30mb",
+    /* raw body capture — Razorpay webhook HMAC */
     verify: (req, _res, buf) => {
       if (
         req.originalUrl?.includes("/api/payments/razorpay/webhook")
@@ -75,7 +75,7 @@ app.use(
     },
   })
 );
-app.use(express.urlencoded({ extended: true, limit: "8mb" }));
+app.use(express.urlencoded({ extended: true, limit: "30mb" }));
 
 /* =========================================================
    MYSQL DATABASE
@@ -996,7 +996,7 @@ app.post(
 );
 
 /* =========================================================
-   ADMIN â€” GET ALL USERS
+   ADMIN — GET ALL USERS
    GET /api/admin/users
 ========================================================= */
 
@@ -1043,7 +1043,7 @@ app.get(
 );
 
 /* =========================================================
-   ADMIN â€” UPDATE USER STATUS
+   ADMIN — UPDATE USER STATUS
    PUT /api/admin/users/:id/status
 ========================================================= */
 
@@ -1181,7 +1181,7 @@ function parseProductList(value) {
 
 /* =====================================================
    CUSTOMIZATION PAYLOAD SANITIZATION
-   Cart/Checkout se aaya designs object blindly trust nahi â€”
+   Cart/Checkout se aaya designs object blindly trust nahi —
    har element ko validate/clamp karke store karte hain.
 ===================================================== */
 
@@ -1239,7 +1239,7 @@ const sanitizeDesignElement = (el) => {
     clean.opacity = clampNum(el.opacity, 0, 1, 1);
   } else if (clean.type === "image") {
     clean.src =
-      typeof el.src === "string" && el.src.length < 2000000
+      typeof el.src === "string" && el.src.length < 6000000
         ? el.src
         : null;
     clean.width = clampNum(el.width, 1, 150, 20);
@@ -1247,7 +1247,7 @@ const sanitizeDesignElement = (el) => {
     clean.opacity = clampNum(el.opacity, 0, 1, 1);
   } else if (clean.type === "qr") {
     clean.src =
-      typeof el.src === "string" && el.src.length < 2000000
+      typeof el.src === "string" && el.src.length < 6000000
         ? el.src
         : null;
     clean.width = clampNum(el.width, 1, 150, 20);
@@ -1286,7 +1286,7 @@ const sanitizeDesigns = (designs) => {
   return Object.keys(clean).length > 0 ? clean : null;
 };
 
-/* business/visiting card design â€” {background, gradient,
+/* business/visiting card design — {background, gradient,
    backgroundImage, elements[]} shape; icon elements bhi */
 const sanitizeCardElement = (el) => {
   if (!el || typeof el !== "object") return null;
@@ -1330,7 +1330,7 @@ const sanitizeCardElement = (el) => {
     }
   } else if (type === "image") {
     clean.src =
-      typeof el.src === "string" && el.src.length < 2000000
+      typeof el.src === "string" && el.src.length < 6000000
         ? el.src
         : null;
     clean.name = String(el.name || "").slice(0, 80);
@@ -1533,7 +1533,7 @@ app.get("/api/products", async (req, res) => {
       params.push(tag, Number(tag) || -1);
     }
 
-    /* dynamic attribute filter â€” ?attr_value=<id>[,<id>...]
+    /* dynamic attribute filter — ?attr_value=<id>[,<id>...]
        every selected value must match (AND) */
     const attrValueIds = String(req.query.attr_value || "")
       .split(",")
@@ -1634,7 +1634,7 @@ app.get("/api/products/:id", async (req, res) => {
 });
 
 /* =========================================================
-   PRODUCT TEMPLATES â€” templates belong to ONE product.
+   PRODUCT TEMPLATES — templates belong to ONE product.
    Public GET: Active templates only.
    Mutations: admin only (authenticateToken + requireAdmin).
 ========================================================= */
@@ -1762,7 +1762,7 @@ const mapTemplate = (row) => {
 };
 
 /* sanitize one element of the generic (non-card) customizer
-   format â€” text/shape/image/qr with kind/bold/hidden fields */
+   format — text/shape/image/qr with kind/bold/hidden fields */
 const sanitizeGenericElement = (el) => {
   if (!el || typeof el !== "object") return null;
 
@@ -1797,7 +1797,7 @@ const sanitizeGenericElement = (el) => {
     clean.letterSpacing = clampNum(el.letterSpacing, -5, 30, 0);
   } else if (type === "image") {
     clean.src =
-      typeof el.src === "string" && el.src.length < 2000000
+      typeof el.src === "string" && el.src.length < 6000000
         ? el.src
         : null;
     clean.name = String(el.name || "").slice(0, 80);
@@ -1809,7 +1809,7 @@ const sanitizeGenericElement = (el) => {
       : "rect";
   } else if (type === "qr") {
     clean.src =
-      typeof el.src === "string" && el.src.length < 2000000
+      typeof el.src === "string" && el.src.length < 6000000
         ? el.src
         : null;
   }
@@ -1822,7 +1822,7 @@ const sanitizeGenericSide = (els) => {
   return els.slice(0, 80).map(sanitizeGenericElement).filter(Boolean);
 };
 
-/* sanitize a template payload â€” supports BOTH formats:
+/* sanitize a template payload — supports BOTH formats:
    card engine: {frontDesign:{...}, backDesign:{...}}
    generic engine: {front:[elements], back:[elements]}   */
 const sanitizeTemplateDesign = (design) => {
@@ -1847,7 +1847,7 @@ const sanitizeTemplateDesign = (design) => {
   return null;
 };
 
-/* PUBLIC â€” active templates for one product.
+/* PUBLIC — active templates for one product.
    Admins (valid token) also get inactive ones. */
 app.get("/api/products/:id/templates", async (req, res) => {
   try {
@@ -1860,7 +1860,7 @@ app.get("/api/products/:id/templates", async (req, res) => {
         .json({ success: false, message: "Invalid product id." });
     }
 
-    /* optional admin check â€” only when a token is present */
+    /* optional admin check — only when a token is present */
     let isAdmin = false;
     const authHeader = req.headers.authorization || "";
     if (authHeader.startsWith("Bearer ")) {
@@ -1898,7 +1898,7 @@ app.get("/api/products/:id/templates", async (req, res) => {
   }
 });
 
-/* ADMIN â€” create template for a specific product */
+/* ADMIN — create template for a specific product */
 app.post(
   "/api/products/:id/templates",
   authenticateToken,
@@ -1944,7 +1944,7 @@ app.post(
         [
           productId,
           name,
-          String(req.body.thumbnail || "").slice(0, 2000000) || null,
+          String(req.body.thumbnail || "").slice(0, 6000000) || null,
           design ? JSON.stringify(design) : null,
           status,
           sortOrder,
@@ -1971,7 +1971,7 @@ app.post(
   }
 );
 
-/* ADMIN â€” update a template (name/status/sortOrder/design) */
+/* ADMIN — update a template (name/status/sortOrder/design) */
 app.put(
   "/api/products/:id/templates/:templateId",
   authenticateToken,
@@ -1988,7 +1988,7 @@ app.put(
           .json({ success: false, message: "Invalid id." });
       }
 
-      /* template must belong to THIS product â€” no cross-product edits */
+      /* template must belong to THIS product — no cross-product edits */
       const [existing] = await db.execute(
         `SELECT * FROM product_templates
          WHERE id = ? AND product_id = ? LIMIT 1`,
@@ -2065,7 +2065,7 @@ app.put(
           status,
           sortOrder,
           req.body.thumbnail !== undefined
-            ? String(req.body.thumbnail || "").slice(0, 2000000) ||
+            ? String(req.body.thumbnail || "").slice(0, 6000000) ||
               null
             : row.thumbnail,
           design ? JSON.stringify(design) : null,
@@ -2094,7 +2094,7 @@ app.put(
   }
 );
 
-/* ADMIN â€” saare templates grouped by product.
+/* ADMIN — saare templates grouped by product.
    Admin Templates page ke liye ek hi call. */
 app.get(
   "/api/admin/templates",
@@ -2144,7 +2144,7 @@ app.get(
   }
 );
 
-/* ADMIN â€” delete a template belonging to the product */
+/* ADMIN — delete a template belonging to the product */
 app.delete(
   "/api/products/:id/templates/:templateId",
   authenticateToken,
@@ -2783,7 +2783,7 @@ app.delete(
    ADMIN NOTIFICATIONS
    Events are DERIVED from orders + contact_inquiries
    (no duplication). Only the per-admin READ state is
-   persisted â€” survives refresh/logout, scoped per admin.
+   persisted — survives refresh/logout, scoped per admin.
 ========================================================= */
 
 async function ensureNotificationReadsTable() {
@@ -2872,7 +2872,7 @@ const buildAdminNotifications = async (adminId) => {
   };
 };
 
-/* ADMIN â€” full notification feed */
+/* ADMIN — full notification feed */
 app.get(
   "/api/admin/notifications",
   authenticateToken,
@@ -2900,7 +2900,7 @@ app.get(
   }
 );
 
-/* ADMIN â€” mark one notification read */
+/* ADMIN — mark one notification read */
 app.post(
   "/api/admin/notifications/read",
   authenticateToken,
@@ -2933,7 +2933,7 @@ app.post(
   }
 );
 
-/* ADMIN â€” mark all read (keys supplied so we don't
+/* ADMIN — mark all read (keys supplied so we don't
    create phantom rows for nonexistent events) */
 app.post(
   "/api/admin/notifications/read-all",
@@ -2971,7 +2971,7 @@ app.post(
   }
 );
 
-/* ADMIN â€” dismiss ONE notification (hides from this
+/* ADMIN — dismiss ONE notification (hides from this
    admin's feed; order/inquiry itself untouched) */
 app.post(
   "/api/admin/notifications/dismiss",
@@ -3006,7 +3006,7 @@ app.post(
   }
 );
 
-/* ADMIN â€” clear all notifications for this admin */
+/* ADMIN — clear all notifications for this admin */
 app.post(
   "/api/admin/notifications/clear",
   authenticateToken,
@@ -3092,7 +3092,7 @@ async function ensureCategoriesTable() {
     try {
       await db.execute(sql);
     } catch {
-      /* column already exists â€” skip */
+      /* column already exists — skip */
     }
   };
 
@@ -3108,7 +3108,7 @@ async function ensureCategoriesTable() {
 }
 
 /* =========================================================
-   TAXONOMY â€” subcategories + tags + product_tags
+   TAXONOMY — subcategories + tags + product_tags
    Relational store; categories.items JSON se migrate hota hai
 ========================================================= */
 
@@ -3124,7 +3124,7 @@ async function ensureTaxonomyTables() {
     try {
       await db.execute(sql);
     } catch {
-      /* column already exists â€” skip */
+      /* column already exists — skip */
     }
   };
 
@@ -3212,7 +3212,7 @@ async function ensureTaxonomyTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
 
-  /* attribute's category/subcategory relevance â€”
+  /* attribute's category/subcategory relevance —
      no row -> attribute applies to all products.
      0 = wildcard (category-only scope) */
   await db.execute(`
@@ -3238,7 +3238,7 @@ async function ensureTaxonomyTables() {
   );
 }
 
-/* Ek baar per process â€” idempotent data migration */
+/* Ek baar per process — idempotent data migration */
 async function migrateTaxonomyOnce() {
   /* 1. categories.items JSON -> subcategories rows */
   const [cats] = await db.execute(
@@ -3374,7 +3374,7 @@ async function migrateTaxonomyOnce() {
 }
 
 /* =========================================================
-   ATTRIBUTE MIGRATION â€” rigid sizes/paper_types ->
+   ATTRIBUTE MIGRATION — rigid sizes/paper_types ->
    dynamic attributes + seeded attribute library
 ========================================================= */
 
@@ -3604,7 +3604,7 @@ async function migrateAttributesOnce() {
     }
   }
 
-  /* 4. unit field â€” category ke hisaab se sensible default */
+  /* 4. unit field — category ke hisaab se sensible default */
   await db.execute(
     `UPDATE products SET unit = 'Cards'
      WHERE unit IS NULL AND category LIKE '%Card%'`
@@ -3680,7 +3680,7 @@ async function getAttributesForProducts(productIds) {
   return out;
 }
 
-/* replace product attributes â€” with validation */
+/* replace product attributes — with validation */
 async function syncProductAttributes(
   productId,
   valueIds,
@@ -3800,7 +3800,7 @@ async function getTagsForProducts(productIds) {
   return map;
 }
 
-/* product_tags sync â€” tagIds replace karta hai */
+/* product_tags sync — tagIds replace karta hai */
 async function syncProductTags(productId, tagIds) {
   const ids = (Array.isArray(tagIds) ? tagIds : [])
     .map((id) => Number(id))
@@ -3874,7 +3874,7 @@ async function resolveSubcategoryId(body, categoryId) {
     );
     if (rows.length > 0) return rows[0];
 
-    /* name is valid but row missing â€” create it */
+    /* name is valid but row missing — create it */
     const [ins] = await db.execute(
       `INSERT INTO subcategories (category_id, name, slug)
        VALUES (?, ?, ?)
@@ -3888,7 +3888,7 @@ async function resolveSubcategoryId(body, categoryId) {
 }
 
 /* =========================================================
-   PUBLIC â€” categories with subcategories
+   PUBLIC — categories with subcategories
 ========================================================= */
 
 app.get("/api/categories", async (req, res) => {
@@ -3927,7 +3927,7 @@ app.get("/api/categories", async (req, res) => {
         name: row.name,
         slug: row.slug,
         status: row.status || "Active",
-        /* backward compat â€” storefront nav sirf Active subs */
+        /* backward compat — storefront nav sirf Active subs */
         items: detail
           .filter((s) => s.status === "Active")
           .map((s) => s.name),
@@ -3946,7 +3946,7 @@ app.get("/api/categories", async (req, res) => {
 });
 
 /* =========================================================
-   PUBLIC â€” subcategories (?category_id= optional)
+   PUBLIC — subcategories (?category_id= optional)
 ========================================================= */
 
 app.get("/api/subcategories", async (req, res) => {
@@ -3983,7 +3983,7 @@ app.get("/api/subcategories", async (req, res) => {
 });
 
 /* =========================================================
-   PUBLIC â€” tags
+   PUBLIC — tags
 ========================================================= */
 
 app.get("/api/tags", async (req, res) => {
@@ -4019,7 +4019,7 @@ app.get("/api/tags", async (req, res) => {
 });
 
 /* =========================================================
-   PUBLIC â€” attributes
+   PUBLIC — attributes
    ?category_id=&subcategory_id= -> sirf relevant attributes
    (unscoped attrs + scopes matching cat/sub)
 ========================================================= */
@@ -4081,7 +4081,7 @@ app.get("/api/attributes", async (req, res) => {
       scopes: scopesByAttr.get(a.id) || [],
     }));
 
-    /* relevance filter â€” for form/detail */
+    /* relevance filter — for form/detail */
     if (categoryId || subcategoryId) {
       attributes = attributes.filter((a) => {
         const s = a.scopes;
@@ -4107,7 +4107,7 @@ app.get("/api/attributes", async (req, res) => {
 });
 
 /* =========================================================
-   ADMIN â€” ATTRIBUTES CRUD
+   ADMIN — ATTRIBUTES CRUD
 ========================================================= */
 
 const VALID_ATTR_TYPES = [
@@ -4359,7 +4359,7 @@ app.delete(
         );
         return res.status(200).json({
           success: true,
-          message: `Attribute is used by ${Number(used[0].c)} product assignment(s) â€” deactivated instead of deleted.`,
+          message: `Attribute is used by ${Number(used[0].c)} product assignment(s) — deactivated instead of deleted.`,
         });
       }
 
@@ -4391,7 +4391,7 @@ app.delete(
 );
 
 /* =========================================================
-   ADMIN â€” ATTRIBUTE VALUES CRUD
+   ADMIN — ATTRIBUTE VALUES CRUD
 ========================================================= */
 
 app.post(
@@ -4594,7 +4594,7 @@ app.delete(
         });
       }
 
-      /* products are never deleted â€” only assignments detached */
+      /* products are never deleted — only assignments detached */
       const [ref] = await db.execute(
         `SELECT COUNT(DISTINCT product_id) AS c
          FROM product_attribute_values WHERE attribute_value_id = ?`,
@@ -4859,7 +4859,7 @@ app.delete(
         });
       }
 
-      /* Dependency check â€” if products/subcategories still
+      /* Dependency check — if products/subcategories still
          use it, do not delete; deactivate is safer */
       const [productUse] = await db.execute(
         `SELECT COUNT(*) AS c FROM products
@@ -4899,7 +4899,7 @@ app.delete(
 );
 
 /* =========================================================
-   ADMIN â€” SUBCATEGORIES CRUD
+   ADMIN — SUBCATEGORIES CRUD
 ========================================================= */
 
 app.post(
@@ -5154,7 +5154,7 @@ app.delete(
 
         return res.status(200).json({
           success: true,
-          message: `Subcategory is used by ${Number(used[0].c)} product(s) â€” deactivated instead of deleted.`,
+          message: `Subcategory is used by ${Number(used[0].c)} product(s) — deactivated instead of deleted.`,
         });
       }
 
@@ -5178,7 +5178,7 @@ app.delete(
 );
 
 /* =========================================================
-   ADMIN â€” TAGS CRUD
+   ADMIN — TAGS CRUD
 ========================================================= */
 
 app.post(
@@ -5343,7 +5343,7 @@ app.delete(
         });
       }
 
-      /* products are never deleted â€” only assignments detached */
+      /* products are never deleted — only assignments detached */
       const [ref] = await db.execute(
         "SELECT COUNT(*) AS c FROM product_tags WHERE tag_id = ?",
         [id]
@@ -5402,7 +5402,7 @@ async function ensureOrdersTable() {
     try {
       await db.execute(sql);
     } catch {
-      /* column already exists â€” skip */
+      /* column already exists — skip */
     }
   };
 
@@ -5489,7 +5489,7 @@ const parseOrderRow = (row) => {
   };
 };
 
-/* USER â€” place an order (login required) */
+/* USER — place an order (login required) */
 app.post(
   "/api/orders",
   authenticateToken,
@@ -5628,7 +5628,7 @@ app.post(
 
         subtotal += itemTotal;
 
-        /* dynamic attribute selections validate â€” sirf product
+        /* dynamic attribute selections validate — sirf product
            ke allowed attribute values accept honge */
         const cleanAttrs = {};
 
@@ -5671,11 +5671,11 @@ app.post(
             ) {
               cleanAttrs[attrName] = value;
             } else if (!allowed.has(key)) {
-              /* attribute not configured on this product â€”
+              /* attribute not configured on this product —
                  silently drop, do not block the order */
               continue;
             } else {
-              /* attribute hai par value invalid â€” drop */
+              /* attribute hai par value invalid — drop */
               continue;
             }
           }
@@ -5690,11 +5690,11 @@ app.post(
           unit: product.unit || "Pieces",
           attributes: cleanAttrs,
 
-          /* customization sanitize â€” text/color/design
+          /* customization sanitize — text/color/design
              structure validate karke hi store */
           designs: sanitizeDesigns(item.designs),
 
-          /* business-card designs â€” front/back objects */
+          /* business-card designs — front/back objects */
           frontDesign: sanitizeCardDesign(
             item.frontDesign ||
               item.customization?.frontDesign
@@ -5779,7 +5779,7 @@ app.post(
         if (subtotal < Number(coupon.min_order)) {
           return res.status(400).json({
             success: false,
-            message: `Minimum order â‚¹${Number(coupon.min_order).toLocaleString("en-IN")} required for this coupon.`,
+            message: `Minimum order ?${Number(coupon.min_order).toLocaleString("en-IN")} required for this coupon.`,
           });
         }
 
@@ -5883,7 +5883,7 @@ app.post(
   }
 );
 
-/* USER â€” apne orders */
+/* USER — apne orders */
 app.get(
   "/api/orders/my",
   authenticateToken,
@@ -5912,7 +5912,7 @@ app.get(
   }
 );
 
-/* USER â€” order number se track (sirf apna order ya admin) */
+/* USER — order number se track (sirf apna order ya admin) */
 app.get(
   "/api/orders/track/:orderNumber",
   authenticateToken,
@@ -5959,7 +5959,7 @@ app.get(
   }
 );
 
-/* ADMIN â€” saare orders */
+/* ADMIN — saare orders */
 app.get(
   "/api/admin/orders",
   authenticateToken,
@@ -5986,7 +5986,7 @@ app.get(
   }
 );
 
-/* ADMIN â€” status update */
+/* ADMIN — status update */
 app.put(
   "/api/admin/orders/:orderNumber/status",
   authenticateToken,
@@ -6101,7 +6101,7 @@ const formatCoupon = (row) => ({
   createdAt: row.created_at,
 });
 
-/* ADMIN â€” list */
+/* ADMIN — list */
 app.get(
   "/api/admin/coupons",
   authenticateToken,
@@ -6126,7 +6126,7 @@ app.get(
   }
 );
 
-/* ADMIN â€” create */
+/* ADMIN — create */
 app.post(
   "/api/admin/coupons",
   authenticateToken,
@@ -6229,7 +6229,7 @@ app.post(
   }
 );
 
-/* ADMIN â€” update (edit / active toggle) */
+/* ADMIN — update (edit / active toggle) */
 app.put(
   "/api/admin/coupons/:id",
   authenticateToken,
@@ -6349,7 +6349,7 @@ app.put(
   }
 );
 
-/* ADMIN â€” delete */
+/* ADMIN — delete */
 app.delete(
   "/api/admin/coupons/:id",
   authenticateToken,
@@ -6385,7 +6385,7 @@ app.delete(
   }
 );
 
-/* PUBLIC â€” currently live coupons (for the offer bar) */
+/* PUBLIC — currently live coupons (for the offer bar) */
 app.get("/api/coupons/active", async (req, res) => {
   try {
     await ensureCouponsTable();
@@ -6411,7 +6411,7 @@ app.get("/api/coupons/active", async (req, res) => {
   }
 });
 
-/* USER â€” coupon validate (checkout) */
+/* USER — coupon validate (checkout) */
 app.post("/api/coupons/validate", async (req, res) => {
   try {
     const code = String(req.body?.code || "")
@@ -6467,7 +6467,7 @@ app.post("/api/coupons/validate", async (req, res) => {
     if (orderTotal < Number(coupon.min_order)) {
       return res.status(400).json({
         success: false,
-        message: `Minimum order â‚¹${Number(coupon.min_order).toLocaleString("en-IN")} required for this coupon.`,
+        message: `Minimum order ?${Number(coupon.min_order).toLocaleString("en-IN")} required for this coupon.`,
       });
     }
 
@@ -6500,7 +6500,7 @@ app.post("/api/coupons/validate", async (req, res) => {
 });
 
 /* =========================================================
-   CONTACT INQUIRIES â€” customer "Get a Quote" form
+   CONTACT INQUIRIES — customer "Get a Quote" form
 ========================================================= */
 
 async function ensureContactInquiriesTable() {
@@ -6528,7 +6528,7 @@ async function ensureContactInquiriesTable() {
   `);
 }
 
-/* lightweight spam guard â€” per-IP, min 20s between submissions,
+/* lightweight spam guard — per-IP, min 20s between submissions,
    max 8 submissions per hour */
 const inquiryRateMap = new Map();
 
@@ -6819,7 +6819,7 @@ app.delete(
 
 /* =========================================================
    RAZORPAY PAYMENTS (TEST MODE)
-   - amount kabhi client se trust nahi â€” orders.total
+   - amount kabhi client se trust nahi — orders.total
      server-side recalculated hai
    - signature HMAC-SHA256 verified
 ========================================================= */
@@ -6856,7 +6856,7 @@ const timingSafeCompare = (a, b) => {
 /* ------------------------------------------------------------------
    POST /api/payments/razorpay/order
    local order ke server-stored total se razorpay order banao
-   (idempotent â€” same order ka existing rzp order reuse)
+   (idempotent — same order ka existing rzp order reuse)
 ------------------------------------------------------------------- */
 app.post(
   "/api/payments/razorpay/order",
@@ -6927,7 +6927,7 @@ app.post(
         });
       }
 
-      /* idempotent â€” reuse the previous razorpay order */
+      /* idempotent — reuse the previous razorpay order */
       if (order.razorpay_order_id) {
         return res.status(200).json({
           success: true,
@@ -7039,7 +7039,7 @@ app.post(
         });
       }
 
-      /* rzp order id must come from the DB â€” do not trust arbitrary browser ids */
+      /* rzp order id must come from the DB — do not trust arbitrary browser ids */
       if (
         !order.razorpay_order_id ||
         order.razorpay_order_id !== String(rzpOrderId)
@@ -7050,7 +7050,7 @@ app.post(
         });
       }
 
-      /* idempotent â€” OK if the same payment is verified again */
+      /* idempotent — OK if the same payment is verified again */
       if (
         String(order.payment_status).toLowerCase() ===
           "paid" &&
@@ -7182,7 +7182,7 @@ app.post(
 
         const order = rows?.[0];
         if (!order) {
-          /* not our order â€” ack it, stop retries */
+          /* not our order — ack it, stop retries */
           return res
             .status(200)
             .json({ success: true });
@@ -7240,7 +7240,7 @@ app.post(
 );
 
 /* =========================================================
-   404 HANDLER â€” sabse aakhir mein
+   404 HANDLER — sabse aakhir mein
 ========================================================= */
 
 app.use((req, res) => {
@@ -7264,7 +7264,7 @@ app.use(
     const status =
       Number(error.status || error.statusCode) || 500;
 
-    /* Malformed JSON body â€” client error, not server error */
+    /* Malformed JSON body — client error, not server error */
     const isJsonParseError =
       error instanceof SyntaxError &&
       error.type === "entity.parse.failed";
