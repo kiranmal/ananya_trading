@@ -1423,14 +1423,70 @@ function Cart() {
       ...existingOrders,
     ];
 
-    localStorage.setItem(
-      "ananyaOrders",
-      JSON.stringify(
-        updatedOrders
-      )
+    /* strip heavy base64 data before persisting to
+       localStorage — keeps ananyaOrders under quota.
+       Full design data goes to server via saveOrderToServer. */
+    const lightOrder = JSON.parse(
+      JSON.stringify(order)
     );
 
-    // also save to DB — in the background
+    /* slim down uploadedDesigns to metadata only */
+    if (Array.isArray(lightOrder.uploadedDesigns)) {
+      lightOrder.uploadedDesigns =
+        lightOrder.uploadedDesigns.map((d) => ({
+          name: d.name,
+          type: d.type,
+          size: d.size,
+        }));
+    }
+    if (lightOrder.uploadedDesign?.dataUrl) {
+      const { dataUrl, ...meta } =
+        lightOrder.uploadedDesign;
+      lightOrder.uploadedDesign = meta;
+    }
+
+    /* slim down card designer data */
+    const stripElements = (design) => {
+      if (!design?.elements) return design;
+      return {
+        ...design,
+        elements: design.elements.map((el) => {
+          if (el.type === "image" && el.src?.length > 500) {
+            return { ...el, src: "[uploaded]" };
+          }
+          return el;
+        }),
+      };
+    };
+    if (lightOrder.frontDesign) {
+      lightOrder.frontDesign =
+        stripElements(lightOrder.frontDesign);
+    }
+    if (lightOrder.backDesign) {
+      lightOrder.backDesign =
+        stripElements(lightOrder.backDesign);
+    }
+
+    try {
+      localStorage.setItem(
+        "ananyaOrders",
+        JSON.stringify(updatedOrders.map((o, i) =>
+          i === 0 ? lightOrder : o
+        ))
+      );
+    } catch {
+      /* quota still exceeded — keep only recent orders */
+      try {
+        localStorage.setItem(
+          "ananyaOrders",
+          JSON.stringify([lightOrder])
+        );
+      } catch {
+        /* cannot persist locally at all — server is source of truth */
+      }
+    }
+
+    // save full order to DB — server is the authoritative record
     saveOrderToServer(order);
 
     // --------------------------------------------------------
