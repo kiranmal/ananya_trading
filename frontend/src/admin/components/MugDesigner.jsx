@@ -425,6 +425,7 @@ export default function MugDesigner({
   const startDrag = (e, el) => {
     if (e.button !== undefined && e.button !== 0) return;
     e.preventDefault();
+    e.stopPropagation();
     setSelectedId(el.id);
     if (editingId === el.id) return;
     const area = areaRef.current;
