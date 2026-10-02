@@ -233,15 +233,27 @@ export default function AdminProducts() {
       return;
     }
 
+    /* optimistic remove — full catalog refetch ka wait
+       nahi karna */
+    setAllProducts((prev) =>
+      prev.filter((p) => p.id !== id)
+    );
+    setProducts((prev) =>
+      prev.filter((p) => p.id !== id)
+    );
+
     try {
-      const updated = await deleteProductFromApi(id);
-      setAllProducts(updated);
-      setProducts((prev) =>
-        prev.filter((p) => p.id !== id)
-      );
+      await deleteProductFromApi(id);
     } catch (err) {
       console.error("Product delete error:", err);
       alert(err.message);
+      /* fail hua to list wapas sync */
+      fetchProducts()
+        .then((list) => {
+          setAllProducts(list);
+          setProducts(list);
+        })
+        .catch(() => {});
     }
   };
 

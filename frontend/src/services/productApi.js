@@ -146,5 +146,5 @@ export const deleteProduct = async (id) => {
     headers: getAuthHeaders(),
   });
   notifyProductsUpdated();
-  return fetchProducts();
+  return true;
 };
