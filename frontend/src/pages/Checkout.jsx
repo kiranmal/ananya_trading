@@ -771,6 +771,8 @@ function Checkout() {
 
           uploadedDesign:
             item.uploadedDesign || null,
+          uploadedDesigns:
+            item.uploadedDesigns || [],
 
           color:
             item.color || "",

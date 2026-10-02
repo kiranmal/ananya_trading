@@ -278,6 +278,10 @@ const createProductSnapshot = (item) => {
     uploadedDesign:
       item?.uploadedDesign ||
       null,
+
+    uploadedDesigns:
+      item?.uploadedDesigns ||
+      [],
   };
 };
 
@@ -1332,6 +1336,9 @@ function Cart() {
 
       uploadedDesign:
         product.uploadedDesign,
+
+      uploadedDesigns:
+        product.uploadedDesigns || [],
 
       // ======================================================
       // CUSTOMER

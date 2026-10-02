@@ -222,8 +222,8 @@ function ProductDetails() {
   const [isFavorite, setIsFavorite] =
     useState(false);
 
-  const [uploadedDesign, setUploadedDesign] =
-    useState(null);
+  const [uploadedDesigns, setUploadedDesigns] =
+    useState([]);
 
 
   /* =====================================================
@@ -627,25 +627,57 @@ function ProductDetails() {
     designInputRef.current?.click();
   };
 
+  const MAX_DESIGN_FILES = 5;
+
   const handleUploadedDesign = (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = "";
-    if (!file) return;
+    if (!files.length) return;
 
     const allowed = ["image/png", "image/jpeg", "application/pdf"];
-    if (!allowed.includes(file.type) || file.size > 750 * 1024) {
-      alert("Upload a PNG, JPG/JPEG, or PDF design up to 750 KB.");
+
+    const remaining = MAX_DESIGN_FILES - uploadedDesigns.length;
+    if (remaining <= 0) {
+      alert(`Maximum ${MAX_DESIGN_FILES} design files allowed.`);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => setUploadedDesign({
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      dataUrl: reader.result,
+    const toProcess = files.slice(0, remaining);
+
+    const invalid = toProcess.filter(
+      (f) => !allowed.includes(f.type) || f.size > 10 * 1024 * 1024
+    );
+    if (invalid.length) {
+      alert("Only PNG, JPG/JPEG, or PDF files up to 10 MB each are allowed.");
+      return;
+    }
+
+    let loaded = 0;
+    const results = [];
+    toProcess.forEach((file, idx) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        results[idx] = {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl: reader.result,
+        };
+        loaded++;
+        if (loaded === toProcess.length) {
+          setUploadedDesigns((prev) =>
+            [...prev, ...results].slice(0, MAX_DESIGN_FILES)
+          );
+        }
+      };
+      reader.readAsDataURL(file);
     });
-    reader.readAsDataURL(file);
+
+    if (files.length > remaining) {
+      alert(
+        `Only ${remaining} more file(s) can be added (max ${MAX_DESIGN_FILES}).`
+      );
+    }
   };
 
 
@@ -719,13 +751,13 @@ function ProductDetails() {
           product.description ||
           "",
 
-        uploadedDesign,
+        uploadedDesigns,
 
         hasUploadedDesign:
-          Boolean(uploadedDesign),
+          uploadedDesigns.length > 0,
 
         isCustomized:
-          Boolean(uploadedDesign),
+          uploadedDesigns.length > 0,
 
       };
 
@@ -1642,6 +1674,7 @@ function ProductDetails() {
               ref={designInputRef}
               type="file"
               accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+              multiple
               onChange={handleUploadedDesign}
               hidden
             />
@@ -1663,15 +1696,36 @@ function ProductDetails() {
 
           </div>
 
-          {uploadedDesign && (
-            <div className="uploaded-design-summary">
-              <Upload size={17} />
-              <div>
-                <strong>{uploadedDesign.name}</strong>
-                <span>Ready-made design attached</span>
-              </div>
-              <button type="button" onClick={handleUpload}>Replace</button>
-              <button type="button" onClick={() => setUploadedDesign(null)}>Remove</button>
+          {uploadedDesigns.length > 0 && (
+            <div className="uploaded-designs-list">
+              {uploadedDesigns.map((d, i) => (
+                <div className="uploaded-design-summary" key={i}>
+                  <Upload size={17} />
+                  <div>
+                    <strong>{d.name}</strong>
+                    <span>Ready-made design attached</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUploadedDesigns((prev) =>
+                        prev.filter((_, idx) => idx !== i)
+                      )
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {uploadedDesigns.length < MAX_DESIGN_FILES && (
+                <button
+                  type="button"
+                  className="add-more-designs"
+                  onClick={handleUpload}
+                >
+                  + Add More ({uploadedDesigns.length}/{MAX_DESIGN_FILES})
+                </button>
+              )}
             </div>
           )}
 

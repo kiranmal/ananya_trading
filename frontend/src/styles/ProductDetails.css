@@ -1721,9 +1721,15 @@
   gap: 8px;
 }
 
-.uploaded-design-summary {
+.uploaded-designs-list {
   margin-top: 12px;
-  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uploaded-design-summary {
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -1731,6 +1737,21 @@
   border-radius: 11px;
   background: #f0f7ff;
   color: #1e3a5f;
+}
+
+.add-more-designs {
+  border: 1px dashed #93c5fd;
+  border-radius: 9px;
+  background: transparent;
+  color: #1e3a5f;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.add-more-designs:hover {
+  background: #eff6ff;
 }
 
 .uploaded-design-summary > div {
