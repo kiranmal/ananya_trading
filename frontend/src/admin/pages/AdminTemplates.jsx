@@ -33,13 +33,36 @@ const CARD_TYPES = ["business-card"];
    GENERIC PREVIEW — renders {front:[els], back:[els]} designs
    from the non-card customizer (print-area % coordinates)
 ============================================================ */
+/* near-white element? garments/pens print on dark surfaces,
+   paper/mugs on light — preview surface auto-adapts */
+const isLightHex = (c) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(c || "").trim());
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255,
+    g = (n >> 8) & 255,
+    b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.72;
+};
+
 const GenericTemplatePreview = ({ design }) => {
   const els = Array.isArray(design?.front)
     ? design.front.filter((e) => !e.hidden).slice(0, 12)
     : [];
 
+  const colors = els
+    .map((e) => e.color)
+    .filter((c) => typeof c === "string" && c.startsWith("#"));
+  const darkSurface =
+    colors.length > 0 &&
+    colors.filter(isLightHex).length / colors.length >= 0.6;
+
   return (
-    <div className="at-generic-preview">
+    <div
+      className={`at-generic-preview${
+        darkSurface ? " dark" : ""
+      }`}
+    >
       {els.map((el, i) => {
         const s = {
           position: "absolute",
@@ -59,8 +82,8 @@ const GenericTemplatePreview = ({ design }) => {
                 ...s,
                 fontFamily: el.fontFamily,
                 fontSize: `${Math.max(
-                  3,
-                  (el.fontSize || 12) * 0.3
+                  4,
+                  (el.fontSize || 12) * 0.42
                 )}px`,
                 fontWeight: el.bold ? 700 : 400,
                 fontStyle: el.italic ? "italic" : "normal",

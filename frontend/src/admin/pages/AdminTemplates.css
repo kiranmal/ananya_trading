@@ -209,6 +209,13 @@
   overflow: hidden;
 }
 
+/* garment-like dark surface for designs whose ink is
+   mostly white (t-shirts, caps, pens, bottles) */
+.at-generic-preview.dark {
+  background: linear-gradient(160deg, #2b3a55, #1c2434);
+  border-color: transparent;
+}
+
 .at-generic-qr {
   aspect-ratio: 1;
   background:
