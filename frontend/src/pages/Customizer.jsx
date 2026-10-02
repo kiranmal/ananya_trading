@@ -35,6 +35,8 @@ import {
   Building2,
   User,
   Briefcase,
+  MapPin,
+  CornerUpLeft,
   Eye,
   EyeOff,
   ChevronUp,
@@ -106,6 +108,36 @@ const TEXT_KINDS = [
   { key: "person", label: "Person Name", placeholder: "YOUR NAME" },
   { key: "designation", label: "Designation", placeholder: "DESIGNATION" },
   { key: "custom", label: "Custom Text", placeholder: "YOUR TEXT" },
+];
+
+/* envelope-specific text presets — har field ek
+   independent element banta hai */
+const ENVELOPE_TEXT_KINDS = [
+  {
+    key: "company",
+    label: "Company Name",
+    placeholder: "COMPANY NAME",
+  },
+  {
+    key: "person",
+    label: "Recipient Name",
+    placeholder: "RECIPIENT NAME",
+  },
+  {
+    key: "address",
+    label: "Address",
+    placeholder: "Address Line 1\nCity, State - PIN",
+  },
+  {
+    key: "return_addr",
+    label: "Return Address",
+    placeholder: "If undelivered, return to:\nCOMPANY, CITY - PIN",
+  },
+  {
+    key: "custom",
+    label: "Custom Text",
+    placeholder: "YOUR TEXT",
+  },
 ];
 
 /* =====================================================
@@ -861,6 +893,135 @@ export function MugSvg({ color }) {
   );
 }
 
+/* =========================================================
+   ENVELOPE MOCKUP — landscape DL/C5/C4, paper colorable.
+   viewBox size follows the selected envelope size.
+========================================================= */
+
+const ENVELOPE_DIMS = {
+  DL: [600, 300], /* 220×110mm → 2:1 */
+  C5: [600, 425], /* 229×162mm ≈ 1.41:1 */
+  C4: [600, 425], /* 324×229mm ≈ 1.41:1 */
+};
+
+function EnvelopeSvg({ color = "#f8f6f1", back, size = "DL" }) {
+  const [W, H] = ENVELOPE_DIMS[size] || ENVELOPE_DIMS.DL;
+  const dark = isDarkColor(color);
+  const edge = dark ? "rgba(0,0,0,.4)" : "#ccd4df";
+  const foldLine = dark ? "rgba(0,0,0,.28)" : "#dfe5ec";
+  const body = dark ? color : color;
+  const bodyLo = shadeHex(color, dark ? 0.08 : -0.06);
+  const flapHi = dark ? shadeHex(color, -0.12) : shadeHex(color, -0.04);
+
+  /* geometry — body spans nearly the whole viewBox */
+  const L = W * 0.07;
+  const R = W * 0.93;
+  const T = H * 0.10;
+  const B = H * 0.90;
+  const cx = W / 2;
+  const flapTip = H * 0.62;
+
+  return (
+    <svg
+      className="garment-svg envelope-svg"
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient
+          id="envPaper"
+          x1="0" y1="0" x2="0" y2="1"
+        >
+          <stop offset="0" stopColor={color} />
+          <stop offset="1" stopColor={bodyLo} />
+        </linearGradient>
+      </defs>
+
+      {/* ground shadow */}
+      <ellipse
+        cx={cx}
+        cy={B + H * 0.055}
+        rx={W * 0.4}
+        ry={H * 0.045}
+        fill="#000"
+        opacity=".12"
+      />
+
+      {/* body */}
+      <rect
+        x={L}
+        y={T}
+        width={R - L}
+        height={B - T}
+        rx={Math.min(10, H * 0.03)}
+        fill="url(#envPaper)"
+        stroke={edge}
+      />
+
+      {!back ? (
+        <>
+          {/* FRONT — flap seam V + side fold shading */}
+          <path
+            d={`M${L} ${T} L${cx} ${flapTip} L${R} ${T}`}
+            fill="none"
+            stroke={foldLine}
+            strokeWidth="2.4"
+          />
+          <path
+            d={`M${L} ${T} L${cx} ${flapTip} L${R} ${T} L${R} ${T + 6} L${cx} ${flapTip + 6} L${L} ${T + 6} Z`}
+            fill={flapHi}
+            opacity=".5"
+          />
+          <path
+            d={`M${L} ${B} L${cx - W * 0.12} ${T + (B - T) * 0.42} L${L} ${T + 10} Z`}
+            fill="#000"
+            opacity=".03"
+          />
+          <path
+            d={`M${R} ${B} L${cx + W * 0.12} ${T + (B - T) * 0.42} L${R} ${T + 10} Z`}
+            fill="#000"
+            opacity=".03"
+          />
+          {/* paper texture — faint fibres */}
+          {Array.from({ length: 9 }).map((_, i) => (
+            <rect
+              key={i}
+              x={L + 14}
+              y={T + 16 + i * ((B - T - 32) / 8)}
+              width={(R - L - 28) * (0.7 + (i % 3) * 0.12)}
+              height="1"
+              fill={dark ? "#ffffff" : "#94a3b8"}
+              opacity=".05"
+            />
+          ))}
+        </>
+      ) : (
+        <>
+          {/* BACK — closed top flap + bottom pocket */}
+          <path
+            d={`M${L} ${T} L${R} ${T} L${cx} ${B - H * 0.06} Z`}
+            fill={flapHi}
+            stroke={foldLine}
+            strokeWidth="2"
+          />
+          <path
+            d={`M${L} ${T} L${cx} ${B - H * 0.06} L${R} ${T}`}
+            fill="none"
+            stroke={edge}
+            strokeWidth="1.4"
+          />
+          <path
+            d={`M${L} ${B} L${cx} ${B - H * 0.3} L${R} ${B}`}
+            fill="none"
+            stroke={foldLine}
+            strokeWidth="2.2"
+          />
+        </>
+      )}
+    </svg>
+  );
+}
+
 
 
 /* =========================================================
@@ -886,7 +1047,12 @@ const PRINT_AREAS = {
   brochure: { left: 24, top: 24, width: 52, height: 52 },
   poster: { left: 30, top: 38, width: 40, height: 48 },
   sticker: { left: 28, top: 24, width: 44, height: 52 },
-  envelope: { left: 27, top: 45, width: 46, height: 23 },
+  /* envelope — front body (flap V seam ke neeche tak),
+     back = flap surface */
+  envelope: {
+    front: { left: 9, top: 16, width: 82, height: 72 },
+    back: { left: 18, top: 14, width: 64, height: 55 },
+  },
   "paper-bag": { left: 30, top: 38, width: 40, height: 46 },
   box: { left: 26, top: 42, width: 32, height: 42 },
   "tote-bag": { left: 30, top: 38, width: 40, height: 46 },
@@ -1322,6 +1488,95 @@ const makeNotebookDefaults = (shirtColor) => {
   };
 };
 
+/* envelope defaults — sender top-left, recipient block
+   center-right, back flap pe return address */
+const makeEnvelopeDefaults = (paperColor) => {
+  const ink = printColorFor(paperColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 28,
+        y: 16,
+        fontSize: 15,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "left",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "person",
+        label: "Recipient Name",
+        text: "RECIPIENT NAME",
+        x: 60,
+        y: 52,
+        fontSize: 17,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "left",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "address",
+        label: "Recipient Address",
+        text: "Street / Area\nCity, State - PIN",
+        x: 60,
+        y: 70,
+        fontSize: 11,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "left",
+        letterSpacing: 0.5,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "return_addr",
+        label: "Return Address",
+        text: "If undelivered, return to:\nCOMPANY NAME, CITY - PIN",
+        x: 50,
+        y: 30,
+        fontSize: 9,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 0.5,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+  };
+};
+
 const makePenDefaults = (penColor) => {
   const ink = printColorFor(penColor);
 
@@ -1671,6 +1926,8 @@ function Customizer() {
         setDesigns(
           isNb
             ? makeNotebookDefaults(shirtColor)
+            : ctype === "envelope"
+            ? makeEnvelopeDefaults("#f8f6f1")
             : [
                 "pen",
                 "bottle",
@@ -1746,14 +2003,22 @@ function Customizer() {
 
   const isMug = customizationType === "mug";
 
+  const isEnvelope = customizationType === "envelope";
+
   /* single printable surface — front/back switch nahi */
   const singleSide = isPen || isBottle || isMug;
 
-  /* image/pen products ka type-specific print area */
-  const typePrintArea =
+  /* image/pen products ka type-specific print area;
+     envelope ke front/back alag zones hain */
+  const typeAreaDef =
     !isNotebook &&
     !isApparel &&
     PRINT_AREAS[customizationType];
+
+  const typePrintArea =
+    isEnvelope && typeAreaDef?.front
+      ? typeAreaDef[side]
+      : typeAreaDef;
 
   const printAreaStyle = typePrintArea
     ? {
@@ -1778,6 +2043,17 @@ function Customizer() {
 
   const [paperType, setPaperType] =
     useState("");
+
+  /* envelope paper — White / Kraft drives mockup + ink */
+  const envelopePaper = isEnvelope
+    ? String(paperType).toLowerCase() === "kraft"
+      ? "#c8a56b"
+      : "#f8f6f1"
+    : null;
+
+  /* canvas aspect per envelope size — DL 2:1, C5/C4 ~1.41:1 */
+  const envelopeAspect =
+    size === "DL" ? 600 / 300 : 600 / 425;
 
   const productImage =
     selectedProduct?.image ||
@@ -1925,14 +2201,33 @@ function Customizer() {
   const addTextElement = (kind) => {
     saveHistory();
 
-    const preset = TEXT_KINDS.find(
-      (k) => k.key === kind
-    );
+    const preset = (
+      isEnvelope ? ENVELOPE_TEXT_KINDS : TEXT_KINDS
+    ).find((k) => k.key === kind);
+
+    if (!preset) return;
 
     /* same kind dobara add ho toh y thoda neeche */
     const sameKind = elements.filter(
       (e) => e.kind === kind
     ).length;
+
+    /* envelope ke liye realistic placement */
+    const envPos = {
+      company: { x: 28, y: 16 },
+      person: { x: 60, y: 52 },
+      address: { x: 60, y: 70 },
+      return_addr: { x: 50, y: 30 },
+      custom: { x: 50, y: 50 },
+    };
+
+    const envFont = {
+      company: 15,
+      person: 17,
+      address: 11,
+      return_addr: 9,
+      custom: 13,
+    };
 
     const newEl = {
       id: uid(),
@@ -1940,12 +2235,15 @@ function Customizer() {
       kind,
       label: preset.label,
       text: preset.placeholder,
-      x: 50,
-      y: Math.min(
-        85,
-        42 + sameKind * 14
-      ),
-      fontSize: singleSide
+      x: isEnvelope
+        ? envPos[kind]?.x ?? 50
+        : 50,
+      y: isEnvelope
+        ? (envPos[kind]?.y ?? 50) + sameKind * 10
+        : Math.min(85, 42 + sameKind * 14),
+      fontSize: isEnvelope
+        ? envFont[kind] || 13
+        : singleSide
         ? kind === "company"
           ? 15
           : kind === "designation"
@@ -1957,11 +2255,18 @@ function Customizer() {
         ? 14
         : 20,
       fontFamily: "Poppins",
-      color: printColorFor(productColor),
-      bold: kind === "company",
+      color: printColorFor(
+        isEnvelope ? envelopePaper : productColor
+      ),
+      bold:
+        kind === "company" || kind === "person",
       italic: false,
       underline: false,
-      align: "center",
+      align: isEnvelope
+        ? kind === "return_addr" || kind === "custom"
+          ? "center"
+          : "left"
+        : "center",
       letterSpacing: 1,
       rotation: 0,
       hidden: false,
@@ -2195,6 +2500,8 @@ function Customizer() {
     setDesigns(
       isNotebook
         ? makeNotebookDefaults(shirtColor)
+        : isEnvelope
+        ? makeEnvelopeDefaults(envelopePaper || "#f8f6f1")
         : singleSide
         ? makePenDefaults(shirtColor)
         : makeDefaultDesigns(shirtColor)
@@ -2869,9 +3176,16 @@ function Customizer() {
             ? "real-product-preview has-image"
             : isMug
             ? "real-product-preview has-image"
+            : isEnvelope
+            ? "real-product-preview envelope-preview"
             : !isApparel && productImage
             ? "real-product-preview has-image"
             : "real-product-preview"
+        }
+        style={
+          isEnvelope
+            ? { aspectRatio: `${envelopeAspect}` }
+            : undefined
         }
       >
         {isNotebook ? (
@@ -2885,6 +3199,12 @@ function Customizer() {
           <BottleSvg color={productColor} />
         ) : isMug ? (
           <MugSvg color={productColor} />
+        ) : isEnvelope ? (
+          <EnvelopeSvg
+            color={envelopePaper}
+            back={side === "back"}
+            size={size}
+          />
         ) : isApparel ? (
           <GarmentSvg
             color={productColor}
@@ -3499,7 +3819,10 @@ function Customizer() {
                   </h3>
 
                   <div className="quick-add-list">
-                    {TEXT_KINDS.map((kind) => (
+                    {(isEnvelope
+                      ? ENVELOPE_TEXT_KINDS
+                      : TEXT_KINDS
+                    ).map((kind) => (
                       <button
                         key={kind.key}
                         type="button"
@@ -3508,7 +3831,7 @@ function Customizer() {
                           addTextElement(kind.key)
                         }
                       >
-                        {kind.key === "company" && (
+                        {(kind.key === "company") && (
                           <Building2 size={16} />
                         )}
                         {kind.key === "person" && (
@@ -3516,6 +3839,12 @@ function Customizer() {
                         )}
                         {kind.key === "designation" && (
                           <Briefcase size={16} />
+                        )}
+                        {kind.key === "address" && (
+                          <MapPin size={16} />
+                        )}
+                        {kind.key === "return_addr" && (
+                          <CornerUpLeft size={16} />
                         )}
                         {kind.key === "custom" && (
                           <Type size={16} />
