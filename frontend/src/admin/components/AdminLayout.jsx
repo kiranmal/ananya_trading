@@ -42,6 +42,8 @@ function AdminLayout() {
     useState(0);
   const [notifications, setNotifications] =
     useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
@@ -233,12 +235,11 @@ function AdminLayout() {
       if (!token) return;
 
       const headers = { Authorization: `Bearer ${token}` };
-      const items = [];
 
       try {
-        const [ordersRes, inquiriesRes] =
+        const [notifRes, inquiriesRes] =
           await Promise.all([
-            fetch(`${API_URL}/admin/orders`, {
+            fetch(`${API_URL}/admin/notifications`, {
               headers,
             }),
             fetch(
@@ -247,7 +248,7 @@ function AdminLayout() {
             ),
           ]);
 
-        const ordersData = await ordersRes
+        const notifData = await notifRes
           .json()
           .catch(() => ({}));
         const inquiriesData = await inquiriesRes
@@ -255,32 +256,13 @@ function AdminLayout() {
           .catch(() => ({}));
 
         if (
-          ordersRes.ok &&
-          Array.isArray(ordersData.orders)
+          notifRes.ok &&
+          Array.isArray(notifData.notifications)
         ) {
-          ordersData.orders
-            .slice(0, 5)
-            .forEach((order) => {
-              items.push({
-                id: `order-${
-                  order.orderNumber ||
-                  order.orderId ||
-                  order.id
-                }`,
-                title: "New order received",
-                text: `${
-                  order.customerName ||
-                  order.name ||
-                  "Customer"
-                } placed order ${
-                  order.orderNumber ||
-                  order.orderId ||
-                  order.id
-                }.`,
-                time: order.createdAt,
-                type: "order",
-              });
-            });
+          setNotifications(notifData.notifications);
+          setUnreadCount(
+            Number(notifData.unreadCount) || 0
+          );
         }
 
         if (
@@ -290,34 +272,7 @@ function AdminLayout() {
           setInquiryCount(
             inquiriesData.inquiries.length
           );
-
-          inquiriesData.inquiries
-            .slice(0, 5)
-            .forEach((inquiry) => {
-              items.push({
-                id: `inquiry-${inquiry.id}`,
-                title: "New inquiry",
-                text: `${
-                  inquiry.name || "Customer"
-                }: ${String(
-                  inquiry.subject ||
-                    inquiry.message ||
-                    ""
-                ).slice(0, 60)}`,
-                time:
-                  inquiry.created_at ||
-                  inquiry.createdAt,
-                type: "inquiry",
-              });
-            });
         }
-
-        items.sort(
-          (a, b) =>
-            new Date(b.time) - new Date(a.time)
-        );
-
-        setNotifications(items.slice(0, 6));
       } catch {
         /* badge optional — ignore */
       }
@@ -326,8 +281,80 @@ function AdminLayout() {
     loadCount();
 
     const interval = setInterval(loadCount, 60000);
+
+    /* dropdown kholte hi latest state fetch karo */
+    if (notificationOpen) loadCount();
+
     return () => clearInterval(interval);
-  }, [authChecking]);
+  }, [authChecking, notificationOpen]);
+
+  /* =====================================================
+     NOTIFICATION READ STATE — server-persisted
+  ===================================================== */
+
+  const markNotificationRead = async (key) => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.key === key ? { ...n, read: true } : n
+      )
+    );
+    setUnreadCount((c) => Math.max(0, c - 1));
+
+    try {
+      await fetch(
+        `${API_URL}/admin/notifications/read`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ key }),
+        }
+      );
+    } catch {
+      /* optimistic UI already applied */
+    }
+  };
+
+  const markAllRead = async () => {
+    const token = localStorage.getItem("authToken");
+    if (!token || markingAll || !notifications.length)
+      return;
+
+    setMarkingAll(true);
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, read: true }))
+    );
+    setUnreadCount(0);
+
+    try {
+      await fetch(
+        `${API_URL}/admin/notifications/read-all`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            keys: notifications.map((n) => n.key),
+          }),
+        }
+      );
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  const openNotification = (n) => {
+    if (!n.read) markNotificationRead(n.key);
+    setNotificationOpen(false);
+    if (n.link) navigate(n.link);
+  };
 
   /* =====================================================
      CLOSE MOBILE SIDEBAR ON ROUTE CLICK
@@ -744,9 +771,9 @@ function AdminLayout() {
 
                 <Bell size={19} />
 
-                {notifications.length > 0 && (
+                {unreadCount > 0 && (
                   <span className="notification-dot">
-                    {notifications.length}
+                    {unreadCount}
                   </span>
                 )}
 
@@ -764,27 +791,50 @@ function AdminLayout() {
                       </h3>
 
                       <span>
-                        You have {notifications.length} new
-                        notifications
+                        You have {unreadCount} new
+                        notification
+                        {unreadCount === 1 ? "" : "s"}
                       </span>
                     </div>
 
-                    <button>
-                      Mark all read
+                    <button
+                      onClick={markAllRead}
+                      disabled={
+                        markingAll || unreadCount === 0
+                      }
+                    >
+                      {markingAll
+                        ? "Marking…"
+                        : "Mark all read"}
                     </button>
 
                   </div>
 
                   <div className="notification-list">
 
-                    {notifications.map(
-                      (notification) => (
+                    {notifications.length === 0 && (
+                      <div className="notification-empty">
+                        No notifications yet
+                      </div>
+                    )}
+
+                    {notifications
+                      .slice(0, 8)
+                      .map((notification) => (
 
                         <div
-                          className="notification-item"
-                          key={
-                            notification.id
+                          className={`notification-item${
+                            notification.read
+                              ? " read"
+                              : " unread"
+                          }`}
+                          key={notification.key}
+                          onClick={() =>
+                            openNotification(
+                              notification
+                            )
                           }
+                          role="button"
                         >
 
                           <div className="notification-icon">
@@ -839,11 +889,12 @@ function AdminLayout() {
 
                           </div>
 
-                          <span className="notification-unread" />
+                          {!notification.read && (
+                            <span className="notification-unread" />
+                          )}
 
                         </div>
-                      )
-                    )}
+                      ))}
 
                   </div>
 
@@ -855,7 +906,7 @@ function AdminLayout() {
                       );
 
                       navigate(
-                        "/admin/orders"
+                        "/admin/notifications"
                       );
                     }}
                   >

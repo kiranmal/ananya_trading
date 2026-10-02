@@ -18,6 +18,7 @@ import AdminDelivery from "./pages/AdminDelivery";
 import AdminReviews from "./pages/AdminReviews";
 import AdminInquiries from "./pages/AdminInquiries";
 import AdminCoupons from "./pages/AdminCoupons";
+import AdminNotifications from "./pages/AdminNotifications";
 
 // Product Pages
 import AddProduct from "./pages/AddProduct";
@@ -120,6 +121,17 @@ export default function AdminApp() {
         <Route
           path="orders"
           element={<AdminOrders />}
+        />
+
+
+        {/* =================================================
+            NOTIFICATIONS — full notification history
+            URL: /admin/notifications
+        ================================================= */}
+
+        <Route
+          path="notifications"
+          element={<AdminNotifications />}
         />
 
 

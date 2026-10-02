@@ -760,6 +760,28 @@
     #f9fafb;
 }
 
+.notification-item {
+  cursor: pointer;
+}
+
+.notification-item.unread {
+  background:
+    #f0f7ff;
+}
+
+.notification-item.read {
+  opacity: 0.72;
+}
+
+.notification-empty {
+  padding: 34px 18px;
+
+  color: #9ca3af;
+
+  font-size: 11px;
+  text-align: center;
+}
+
 .notification-icon {
   width: 34px;
   height: 34px;

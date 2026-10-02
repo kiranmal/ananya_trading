@@ -2780,8 +2780,179 @@ app.delete(
 );
 
 /* =========================================================
-   404 HANDLER
+   ADMIN NOTIFICATIONS
+   Events are DERIVED from orders + contact_inquiries
+   (no duplication). Only the per-admin READ state is
+   persisted — survives refresh/logout, scoped per admin.
 ========================================================= */
+
+async function ensureNotificationReadsTable() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS admin_notification_reads (
+      id INT NOT NULL AUTO_INCREMENT,
+      admin_id INT NOT NULL,
+      notif_key VARCHAR(100) NOT NULL,
+      read_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_admin_notif (admin_id, notif_key)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+}
+
+const buildAdminNotifications = async (adminId) => {
+  const [orders] = await db.execute(
+    `SELECT order_id, customer_name, total, status,
+            payment_status, created_at
+     FROM orders ORDER BY created_at DESC LIMIT 60`
+  );
+
+  const [inquiries] = await db.execute(
+    `SELECT id, name, product_name, message, status,
+            created_at
+     FROM contact_inquiries
+     ORDER BY created_at DESC LIMIT 40`
+  );
+
+  const [reads] = await db.execute(
+    `SELECT notif_key FROM admin_notification_reads
+     WHERE admin_id = ?`,
+    [adminId]
+  );
+  const readSet = new Set(reads.map((r) => r.notif_key));
+
+  const notifications = [
+    ...orders.map((o) => ({
+      key: `order-${o.order_id}`,
+      type: "order",
+      title: "New order received",
+      text: `${
+        o.customer_name || "Customer"
+      } placed order ${o.order_id}.`,
+      time: o.created_at,
+      link: "/admin/orders",
+      orderNumber: o.order_id,
+      total: o.total,
+      status: o.status,
+      read: readSet.has(`order-${o.order_id}`),
+    })),
+    ...inquiries.map((i) => ({
+      key: `inquiry-${i.id}`,
+      type: "inquiry",
+      title: "New inquiry",
+      text: `${i.name || "Customer"}: ${String(
+        i.product_name || i.message || ""
+      ).slice(0, 90)}`,
+      time: i.created_at,
+      link: "/admin/inquiries",
+      read: readSet.has(`inquiry-${i.id}`),
+    })),
+  ].sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  return {
+    notifications,
+    unreadCount: notifications.filter((n) => !n.read)
+      .length,
+  };
+};
+
+/* ADMIN — full notification feed */
+app.get(
+  "/api/admin/notifications",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureOrdersTable();
+      await ensureContactInquiriesTable();
+      await ensureNotificationReadsTable();
+
+      const data = await buildAdminNotifications(
+        req.user.id
+      );
+      return res.status(200).json({
+        success: true,
+        ...data,
+      });
+    } catch (error) {
+      console.error("Notifications error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load notifications.",
+      });
+    }
+  }
+);
+
+/* ADMIN — mark one notification read */
+app.post(
+  "/api/admin/notifications/read",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const key = String(req.body?.key || "").slice(0, 100);
+      if (!/^(order|inquiry)-.{1,80}$/.test(key)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid notification key required.",
+        });
+      }
+
+      await ensureNotificationReadsTable();
+      await db.execute(
+        `INSERT IGNORE INTO admin_notification_reads
+         (admin_id, notif_key) VALUES (?, ?)`,
+        [req.user.id, key]
+      );
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Mark read error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update notification.",
+      });
+    }
+  }
+);
+
+/* ADMIN — mark all read (keys supplied so we don't
+   create phantom rows for nonexistent events) */
+app.post(
+  "/api/admin/notifications/read-all",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const keys = Array.isArray(req.body?.keys)
+        ? req.body.keys
+            .filter(
+              (k) =>
+                typeof k === "string" &&
+                /^(order|inquiry)-.{1,80}$/.test(k)
+            )
+            .slice(0, 200)
+        : [];
+
+      await ensureNotificationReadsTable();
+      if (keys.length) {
+        await db.query(
+          `INSERT IGNORE INTO admin_notification_reads
+           (admin_id, notif_key) VALUES ?`,
+          [keys.map((k) => [req.user.id, k])]
+        );
+      }
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Mark all read error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update notifications.",
+      });
+    }
+  }
+);
 
 /* =========================================================
    CATEGORIES
