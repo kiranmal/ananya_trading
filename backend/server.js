@@ -563,11 +563,30 @@ function authenticateToken(req, res, next) {
    GET /api/auth/me
 ========================================================= */
 
+/* ensure address columns exist (safe migration) */
+let addressColumnsEnsured = false;
+async function ensureAddressColumns() {
+  if (addressColumnsEnsured) return;
+  addressColumnsEnsured = true;
+  const cols = ["city VARCHAR(100)", "state VARCHAR(100)", "pincode VARCHAR(10)"];
+  for (const col of cols) {
+    const name = col.split(" ")[0];
+    try {
+      await db.execute(
+        `ALTER TABLE users ADD COLUMN ${col} DEFAULT NULL`
+      );
+    } catch {
+      /* column already exists — ignore */
+    }
+  }
+}
+
 app.get(
   "/api/auth/me",
   authenticateToken,
   async (req, res) => {
     try {
+      await ensureAddressColumns();
       const [users] = await db.execute(
         `
         SELECT
@@ -576,6 +595,9 @@ app.get(
           email,
           phone,
           address,
+          city,
+          state,
+          pincode,
           photo,
           role
         FROM users
@@ -621,10 +643,15 @@ app.put(
   authenticateToken,
   async (req, res) => {
     try {
+      await ensureAddressColumns();
+
       const {
         name,
         phone,
         address,
+        city,
+        state,
+        pincode,
         photo,
       } = req.body;
 
@@ -673,6 +700,9 @@ app.put(
           name = ?,
           phone = ?,
           address = ?,
+          city = ?,
+          state = ?,
+          pincode = ?,
           photo = ?
         WHERE id = ?
         `,
@@ -680,6 +710,9 @@ app.put(
           cleanName,
           cleanPhone,
           String(address || "").trim(),
+          String(city || "").trim(),
+          String(state || "").trim(),
+          String(pincode || "").trim(),
           String(photo || "").trim(),
           req.user.id,
         ]
@@ -697,6 +730,9 @@ app.put(
           email,
           phone,
           address,
+          city,
+          state,
+          pincode,
           photo,
           role
         FROM users

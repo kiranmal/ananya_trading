@@ -33,10 +33,19 @@ const AddressBook = ({ user, onEdit }) => {
             {user?.name || "User"}
           </h3>
 
-          <p>
-            {user?.address ||
-              "No delivery address added yet."}
-          </p>
+          {user?.address ? (
+            <>
+              <p>{user.address}</p>
+              {(user.city || user.state || user.pincode) && (
+                <p>
+                  {[user.city, user.state].filter(Boolean).join(", ")}
+                  {user.pincode ? ` - ${user.pincode}` : ""}
+                </p>
+              )}
+            </>
+          ) : (
+            <p>No delivery address added yet.</p>
+          )}
 
           {user?.phone && (
             <p>

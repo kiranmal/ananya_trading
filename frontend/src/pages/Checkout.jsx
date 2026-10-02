@@ -253,6 +253,43 @@ function Checkout() {
 
   /*
   =====================================================
+  AUTO-FILL FROM PROFILE
+  =====================================================
+  */
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    const loadProfile = async () => {
+      try {
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.user) return;
+
+        const u = data.user;
+        setForm((prev) => ({
+          ...prev,
+          name: prev.name || u.name || "",
+          phone: prev.phone || u.phone || "",
+          email: prev.email || u.email || "",
+          address: prev.address || u.address || "",
+          city: prev.city || u.city || "",
+          state: prev.state || u.state || "",
+          pincode: prev.pincode || u.pincode || "",
+        }));
+      } catch {
+        /* profile fetch failed — user can fill manually */
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  /*
+  =====================================================
   CHECK DELIVERY
   =====================================================
   */

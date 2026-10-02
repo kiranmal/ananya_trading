@@ -71,13 +71,16 @@ const Profile = () => {
     navigate("/login");
   };
 
-  const handleSaveProfile = (data) => {
+  const handleSaveProfile = async (data) => {
 
-    updateUser(data);
+    const result = await updateUser(data);
 
-    setActiveTab("profile");
-
-    alert("Profile updated successfully!");
+    if (result?.success) {
+      setActiveTab("profile");
+      alert("Profile updated successfully!");
+    } else {
+      alert(result?.message || "Unable to update profile.");
+    }
   };
 
   const handleTrackOrder = (order) => {

@@ -7,6 +7,9 @@ const EditProfile = ({ user, onSave }) => {
     email: user?.email || "",
     phone: user?.phone || "",
     address: user?.address || "",
+    city: user?.city || "",
+    state: user?.state || "",
+    pincode: user?.pincode || "",
     photo: user?.photo || "",
   });
 
@@ -119,16 +122,59 @@ const EditProfile = ({ user, onSave }) => {
 
           </div>
 
-          <div className="form-group">
+          <div className="form-group full-width">
 
-            <label>Address</label>
+            <label>Complete Address</label>
 
             <textarea
               name="address"
               value={formData.address}
               onChange={handleChange}
-              placeholder="Enter your address"
-              rows="4"
+              placeholder="House no., street, area, landmark..."
+              rows="3"
+            />
+
+          </div>
+
+          <div className="form-group">
+
+            <label>City</label>
+
+            <input
+              type="text"
+              name="city"
+              value={formData.city}
+              onChange={handleChange}
+              placeholder="City"
+            />
+
+          </div>
+
+          <div className="form-group">
+
+            <label>State</label>
+
+            <input
+              type="text"
+              name="state"
+              value={formData.state}
+              onChange={handleChange}
+              placeholder="State"
+            />
+
+          </div>
+
+          <div className="form-group">
+
+            <label>Pincode</label>
+
+            <input
+              type="text"
+              name="pincode"
+              value={formData.pincode}
+              onChange={handleChange}
+              placeholder="6 digit pincode"
+              maxLength="6"
             />
 
           </div>
