@@ -278,6 +278,11 @@
   color: #374151;
 }
 
+.form-group label .required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
 .form-group input,
 .form-group textarea {
   width: 100%;

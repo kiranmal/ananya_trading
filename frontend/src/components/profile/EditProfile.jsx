@@ -42,6 +42,23 @@ const EditProfile = ({ user, onSave }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    if (!formData.address.trim()) {
+      alert("Please enter your complete address.");
+      return;
+    }
+    if (!formData.city.trim()) {
+      alert("Please enter your city.");
+      return;
+    }
+    if (!formData.state.trim()) {
+      alert("Please enter your state.");
+      return;
+    }
+    if (!/^\d{6}$/.test(formData.pincode.trim())) {
+      alert("Please enter a valid 6 digit pincode.");
+      return;
+    }
+
     onSave(formData);
   };
 
@@ -124,7 +141,7 @@ const EditProfile = ({ user, onSave }) => {
 
           <div className="form-group full-width">
 
-            <label>Complete Address</label>
+            <label>Complete Address <span className="required">*</span></label>
 
             <textarea
               name="address"
@@ -132,13 +149,14 @@ const EditProfile = ({ user, onSave }) => {
               onChange={handleChange}
               placeholder="House no., street, area, landmark..."
               rows="3"
+              required
             />
 
           </div>
 
           <div className="form-group">
 
-            <label>City</label>
+            <label>City <span className="required">*</span></label>
 
             <input
               type="text"
@@ -146,13 +164,14 @@ const EditProfile = ({ user, onSave }) => {
               value={formData.city}
               onChange={handleChange}
               placeholder="City"
+              required
             />
 
           </div>
 
           <div className="form-group">
 
-            <label>State</label>
+            <label>State <span className="required">*</span></label>
 
             <input
               type="text"
@@ -160,13 +179,14 @@ const EditProfile = ({ user, onSave }) => {
               value={formData.state}
               onChange={handleChange}
               placeholder="State"
+              required
             />
 
           </div>
 
           <div className="form-group">
 
-            <label>Pincode</label>
+            <label>Pincode <span className="required">*</span></label>
 
             <input
               type="text"
@@ -175,6 +195,9 @@ const EditProfile = ({ user, onSave }) => {
               onChange={handleChange}
               placeholder="6 digit pincode"
               maxLength="6"
+              required
+              pattern="\d{6}"
+              title="6 digit pincode"
             />
 
           </div>
