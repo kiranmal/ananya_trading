@@ -347,7 +347,8 @@ export default function AdminProducts() {
       <td>
         <span
           className={`status ${
-            product.status === "Active"
+            product.status === "Active" ||
+            product.status === "In Stock"
               ? "delivered"
               : product.status === "Low Stock"
               ? "pending"
@@ -426,7 +427,8 @@ export default function AdminProducts() {
         </span>
         <span
           className={`status ${
-            product.status === "Active"
+            product.status === "Active" ||
+            product.status === "In Stock"
               ? "delivered"
               : product.status === "Low Stock"
               ? "pending"
