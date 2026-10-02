@@ -751,7 +751,12 @@ function ProductDetails() {
           product.description ||
           "",
 
-        uploadedDesigns,
+        uploadedDesigns:
+          uploadedDesigns.map((d) => ({
+            name: d.name,
+            type: d.type,
+            size: d.size,
+          })),
 
         hasUploadedDesign:
           uploadedDesigns.length > 0,
@@ -760,6 +765,22 @@ function ProductDetails() {
           uploadedDesigns.length > 0,
 
       };
+
+      /* store full design data (base64) separately —
+         localStorage quota ke andar rehne ke liye cart
+         mein sirf metadata jaata hai */
+      if (uploadedDesigns.length > 0) {
+        try {
+          const designKey = `ananyaDesigns_${product.id}`;
+          localStorage.setItem(
+            designKey,
+            JSON.stringify(uploadedDesigns)
+          );
+        } catch {
+          /* quota issue — designs kept in memory only,
+             will be available until page refresh */
+        }
+      }
 
 
       const existingCart =
