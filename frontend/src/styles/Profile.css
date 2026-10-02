@@ -283,6 +283,13 @@
   margin-left: 2px;
 }
 
+.form-group label .pin-loading {
+  font-weight: 400;
+  font-size: 11px;
+  color: #6b7280;
+  margin-left: 6px;
+}
+
 .form-group input,
 .form-group textarea {
   width: 100%;

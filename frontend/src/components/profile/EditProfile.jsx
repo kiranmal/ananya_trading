@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 const EditProfile = ({ user, onSave }) => {
 
@@ -13,6 +13,42 @@ const EditProfile = ({ user, onSave }) => {
     photo: user?.photo || "",
   });
 
+  const [pinLoading, setPinLoading] = useState(false);
+  const pinAbort = useRef(null);
+
+  const lookupPincode = async (pin) => {
+    if (!/^\d{6}$/.test(pin)) return;
+
+    if (pinAbort.current) pinAbort.current.abort();
+    const controller = new AbortController();
+    pinAbort.current = controller;
+
+    setPinLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.postalpincode.in/pincode/${pin}`,
+        { signal: controller.signal }
+      );
+      const data = await res.json();
+
+      if (
+        data?.[0]?.Status === "Success" &&
+        data[0].PostOffice?.length > 0
+      ) {
+        const po = data[0].PostOffice[0];
+        setFormData((prev) => ({
+          ...prev,
+          city: po.District || prev.city,
+          state: po.State || prev.state,
+        }));
+      }
+    } catch {
+      /* network error or aborted — ignore */
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -20,6 +56,10 @@ const EditProfile = ({ user, onSave }) => {
       ...prev,
       [name]: value,
     }));
+
+    if (name === "pincode" && value.length === 6) {
+      lookupPincode(value);
+    }
   };
 
   const handleImage = (e) => {
@@ -186,7 +226,10 @@ const EditProfile = ({ user, onSave }) => {
 
           <div className="form-group">
 
-            <label>Pincode <span className="required">*</span></label>
+            <label>
+              Pincode <span className="required">*</span>
+              {pinLoading && <span className="pin-loading"> Fetching...</span>}
+            </label>
 
             <input
               type="text"

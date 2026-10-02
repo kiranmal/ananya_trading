@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from "../services/apiConfig";
 import { saveOrderToServer } from "../services/orderApi";
@@ -535,6 +535,48 @@ function Checkout() {
 
   /*
   =====================================================
+  PINCODE LOOKUP
+  =====================================================
+  */
+
+  const [pinLoading, setPinLoading] = useState(false);
+  const pinAbort = useRef(null);
+
+  const lookupPincode = async (pin) => {
+    if (!/^\d{6}$/.test(pin)) return;
+
+    if (pinAbort.current) pinAbort.current.abort();
+    const controller = new AbortController();
+    pinAbort.current = controller;
+
+    setPinLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.postalpincode.in/pincode/${pin}`,
+        { signal: controller.signal }
+      );
+      const data = await res.json();
+
+      if (
+        data?.[0]?.Status === "Success" &&
+        data[0].PostOffice?.length > 0
+      ) {
+        const po = data[0].PostOffice[0];
+        setForm((prev) => ({
+          ...prev,
+          city: po.District || prev.city,
+          state: po.State || prev.state,
+        }));
+      }
+    } catch {
+      /* network error or aborted */
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
+  /*
+  =====================================================
   FORM CHANGE
   =====================================================
   */
@@ -549,6 +591,11 @@ function Checkout() {
       ...prev,
       [name]: value,
     }));
+
+    /* pincode auto-fill */
+    if (name === "pincode" && value.replace(/\D/g, "").length === 6) {
+      lookupPincode(value.replace(/\D/g, ""));
+    }
 
     /*
     Address change hone par
@@ -1437,6 +1484,7 @@ function Checkout() {
 
                   <label>
                     Pincode *
+                    {pinLoading && <span style={{ fontWeight: 400, fontSize: "11px", color: "#6b7280", marginLeft: "6px" }}>Fetching...</span>}
                   </label>
 
                   <input
