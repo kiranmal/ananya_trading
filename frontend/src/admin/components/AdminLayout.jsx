@@ -23,6 +23,7 @@ import {
   Star,
   MailQuestion,
   TicketPercent,
+  Shield,
 } from "lucide-react";
 
 import "./AdminLayout.css";
@@ -990,7 +991,8 @@ function AdminLayout() {
               >
 
                 <div className="topbar-avatar">
-                  A
+                  {(adminName || "A").charAt(0).toUpperCase()}
+                  <span className="avatar-online-sm" />
                 </div>
 
                 <div className="topbar-user">
@@ -1000,7 +1002,7 @@ function AdminLayout() {
                   </strong>
 
                   <span>
-                    Administrator
+                    Admin
                   </span>
 
                 </div>
@@ -1023,7 +1025,8 @@ function AdminLayout() {
                   <div className="profile-dropdown-head">
 
                     <div className="profile-large-avatar">
-                      A
+                      {(adminName || "A").charAt(0).toUpperCase()}
+                      <span className="avatar-online" />
                     </div>
 
                     <div>
@@ -1032,8 +1035,13 @@ function AdminLayout() {
                         {adminName}
                       </strong>
 
-                      <span>
+                      <span className="profile-email">
                         {adminEmail}
+                      </span>
+
+                      <span className="profile-role-badge">
+                        <Shield size={10} />
+                        Admin
                       </span>
 
                     </div>
@@ -1044,25 +1052,36 @@ function AdminLayout() {
 
                     <button
                       onClick={() => {
-                        setProfileOpen(
-                          false
-                        );
-
-                        navigate(
-                          "/admin"
-                        );
+                        setProfileOpen(false);
+                        navigate("/admin");
                       }}
                     >
-                      <User size={17} />
+                      <LayoutDashboard size={16} />
+                      Dashboard
+                    </button>
 
-                      My Dashboard
+                    <button
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate("/admin/products");
+                      }}
+                    >
+                      <Package size={16} />
+                      Products
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate("/admin/orders");
+                      }}
+                    >
+                      <ShoppingBag size={16} />
+                      Orders
                     </button>
 
                     <button>
-                      <Settings
-                        size={17}
-                      />
-
+                      <Settings size={16} />
                       Settings
                     </button>
 
@@ -1070,12 +1089,9 @@ function AdminLayout() {
 
                     <button
                       className="logout-menu"
-                      onClick={
-                        handleLogout
-                      }
+                      onClick={handleLogout}
                     >
-                      <LogOut size={17} />
-
+                      <LogOut size={16} />
                       Logout
                     </button>
 

@@ -592,8 +592,9 @@
 }
 
 .topbar-avatar {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  width: 36px;
+  height: 36px;
 
   display: flex;
   align-items: center;
@@ -601,12 +602,24 @@
 
   border-radius: 10px;
 
-  background: #dbeafe;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
 
-  color: #1d4ed8;
+  color: #fff;
 
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.avatar-online-sm {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #fff;
 }
 
 .topbar-user {
@@ -915,12 +928,12 @@
   top: calc(100% + 12px);
   right: 0;
 
-  width: 275px;
+  width: 280px;
 
   overflow: hidden;
 
   border:
-    1px solid #e5e7eb;
+    1px solid #e2e8f0;
 
   border-radius: 16px;
 
@@ -928,8 +941,8 @@
     #ffffff;
 
   box-shadow:
-    0 25px 70px
-    rgba(15,23,42,0.14);
+    0 20px 60px rgba(15,23,42,0.12),
+    0 4px 14px rgba(15,23,42,0.06);
 
   animation:
     dropdownIn 0.18s ease;
@@ -948,8 +961,9 @@
 }
 
 .profile-large-avatar {
-  width: 41px;
-  height: 41px;
+  position: relative;
+  width: 44px;
+  height: 44px;
 
   display: flex;
   align-items: center;
@@ -959,11 +973,24 @@
 
   border-radius: 12px;
 
-  background: #dbeafe;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
 
-  color: #1d4ed8;
+  color: #fff;
 
-  font-weight: 900;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.avatar-online {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2.5px solid #fff;
 }
 
 .profile-dropdown-head div:last-child {
@@ -975,20 +1002,32 @@
 
 .profile-dropdown-head strong {
   color: #111827;
-
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.profile-dropdown-head span {
-  margin-top: 4px;
-
+.profile-email {
+  margin-top: 2px;
   overflow: hidden;
-
   color: #6b7280;
-
-  font-size: 9px;
-
+  font-size: 11px;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  width: fit-content;
+  letter-spacing: 0.3px;
 }
 
 /* =====================================================
@@ -996,58 +1035,64 @@
 ===================================================== */
 
 .profile-menu {
-  padding: 7px;
+  padding: 6px 7px;
 }
 
 .profile-menu button {
   width: 100%;
-
-  height: 40px;
-
+  height: 38px;
   display: flex;
   align-items: center;
-
   gap: 10px;
-
-  padding: 0 11px;
-
+  padding: 0 12px;
   border: 0;
   border-radius: 9px;
-
   background: transparent;
-
-  color: #4b5563;
-
-  font-size: 11px;
+  color: #374151;
+  font-size: 12px;
   font-weight: 600;
-
   text-align: left;
-
   cursor: pointer;
-
   transition:
-    color 0.2s ease,
-    background 0.2s ease;
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .profile-menu button:hover {
-  background:
-    #f3f4f6;
-
+  background: #f1f5f9;
   color: #111827;
+}
+
+.profile-menu button svg {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.profile-menu button:hover svg {
+  color: #3b82f6;
 }
 
 .profile-menu-divider {
   height: 1px;
-
-  margin: 6px 5px;
-
-  background:
-    #f0f2f5;
+  margin: 4px 8px;
+  background: #f0f2f5;
 }
 
 .profile-menu .logout-menu {
   color: #dc2626;
+}
+
+.profile-menu .logout-menu svg {
+  color: #dc2626;
+}
+
+.profile-menu .logout-menu:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.profile-menu .logout-menu:hover svg {
+  color: #b91c1c;
 }
 
 /* =====================================================
