@@ -1211,7 +1211,7 @@ const sanitizeDesignElement = (el) => {
   if (!el || typeof el !== "object") return null;
 
   const clean = {
-    type: ["text", "image", "shape"].includes(el.type)
+    type: ["text", "image", "shape", "qr"].includes(el.type)
       ? el.type
       : "text",
     id: String(el.id || "").slice(0, 80),
@@ -1244,6 +1244,13 @@ const sanitizeDesignElement = (el) => {
         : null;
     clean.width = clampNum(el.width, 1, 150, 20);
     clean.height = clampNum(el.height, 0, 150, 0);
+    clean.opacity = clampNum(el.opacity, 0, 1, 1);
+  } else if (clean.type === "qr") {
+    clean.src =
+      typeof el.src === "string" && el.src.length < 2000000
+        ? el.src
+        : null;
+    clean.width = clampNum(el.width, 1, 150, 20);
     clean.opacity = clampNum(el.opacity, 0, 1, 1);
   } else {
     clean.shape = String(el.shape || "rect").slice(0, 20);
@@ -1800,6 +1807,11 @@ const sanitizeGenericElement = (el) => {
     )
       ? el.shape
       : "rect";
+  } else if (type === "qr") {
+    clean.src =
+      typeof el.src === "string" && el.src.length < 2000000
+        ? el.src
+        : null;
   }
 
   return clean;

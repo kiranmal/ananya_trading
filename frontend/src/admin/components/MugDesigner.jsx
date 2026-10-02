@@ -231,7 +231,11 @@ const renderElement = (
         className={cls}
         style={{ ...base, width: `${el.width || 20}%` }}
       >
-        <div className="md-qr" />
+        {el.src ? (
+          <img src={el.src} alt="QR" draggable="false" />
+        ) : (
+          <div className="md-qr" />
+        )}
         {handles}
       </div>
     );
@@ -267,6 +271,7 @@ export default function MugDesigner({
   const areaRef = useRef(null);
   const mugAreaRef = useRef(null);
   const fileRef = useRef(null);
+  const qrFileRef = useRef(null);
 
   const [areaH, setAreaH] = useState(REF_PRINT_H);
   const [mugAreaH, setMugAreaH] = useState(REF_PRINT_H);
@@ -421,6 +426,36 @@ export default function MugDesigner({
     reader.readAsDataURL(file);
   };
 
+  /* QR upload — real scannable QR image as element */
+  const onPickQr = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+      setNotice("Only image files (PNG/JPG/SVG) allowed.");
+      return;
+    }
+    if (file.size > MAX_IMG_BYTES) {
+      setNotice("Image too large — keep under 1.2MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) =>
+      addElement({
+        id: uid(),
+        type: "qr",
+        label: "QR Code",
+        src: ev.target.result,
+        x: 50,
+        y: 68,
+        width: 26,
+        rotation: 0,
+        opacity: 1,
+        hidden: false,
+      });
+    reader.readAsDataURL(file);
+  };
+
   /* ---------- drag / resize ---------- */
   const startDrag = (e, el) => {
     if (e.button !== undefined && e.button !== 0) return;
@@ -551,6 +586,13 @@ export default function MugDesigner({
         </button>
         <button
           type="button"
+          onClick={() => qrFileRef.current?.click()}
+          title="Upload your own QR code image"
+        >
+          <ImageIcon size={14} /> Upload QR
+        </button>
+        <button
+          type="button"
           onClick={() => addShape("rect")}
         >
           <Square size={14} />
@@ -628,6 +670,13 @@ export default function MugDesigner({
         accept="image/*"
         hidden
         onChange={onPickImage}
+      />
+      <input
+        ref={qrFileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={onPickQr}
       />
 
       {notice && (

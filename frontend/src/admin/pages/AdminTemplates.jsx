@@ -127,7 +127,14 @@ const GenericTemplatePreview = ({ design }) => {
           );
 
         if (el.type === "qr")
-          return (
+          return el.src ? (
+            <img
+              key={i}
+              src={el.src}
+              alt="QR"
+              style={{ ...s, width: `${el.width}%` }}
+            />
+          ) : (
             <div
               key={i}
               className="at-generic-qr"

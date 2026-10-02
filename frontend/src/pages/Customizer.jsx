@@ -1461,6 +1461,7 @@ function Customizer() {
   const navigate = useNavigate();
 
   const fileInputRef = useRef(null);
+  const qrFileInputRef = useRef(null);
   const printAreaRef = useRef(null);
 
   /* =====================================================
@@ -2022,6 +2023,28 @@ function Customizer() {
 
     reader.readAsDataURL(file);
 
+    event.target.value = "";
+  };
+
+  /* selected QR element pe real QR image upload */
+  const handleQrUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid QR image.");
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      saveHistory();
+      moveElementLive(selectedElement?.id, {
+        src: e.target.result,
+      });
+    };
+    reader.readAsDataURL(file);
     event.target.value = "";
   };
 
@@ -2978,7 +3001,15 @@ function Customizer() {
                       : startDrag(el)
                   }
                 >
-                  <QrPattern />
+                  {el.src ? (
+                    <img
+                      src={el.src}
+                      alt="QR Code"
+                      draggable="false"
+                    />
+                  ) : (
+                    <QrPattern />
+                  )}
 
                   {selectedId === el.id &&
                     !preview && (
@@ -3942,6 +3973,37 @@ function Customizer() {
               {selectedElement?.type === "qr" && (
                 <>
                   <h4>QR Code</h4>
+
+                  <div
+                    className="upload-area"
+                    onClick={() =>
+                      qrFileInputRef.current?.click()
+                    }
+                  >
+                    <UploadCloud size={26} />
+                    <strong>Upload QR Image</strong>
+                    <span>
+                      PNG / JPG — apna scanable QR use
+                      karein
+                    </span>
+                  </div>
+
+                  <input
+                    ref={qrFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={handleQrUpload}
+                  />
+
+                  {selectedElement.src && (
+                    <div className="uploaded-preview">
+                      <img
+                        src={selectedElement.src}
+                        alt="QR"
+                      />
+                    </div>
+                  )}
 
                   <div className="range-row">
                     <span>10%</span>
