@@ -7,12 +7,15 @@ import {
   CheckCheck,
   ChevronDown,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 
 import {
   fetchAdminNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  dismissNotification,
+  clearAllNotifications,
 } from "../../services/notificationApi";
 
 import "./AdminNotifications.css";
@@ -101,6 +104,32 @@ function AdminNotifications() {
     }
   };
 
+  const dismiss = (n) => {
+    setNotifications((prev) =>
+      prev.filter((x) => x.key !== n.key)
+    );
+    if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+    dismissNotification(n.key).catch(() => {});
+  };
+
+  const clearAll = async () => {
+    if (markingAll || notifications.length === 0) return;
+    setMarkingAll(true);
+    setNotice("");
+    try {
+      await clearAllNotifications(
+        notifications.map((n) => n.key)
+      );
+      setNotifications([]);
+      setUnreadCount(0);
+      setNotice("All notifications cleared.");
+    } catch (e) {
+      setError(e.message || "Clear failed.");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   const filtered = notifications.filter((n) =>
     filter === "unread" ? !n.read : true
   );
@@ -133,6 +162,13 @@ function AdminNotifications() {
           >
             <CheckCheck size={14} />
             {markingAll ? "Marking…" : "Mark all read"}
+          </button>
+          <button
+            className="an-btn danger"
+            onClick={clearAll}
+            disabled={markingAll || notifications.length === 0}
+          >
+            <Trash2 size={14} /> Clear all
           </button>
         </div>
       </div>
@@ -206,6 +242,17 @@ function AdminNotifications() {
                 <p>{n.text}</p>
                 <small>{fmtTime(n.time)}</small>
               </div>
+              <button
+                type="button"
+                className="an-delete"
+                aria-label="Delete notification"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dismiss(n);
+                }}
+              >
+                <Trash2 size={14} />
+              </button>
               <span className="an-open">Open →</span>
             </div>
           ))

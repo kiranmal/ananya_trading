@@ -2793,10 +2793,20 @@ async function ensureNotificationReadsTable() {
       admin_id INT NOT NULL,
       notif_key VARCHAR(100) NOT NULL,
       read_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      hidden TINYINT NOT NULL DEFAULT 0,
       PRIMARY KEY (id),
       UNIQUE KEY uniq_admin_notif (admin_id, notif_key)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   `);
+
+  try {
+    await db.execute(
+      `ALTER TABLE admin_notification_reads
+       ADD COLUMN hidden TINYINT NOT NULL DEFAULT 0`
+    );
+  } catch {
+    /* column already exists */
+  }
 }
 
 const buildAdminNotifications = async (adminId) => {
@@ -2814,11 +2824,16 @@ const buildAdminNotifications = async (adminId) => {
   );
 
   const [reads] = await db.execute(
-    `SELECT notif_key FROM admin_notification_reads
+    `SELECT notif_key, hidden FROM admin_notification_reads
      WHERE admin_id = ?`,
     [adminId]
   );
-  const readSet = new Set(reads.map((r) => r.notif_key));
+  const readSet = new Set(
+    reads.filter((r) => !r.hidden).map((r) => r.notif_key)
+  );
+  const hiddenSet = new Set(
+    reads.filter((r) => r.hidden).map((r) => r.notif_key)
+  );
 
   const notifications = [
     ...orders.map((o) => ({
@@ -2846,7 +2861,9 @@ const buildAdminNotifications = async (adminId) => {
       link: "/admin/inquiries",
       read: readSet.has(`inquiry-${i.id}`),
     })),
-  ].sort((a, b) => new Date(b.time) - new Date(a.time));
+  ]
+    .filter((n) => !hiddenSet.has(n.key))
+    .sort((a, b) => new Date(b.time) - new Date(a.time));
 
   return {
     notifications,
@@ -2949,6 +2966,79 @@ app.post(
       return res.status(500).json({
         success: false,
         message: "Unable to update notifications.",
+      });
+    }
+  }
+);
+
+/* ADMIN — dismiss ONE notification (hides from this
+   admin's feed; order/inquiry itself untouched) */
+app.post(
+  "/api/admin/notifications/dismiss",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const key = String(req.body?.key || "").slice(0, 100);
+      if (!/^(order|inquiry)-.{1,80}$/.test(key)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid notification key required.",
+        });
+      }
+
+      await ensureNotificationReadsTable();
+      await db.execute(
+        `INSERT INTO admin_notification_reads
+         (admin_id, notif_key, hidden) VALUES (?, ?, 1)
+         ON DUPLICATE KEY UPDATE hidden = 1`,
+        [req.user.id, key]
+      );
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Dismiss notif error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete notification.",
+      });
+    }
+  }
+);
+
+/* ADMIN — clear all notifications for this admin */
+app.post(
+  "/api/admin/notifications/clear",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const keys = Array.isArray(req.body?.keys)
+        ? req.body.keys
+            .filter(
+              (k) =>
+                typeof k === "string" &&
+                /^(order|inquiry)-.{1,80}$/.test(k)
+            )
+            .slice(0, 200)
+        : [];
+
+      await ensureNotificationReadsTable();
+      if (keys.length) {
+        await db.query(
+          `INSERT INTO admin_notification_reads
+           (admin_id, notif_key, hidden) VALUES ?
+           ON DUPLICATE KEY UPDATE hidden = 1`,
+          [keys.map((k) => [req.user.id, k, 1])]
+        );
+      }
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("Clear notifs error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to clear notifications.",
       });
     }
   }

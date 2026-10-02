@@ -350,6 +350,34 @@ function AdminLayout() {
     }
   };
 
+  const dismissNotification = async (key) => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    setNotifications((prev) => {
+      const target = prev.find((n) => n.key === key);
+      if (target && !target.read)
+        setUnreadCount((c) => Math.max(0, c - 1));
+      return prev.filter((n) => n.key !== key);
+    });
+
+    try {
+      await fetch(
+        `${API_URL}/admin/notifications/dismiss`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ key }),
+        }
+      );
+    } catch {
+      /* optimistic UI already applied */
+    }
+  };
+
   const openNotification = (n) => {
     if (!n.read) markNotificationRead(n.key);
     setNotificationOpen(false);
@@ -892,6 +920,20 @@ function AdminLayout() {
                           {!notification.read && (
                             <span className="notification-unread" />
                           )}
+
+                          <button
+                            type="button"
+                            className="notification-dismiss"
+                            aria-label="Delete notification"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissNotification(
+                                notification.key
+                              );
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
 
                         </div>
                       ))}

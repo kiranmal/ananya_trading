@@ -34,3 +34,15 @@ export const markAllNotificationsRead = (keys) =>
     method: "POST",
     body: JSON.stringify({ keys }),
   });
+
+export const dismissNotification = (key) =>
+  request("/admin/notifications/dismiss", {
+    method: "POST",
+    body: JSON.stringify({ key }),
+  });
+
+export const clearAllNotifications = (keys) =>
+  request("/admin/notifications/clear", {
+    method: "POST",
+    body: JSON.stringify({ keys }),
+  });

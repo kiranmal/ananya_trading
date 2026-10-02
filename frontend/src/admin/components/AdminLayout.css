@@ -842,6 +842,37 @@
   background: #ef4444;
 }
 
+.notification-dismiss {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+
+  width: 20px;
+  height: 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.notification-item:hover .notification-dismiss {
+  opacity: 1;
+}
+
+.notification-dismiss:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
 /* =====================================================
    VIEW NOTIFICATIONS
 ===================================================== */
