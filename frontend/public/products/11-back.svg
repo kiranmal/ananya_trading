@@ -13,7 +13,12 @@
   <rect width="600" height="500" fill="url(#bg)"/>
   <ellipse cx="300" cy="432" rx="215" ry="26" fill="#000" opacity="0.1"/>
   
-    <rect x="140" y="170" width="320" height="180" rx="8" fill="#f7f9fc" stroke="#d8dfe8"/>
-    <path d="M140 175 L300 95 L460 175 Z" fill="#2878df" opacity=".2" stroke="#d8dfe8"/>
-    <path d="M140 350 L300 265 L460 350" fill="none" stroke="#d8dfe8" stroke-width="3"/>
+    <rect x="140" y="170" width="320" height="180" rx="9" fill="#f7f9fc" stroke="#d3dae4" filter="drop-shadow(0 5px 10px rgba(15,32,56,.12))"/>
+    <path d="M140 176 L300 92 L460 176 Z" fill="#2878df" opacity=".18" stroke="#d3dae4" stroke-width="2"/>
+    <path d="M140 176 L300 92 L460 176" fill="none" stroke="#dde4ec" stroke-width="2.4"/>
+    <path d="M141 262 L284 344 L141 344 Z" fill="#00000005"/>
+    <path d="M459 262 L316 344 L459 344 Z" fill="#00000005"/>
+    <path d="M140 350 L300 262 L460 350" fill="none" stroke="#dde4ec" stroke-width="2.4"/>
+    <circle cx="300" cy="150" r="11.200000000000001" fill="none" stroke="#2878df" stroke-width="2.4000000000000004"/>
+   <text x="300" y="154" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="11.200000000000001" fill="#2878df">A</text>
 </svg>

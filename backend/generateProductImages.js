@@ -73,60 +73,119 @@ const T = {
       <rect x="230" y="285" width="140" height="9" rx="3" fill="#ffffff" opacity=".85"/>
     </g>`,
 
-  /* --- letterhead --- */
+  /* --- letterhead --- stacked A4 sheets, corporate header */
   letterhead: (v) => `
-    <rect x="185" y="60" width="230" height="330" rx="4" fill="#ffffff" stroke="#d8dfe8"/>
-    <rect x="185" y="60" width="230" height="52" fill="${v.accent}"/>
-    ${brand(215, 86, 0.9, "#ffffff")}
-    <rect x="240" y="78" width="110" height="10" rx="3" fill="#ffffff"/>
-    ${lines(215, 140, 170, 9, 26)}
-    <rect x="215" y="372" width="170" height="2" fill="#e0e5ec"/>
-    <rect x="215" y="380" width="90" height="5" rx="2" fill="${v.accent}"/>`,
+    <defs>
+      <linearGradient id="lhHdr" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="${v.accent}"/>
+        <stop offset="1" stop-color="#0f2038"/>
+      </linearGradient>
+    </defs>
+    <g transform="rotate(-4 300 230)">
+      <rect x="195" y="72" width="230" height="330" rx="4" fill="#e7ecf3" stroke="#d5dce6"/>
+    </g>
+    <g transform="rotate(-1.5 300 230)">
+      <rect x="190" y="66" width="230" height="330" rx="4" fill="#f2f5f9" stroke="#d8dfe8"/>
+    </g>
+    <rect x="185" y="60" width="230" height="330" rx="4" fill="#ffffff" stroke="#d3dae4" filter="drop-shadow(0 4px 8px rgba(15,32,56,.12))"/>
+    <path d="M185 60 L415 60 L415 112 L185 112 Z" fill="url(#lhHdr)"/>
+    <path d="M185 112 L415 112 L405 118 L195 118 Z" fill="#c9a24b" opacity=".9"/>
+    <circle cx="214" cy="86" r="14" fill="#ffffff" opacity=".14"/>
+    <circle cx="214" cy="86" r="10" fill="none" stroke="#ffffff" stroke-width="2.4"/>
+    <text x="214" y="90" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="11" fill="#ffffff">A</text>
+    <rect x="238" y="74" width="105" height="9" rx="3" fill="#ffffff"/>
+    <rect x="238" y="89" width="72" height="6" rx="3" fill="#ffffff" opacity=".6"/>
+    <rect x="345" y="74" width="56" height="4.5" rx="2" fill="#ffffff" opacity=".55"/>
+    <rect x="345" y="84" width="56" height="4.5" rx="2" fill="#ffffff" opacity=".45"/>
+    <rect x="345" y="94" width="40" height="4.5" rx="2" fill="#ffffff" opacity=".45"/>
+    ${lines(215, 150, 170, 8, 27)}
+    <rect x="215" y="368" width="170" height="1.6" fill="#dfe5ec"/>
+    <rect x="215" y="376" width="52" height="4" rx="2" fill="${v.accent}"/>
+    <rect x="275" y="376" width="52" height="4" rx="2" fill="#c8d2de"/>
+    <rect x="335" y="376" width="52" height="4" rx="2" fill="#c8d2de"/>`,
   letterheadBack: (v) => `
-    <rect x="185" y="60" width="230" height="330" rx="4" fill="#f2f5f9" stroke="#d8dfe8"/>
-    ${brand(300, 225, 1.4, v.accent)}
-    <rect x="230" y="260" width="140" height="8" rx="3" fill="${v.accent}" opacity=".7"/>`,
+    <g transform="rotate(2 300 230)">
+      <rect x="195" y="72" width="230" height="330" rx="4" fill="#e7ecf3" stroke="#d5dce6"/>
+    </g>
+    <rect x="185" y="60" width="230" height="330" rx="4" fill="#f7f9fc" stroke="#d3dae4" filter="drop-shadow(0 4px 8px rgba(15,32,56,.1))"/>
+    <rect x="185" y="60" width="230" height="6" fill="${v.accent}"/>
+    ${brand(300, 218, 1.5, v.accent)}
+    <rect x="240" y="252" width="120" height="9" rx="3" fill="${v.accent}" opacity=".8"/>
+    <rect x="262" y="268" width="76" height="6" rx="3" fill="#94a3b8"/>
+    <rect x="250" y="360" width="100" height="1.6" fill="#dfe5ec"/>`,
 
-  /* --- spiral notebook --- */
+  /* --- spiral notebook --- coil rings, elastic band, depth */
   notebook: (v) => `
-    <rect x="215" y="80" width="235" height="330" rx="8" fill="#ffffff" stroke="#dde3ea"/>
-    <rect x="205" y="70" width="235" height="330" rx="8" fill="${v.dark}" stroke="#00000033"/>
-    <rect x="205" y="70" width="6" height="330" fill="${v.accent}"/>
-    ${Array.from({ length: 12 })
+    <defs>
+      <linearGradient id="nbCover" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${v.dark}"/>
+        <stop offset="1" stop-color="#0d1826"/>
+      </linearGradient>
+    </defs>
+    <rect x="222" y="86" width="235" height="330" rx="8" fill="#e9edf3" stroke="#d5dce6"/>
+    <rect x="218" y="80" width="235" height="330" rx="8" fill="#ffffff" stroke="#dde3ea"/>
+    <rect x="208" y="70" width="235" height="330" rx="8" fill="url(#nbCover)" stroke="#00000033" filter="drop-shadow(0 5px 10px rgba(15,32,56,.18))"/>
+    <rect x="208" y="70" width="235" height="330" rx="8" fill="none" stroke="#ffffff" opacity=".06"/>
+    <rect x="208" y="70" width="7" height="330" fill="${v.accent}"/>
+    <rect x="418" y="70" width="10" height="330" fill="${v.accent}" opacity=".28"/>
+    ${Array.from({ length: 13 })
       .map(
         (_, i) =>
-          `<circle cx="196" cy="${86 + i * 26}" r="7" fill="none" stroke="url(#metal)" stroke-width="4"/>`
+          `<circle cx="206" cy="${86 + i * 24}" r="4.4" fill="#00000033"/><path d="M206 ${86 + i * 24} a7.5 7.5 0 1 1 -0.01 0" fill="none" stroke="url(#metal)" stroke-width="4.6"/>`
       )
       .join("")}
-    ${brand(310, 170, 1.3, v.txt)}
-    <rect x="255" y="215" width="130" height="11" rx="3" fill="${v.txt}" opacity=".85"/>
-    <rect x="275" y="236" width="90" height="7" rx="3" fill="${v.txt}" opacity=".55"/>
-    <rect x="230" y="330" width="180" height="2.5" fill="${v.accent}"/>
-    <rect x="245" y="345" width="130" height="7" rx="3" fill="${v.txt}" opacity=".4"/>`,
+    <circle cx="320" cy="162" r="26" fill="none" stroke="${v.txt}" stroke-width="1.4" opacity=".35"/>
+    ${brand(320, 162, 1.35, v.txt)}
+    <rect x="255" y="208" width="130" height="11" rx="3" fill="${v.txt}" opacity=".9"/>
+    <rect x="277" y="228" width="86" height="7" rx="3" fill="${v.txt}" opacity=".5"/>
+    <rect x="233" y="330" width="174" height="2.5" fill="${v.accent}"/>
+    <rect x="250" y="344" width="140" height="7" rx="3" fill="${v.txt}" opacity=".38"/>`,
   notebookBack: (v) => `
-    <rect x="215" y="80" width="235" height="330" rx="8" fill="#ffffff" stroke="#dde3ea"/>
-    <rect x="205" y="70" width="235" height="330" rx="8" fill="${v.dark}" stroke="#00000033"/>
-    ${Array.from({ length: 12 })
+    <rect x="218" y="80" width="235" height="330" rx="8" fill="#ffffff" stroke="#dde3ea"/>
+    <rect x="208" y="70" width="235" height="330" rx="8" fill="${v.dark}" stroke="#00000033" filter="drop-shadow(0 5px 10px rgba(15,32,56,.18))"/>
+    ${Array.from({ length: 13 })
       .map(
         (_, i) =>
-          `<circle cx="196" cy="${86 + i * 26}" r="7" fill="none" stroke="url(#metal)" stroke-width="4"/>`
+          `<circle cx="206" cy="${86 + i * 24}" r="4.4" fill="#00000033"/><path d="M206 ${86 + i * 24} a7.5 7.5 0 1 1 -0.01 0" fill="none" stroke="url(#metal)" stroke-width="4.6"/>`
       )
       .join("")}
-    ${brand(320, 300, 1.1, v.txt)}
-    <rect x="255" y="335" width="130" height="7" rx="3" fill="${v.txt}" opacity=".6"/>
-    <rect x="255" y="350" width="95" height="6" rx="3" fill="${v.txt}" opacity=".4"/>`,
+    <rect x="240" y="330" width="160" height="46" rx="6" fill="#ffffff" opacity=".08"/>
+    ${brand(300, 340, 0.9, v.txt)}
+    <rect x="262" y="358" width="76" height="6" rx="3" fill="${v.txt}" opacity=".5"/>`,
 
-  /* --- envelope --- */
+  /* --- envelope --- DL envelope, folded flap, stamp, postmark */
   envelope: (v) => `
-    <rect x="140" y="170" width="320" height="180" rx="8" fill="#ffffff" stroke="#d8dfe8"/>
-    <path d="M140 180 L300 280 L460 180" fill="none" stroke="#d8dfe8" stroke-width="3"/>
-    <path d="M140 178 L300 268 L460 178 L460 170 L140 170 Z" fill="${v.accent}" opacity=".14"/>
-    <rect x="160" y="320" width="120" height="8" rx="3" fill="${v.accent}"/>
-    ${brand(430, 195, 0.7, "#94a3b8")}`,
+    <defs>
+      <linearGradient id="envBody" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="1" stop-color="#eef2f7"/>
+      </linearGradient>
+    </defs>
+    <rect x="140" y="170" width="320" height="180" rx="9" fill="url(#envBody)" stroke="#d3dae4" filter="drop-shadow(0 5px 10px rgba(15,32,56,.14))"/>
+    <path d="M141 262 L284 344 L141 344 Z" fill="#00000005"/>
+    <path d="M459 262 L316 344 L459 344 Z" fill="#00000005"/>
+    <path d="M140 178 L300 272 L460 178" fill="none" stroke="#dde4ec" stroke-width="2.4"/>
+    <path d="M140 178 L300 272 L460 178 L460 170 L140 170 Z" fill="${v.accent}" opacity=".1"/>
+    <rect x="160" y="192" width="26" height="26" rx="5" fill="${v.accent}"/>
+    <text x="173" y="210" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="14" fill="#ffffff">A</text>
+    <rect x="196" y="196" width="88" height="8" rx="3" fill="#1d3252"/>
+    <rect x="196" y="210" width="62" height="5.5" rx="2.5" fill="#94a3b8"/>
+    <rect x="236" y="288" width="128" height="6" rx="3" fill="#5b6472"/>
+    <rect x="236" y="302" width="104" height="6" rx="3" fill="#94a3b8"/>
+    <rect x="236" y="316" width="76" height="6" rx="3" fill="#94a3b8"/>
+    <rect x="404" y="188" width="38" height="44" fill="#f7f9fc" stroke="#c9d2de" stroke-dasharray="4 3"/>
+    <rect x="410" y="196" width="26" height="28" fill="${v.accent}" opacity=".2"/>
+    <circle cx="428" cy="222" r="17" fill="none" stroke="#94a3b8" stroke-width="1.6" opacity=".7"/>
+    <path d="M414 218 q14 -6 28 0 M414 226 q14 6 28 0" stroke="#94a3b8" stroke-width="1.4" fill="none" opacity=".7"/>
+    <rect x="160" y="330" width="90" height="5" rx="2.5" fill="${v.accent}"/>`,
   envelopeBack: (v) => `
-    <rect x="140" y="170" width="320" height="180" rx="8" fill="#f7f9fc" stroke="#d8dfe8"/>
-    <path d="M140 175 L300 95 L460 175 Z" fill="${v.accent}" opacity=".2" stroke="#d8dfe8"/>
-    <path d="M140 350 L300 265 L460 350" fill="none" stroke="#d8dfe8" stroke-width="3"/>`,
+    <rect x="140" y="170" width="320" height="180" rx="9" fill="#f7f9fc" stroke="#d3dae4" filter="drop-shadow(0 5px 10px rgba(15,32,56,.12))"/>
+    <path d="M140 176 L300 92 L460 176 Z" fill="${v.accent}" opacity=".18" stroke="#d3dae4" stroke-width="2"/>
+    <path d="M140 176 L300 92 L460 176" fill="none" stroke="#dde4ec" stroke-width="2.4"/>
+    <path d="M141 262 L284 344 L141 344 Z" fill="#00000005"/>
+    <path d="M459 262 L316 344 L459 344 Z" fill="#00000005"/>
+    <path d="M140 350 L300 262 L460 350" fill="none" stroke="#dde4ec" stroke-width="2.4"/>
+    ${brand(300, 150, 0.8, v.accent)}`,
 
   /* --- flyer --- */
   flyer: (v) => `
