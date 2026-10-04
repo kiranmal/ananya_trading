@@ -8,6 +8,7 @@ import { fetchProducts, isActiveProduct } from "../services/productApi";
 import { fetchCategories } from "../services/categoryApi";
 import { fetchActiveCoupons } from "../services/couponApi";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 /* =====================================================
    CATEGORIES (fallback — API se load hoti hain)
@@ -211,6 +212,9 @@ function Navbar() {
   const { user, isLoggedIn, logout } =
     useAuth();
 
+  const { cartCount: contextCartCount } =
+    useCart();
+
   /* =====================================================
      CATEGORY STATES
   ===================================================== */
@@ -259,7 +263,7 @@ function Navbar() {
      CART COUNT
   ===================================================== */
 
-  const [cartCount, setCartCount] = useState(0);
+  const [cartCount, setCartCount] = useState(contextCartCount);
 
   /* =====================================================
      FAVORITE COUNT
@@ -521,30 +525,15 @@ useEffect(() => {
   ===================================================== */
 
   const updateCartCount = () => {
-    try {
-      const savedCart =
-        localStorage.getItem(
-          "ananyaCart"
-        );
-
-      const cart = savedCart
-        ? JSON.parse(savedCart)
-        : [];
-
-      setCartCount(
-        Array.isArray(cart)
-          ? cart.length
-          : 0
-      );
-    } catch (error) {
-      console.error(
-        "Cart count error:",
-        error
-      );
-
-      setCartCount(0);
-    }
+    /* CartContext is the source of truth; keep legacy
+       localStorage fallback for cross-tab / transition */
+    setCartCount(contextCartCount);
   };
+
+  /* sync from CartContext whenever it changes */
+  useEffect(() => {
+    setCartCount(contextCartCount);
+  }, [contextCartCount]);
 
   /* =====================================================
      FAVORITE COUNT

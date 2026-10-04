@@ -1041,3 +1041,15 @@ strong {
   }
 
 }
+.success-error-note {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 4px 0 18px;
+}
+
+/* success order items */
+.success-items{list-style:none;margin:10px 0 0;padding:10px 0 0;border-top:1px dashed #e2e8f0;width:100%}
+.success-items li{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0;color:#334155}
+.success-items li span:first-child{text-align:left;max-width:70%}
+.success-items li span:last-child{font-weight:700;white-space:nowrap}

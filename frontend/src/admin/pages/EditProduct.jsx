@@ -179,6 +179,10 @@ export default function EditProduct() {
     useState("1");
 
   const [unit, setUnit] = useState("Pieces");
+
+  /* available stock — loaded from the saved product */
+  const [stock, setStock] = useState("1");
+  const [stockError, setStockError] = useState("");
   const [maxQuantity, setMaxQuantity] =
     useState("");
 
@@ -234,6 +238,7 @@ export default function EditProduct() {
         );
         setPrice(String(product.price ?? ""));
         setOldPrice(String(product.oldPrice ?? ""));
+        setStock(String(product.stock ?? 0));
         setQuantityStep(
           String(product.quantityStep ?? 1)
         );
@@ -526,6 +531,30 @@ export default function EditProduct() {
       return;
     }
 
+    /* stock validation */
+    const stockNumber = Number(stock);
+    if (
+      stock === "" ||
+      !Number.isInteger(stockNumber) ||
+      stockNumber < 0
+    ) {
+      setStockError(
+        "Stock must be a whole number of 0 or more."
+      );
+      alert("Please enter a valid stock quantity.");
+      return;
+    }
+
+    /* zero stock → warn + confirm before saving */
+    if (stockNumber === 0) {
+      const ok = window.confirm(
+        "Stock is 0. This product will be HIDDEN from the " +
+          "customer-facing listings and cannot be purchased " +
+          "until stock is increased.\n\nSave anyway?"
+      );
+      if (!ok) return;
+    }
+
     const priceNumber = Number(price);
 
     const oldPriceNumber = Number(
@@ -592,6 +621,8 @@ export default function EditProduct() {
       price: priceNumber,
 
       oldPrice: oldPriceNumber,
+
+      stock: stockNumber,
 
       quantityStep: Math.max(
         1,
@@ -1111,6 +1142,70 @@ export default function EditProduct() {
                 Min order + step. e.g. 100 for
                 business cards, 1 for normal
                 products.
+              </small>
+            </div>
+
+            {/* STOCK */}
+
+            <div className="form-group">
+              <label>
+                Available Stock
+                <span>*</span>
+              </label>
+
+              <div className="input-wrapper">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="1"
+                  value={stock}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setStock(v);
+                    if (v === "" || v === "-") {
+                      setStockError(
+                        "Stock is required."
+                      );
+                    } else if (
+                      !Number.isInteger(Number(v)) ||
+                      Number(v) < 0
+                    ) {
+                      setStockError(
+                        "Stock must be a whole number of 0 or more."
+                      );
+                    } else {
+                      setStockError("");
+                    }
+                  }}
+                />
+              </div>
+
+              {stockError && (
+                <small className="field-error">
+                  {stockError}
+                </small>
+              )}
+
+              {!stockError &&
+                stock !== "" &&
+                Number(stock) === 0 && (
+                  <small className="stock-zero-warning">
+                    ⚠️ Stock is 0. This product will not be
+                    visible to customers on the frontend and
+                    cannot be added to the cart or purchased
+                    until stock is increased.
+                  </small>
+                )}
+
+              <small
+                style={{
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                Units available for sale. Orders reduce this
+                automatically.
               </small>
             </div>
 

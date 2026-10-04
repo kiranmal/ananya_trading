@@ -14,6 +14,22 @@ const path = require("path");
 const bcrypt = require("bcryptjs");
 const pool = require("./config/db");
 
+/* ---------------------------------------------------------
+   Safety guard — seeds must NEVER run against production.
+   Refuses when APP_ENV=production unless --force-prod.
+--------------------------------------------------------- */
+if (
+  process.env.APP_ENV === "production" &&
+  !process.argv.includes("--force-prod")
+) {
+  console.error(
+    "Refusing to seed: APP_ENV=production.\n" +
+      "If you truly intend to seed a production database, " +
+      "re-run with --force-prod."
+  );
+  process.exit(1);
+}
+
 const createUsersTable = async () => {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS users (

@@ -13,8 +13,8 @@ import {
 
 import {
   getFavorites,
-  toggleFavorite,
 } from "../data/productStorage";
+import { toggleFavoriteServer } from "../services/favoritesApi";
 
 import "../styles/Category.css";
 import { fetchProducts, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
@@ -824,7 +824,7 @@ function Category() {
      FAVORITE
   ===================================================== */
 
-  const handleFavorite = (
+  const handleFavorite = async (
     event,
     product
   ) => {
@@ -834,10 +834,12 @@ function Category() {
     event.stopPropagation();
 
 
-    const isNowFavorite =
-      toggleFavorite(
-        product
-      );
+    /* guest → localStorage; logged-in → server + mirror.
+       toggleFavoriteServer rolls back on API failure —
+       getFavorites() then reflects the true state */
+    const res = await toggleFavoriteServer(
+      product
+    );
 
 
     setFavorites(
@@ -846,7 +848,7 @@ function Category() {
 
 
     console.log(
-      isNowFavorite
+      res.added
         ? "Added to favorites"
         : "Removed from favorites"
     );

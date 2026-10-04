@@ -35,9 +35,12 @@ export const fetchProducts = (search = "", filters = {}) => {
   const searchTerm = String(search || "").trim();
   const category = String(filters.category || "").trim();
   const subcategory = String(filters.subcategory || "").trim();
+  /* admin pages pass includeAll to also see inactive /
+     out-of-stock products (requires admin token) */
+  const includeAll = filters.includeAll === true;
 
   /* same query already in flight — avoid duplicate requests */
-  const key = `${searchTerm}|${category}|${subcategory}`;
+  const key = `${searchTerm}|${category}|${subcategory}|${includeAll}`;
   if (inFlight.has(key)) {
     return inFlight.get(key);
   }
@@ -47,10 +50,18 @@ export const fetchProducts = (search = "", filters = {}) => {
     if (searchTerm) params.set("search", searchTerm);
     if (category) params.set("category", category);
     if (subcategory) params.set("subcategory", subcategory);
+    if (includeAll) params.set("includeAll", "1");
     const qs = params.toString();
     const path = `/products${qs ? `?${qs}` : ""}`;
 
-    const data = await request(path);
+    const token = includeAll
+      ? localStorage.getItem("authToken")
+      : null;
+    const options = token
+      ? { headers: { Authorization: `Bearer ${token}` } }
+      : {};
+
+    const data = await request(path, options);
     return Array.isArray(data.products) ? data.products : [];
   })();
 
@@ -61,12 +72,21 @@ export const fetchProducts = (search = "", filters = {}) => {
 };
 
 export const fetchProductById = async (id) => {
-  const data = await request(`/products/${id}`);
+  /* attach the token when present — admins can view
+     inactive / out-of-stock products, customers cannot */
+  const token = localStorage.getItem("authToken");
+  const data = await request(
+    `/products/${id}`,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+  );
   return data.product;
 };
 
+/* purchasable on the customer-facing site only when
+   active AND in stock */
 export const isActiveProduct = (product) =>
-  product?.status !== "Inactive";
+  product?.status === "Active" &&
+  Number(product?.stock) > 0;
 
 /* lean selection payload for /customize — the full product
    (and never the catalog) must not hit localStorage; the

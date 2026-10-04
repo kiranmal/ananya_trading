@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   Link,
   useNavigate,
+  useLocation,
 } from "react-router-dom";
 
 import {
@@ -25,6 +26,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 function Signup() {
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [showPassword, setShowPassword] =
     useState(false);
@@ -237,7 +239,7 @@ function Signup() {
 
       // Login page
 
-      navigate("/login");
+      navigate("/login", { state: location.state });
 
     } catch (error) {
 

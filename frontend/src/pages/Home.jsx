@@ -12,9 +12,11 @@ import "./Home.css";
 import CustomizeProducts from "../components/CustomizeProducts";
 import ContactSection from "../components/ContactSection";
 import { fetchProducts, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
+import { useCart } from "../context/CartContext";
 
 function Home() {
   const navigate = useNavigate();
+  const { addToCart: contextAddToCart } = useCart();
 
   const [products, setProducts] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -515,177 +517,34 @@ function Home() {
      ADD TO CART
   ===================================================== */
 
-  const addToCart = (
-    product
-  ) => {
+  const addToCart = async (product) => {
     try {
-      const savedCart =
-        localStorage.getItem(
-          "ananyaCart"
-        );
-
-      const currentCart =
-        savedCart
-          ? JSON.parse(savedCart)
-          : [];
-
-      const normalizedProduct =
-        normalizeProduct(
-          product
-        );
-
-      const productId =
-        normalizedProduct.id;
+      const normalizedProduct = normalizeProduct(product);
+      const productId = normalizedProduct.id;
 
       if (!productId) {
-        console.error(
-          "Product ID missing:",
-          product
-        );
-
+        console.error("Product ID missing:", product);
         return;
       }
 
-      const existingIndex =
-        currentCart.findIndex(
-          (item) =>
-            String(
-              item.productId ||
-                item.id
-            ) ===
-            String(productId)
-        );
+      const productImages = getProductImages(normalizedProduct);
+      const step = Math.max(1, Number(normalizedProduct.quantityStep) || 1);
 
-      let updatedCart;
+      await contextAddToCart({
+        productId,
+        product_id: productId,
+        name: normalizedProduct.name,
+        image: productImages[0],
+        images: productImages,
+        price: Number(normalizedProduct.price) || 0,
+        quantity: step,
+        quantityStep: step,
+        itemType: "standard",
+      });
 
-      /* =================================================
-         EXISTING PRODUCT
-      ================================================= */
-
-      if (
-        existingIndex !== -1
-      ) {
-        updatedCart = [
-          ...currentCart,
-        ];
-
-        const existingItem =
-          updatedCart[
-            existingIndex
-          ];
-
-        const step = Math.max(
-          1,
-          Number(
-            normalizedProduct.quantityStep
-          ) || 1
-        );
-
-        const oldQuantity =
-          Number(
-            existingItem.quantity
-          ) || step;
-
-        updatedCart[
-          existingIndex
-        ] = {
-          ...existingItem,
-
-          quantity:
-            oldQuantity + step,
-        };
-      }
-
-      /* =================================================
-         NEW PRODUCT
-      ================================================= */
-
-      else {
-        const productImages =
-          getProductImages(
-            normalizedProduct
-          );
-
-        const cartProduct = {
-          ...normalizedProduct,
-
-          id:
-            normalizedProduct.id,
-
-          productId:
-            normalizedProduct.id,
-
-          name:
-            normalizedProduct.name,
-
-          image:
-            productImages[0],
-
-          images:
-            productImages,
-
-          price:
-            Number(
-              normalizedProduct.price
-            ) || 0,
-
-          quantity: Math.max(
-            1,
-            Number(
-              normalizedProduct.quantityStep
-            ) || 1
-          ),
-
-          quantityStep: Math.max(
-            1,
-            Number(
-              normalizedProduct.quantityStep
-            ) || 1
-          ),
-        };
-
-        updatedCart = [
-          ...currentCart,
-          cartProduct,
-        ];
-      }
-
-      /* =================================================
-         SAVE CART
-      ================================================= */
-
-      localStorage.setItem(
-        "ananyaCart",
-        JSON.stringify(
-          updatedCart
-        )
-      );
-
-      /* =================================================
-         CART EVENTS
-      ================================================= */
-
-      window.dispatchEvent(
-        new Event(
-          "ananyaCartUpdated"
-        )
-      );
-
-      window.dispatchEvent(
-        new Event(
-          "cartUpdated"
-        )
-      );
-
-      console.log(
-        "Product added to cart:",
-        normalizedProduct.name
-      );
+      console.log("Product added to cart:", normalizedProduct.name);
     } catch (error) {
-      console.error(
-        "Add to cart error:",
-        error
-      );
+      console.error("Add to cart error:", error);
     }
   };
 

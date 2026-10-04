@@ -74,7 +74,7 @@ export default function AdminProducts() {
       try {
         const [cats, prods] = await Promise.all([
           fetchCategories(),
-          fetchProducts(),
+          fetchProducts("", { includeAll: true }),
         ]);
 
         if (cancelled) return;
@@ -147,6 +147,7 @@ export default function AdminProducts() {
           {
             category: selCat?.name || "",
             subcategory: selSub || "",
+            includeAll: true,
           }
         );
         if (!cancelled && reqId === loadRef.current) {
@@ -248,7 +249,7 @@ export default function AdminProducts() {
       console.error("Product delete error:", err);
       alert(err.message);
       /* fail hua to list wapas sync */
-      fetchProducts()
+      fetchProducts("", { includeAll: true })
         .then((list) => {
           setAllProducts(list);
           setProducts(list);

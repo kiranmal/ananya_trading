@@ -39,6 +39,16 @@ import {
 
 import "./BusinessCardCustomizer.css";
 import { fetchProductTemplates } from "../services/templateApi";
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import { uploadDesignFile, fetchFileBlob } from "../services/fileApi";
+import {
+  getDraft,
+  saveDraft,
+  deleteDraft,
+  writeLocalDraft,
+} from "../services/draftApi";
+import { addFavorite } from "../services/favoritesApi";
 
 /* ── icon registry ── */
 const iconMap = {
@@ -278,6 +288,7 @@ export default function BusinessCardCustomizer({
   onCancel = null,
 } = {}) {
   const navigate = useNavigate();
+  const { addToCart: contextAddToCart } = useCart();
   const fileRef = useRef(null);
   const replaceFileRef = useRef(null);
   const backgroundRef = useRef(null);
@@ -336,6 +347,21 @@ export default function BusinessCardCustomizer({
   const [preview, setPreview] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+
+  /* ── draft auto-save / resume ── */
+  const { user } = useAuth();
+  const EDITOR_KEY = "business-card";
+  const draftProductId = product?.id ?? "draft";
+  /* embedded = admin template designer → no drafts */
+  const draftsEnabled = !embedded;
+  const [draftReady, setDraftReady] = useState(embedded);
+  const [resumeDraft, setResumeDraft] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [favToast, setFavToast] = useState(false);
+  const revisionRef = useRef(0);
+  const saveSeqRef = useRef(0);
+  const pendingSaveRef = useRef(null);
+  const retryTimerRef = useRef(null);
 
   /* product-specific templates — API/DB authoritative,
      builtin set is only an offline fallback */
@@ -573,6 +599,159 @@ export default function BusinessCardCustomizer({
     }
   }, [commit, design, template, tplMap]);
 
+  /* ══════════════════ draft auto-save / resume ══════════════════ */
+
+  /* mount: server draft (logged-in) or localStorage (guest);
+     legacy businessCardDesign-<id> counts as a draft too */
+  useEffect(() => {
+    if (!draftsEnabled) return;
+    let cancelled = false;
+    (async () => {
+      let found = await getDraft(EDITOR_KEY, draftProductId).catch(() => null);
+      if (!found?.draft && savedDesign) {
+        found = {
+          draft: {
+            frontDesign: savedDesign.frontDesign,
+            backDesign: savedDesign.backDesign,
+            template: savedDesign.template,
+          },
+          revision: 1,
+          updatedAt: null,
+        };
+      }
+      if (cancelled) return;
+      const d = found?.draft;
+      if (d?.frontDesign || d?.backDesign) {
+        setResumeDraft(found);
+      } else {
+        setDraftReady(true);
+      }
+      /* dead pre-draft key — free the quota */
+      try { localStorage.removeItem(`businessCardDesign-${draftProductId}`); } catch {}
+    })();
+    return () => { cancelled = true; };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
+
+  const stripSrc = (e) =>
+    e?.fileId &&
+    typeof e.src === "string" &&
+    (e.src.startsWith("data:") || e.src.startsWith("blob:"))
+      ? { ...e, src: `file:${e.fileId}` }
+      : e;
+
+  const stripSide = (s) => ({
+    ...s,
+    elements: (s?.elements || []).map(stripSrc),
+  });
+
+  const buildDraftPayload = () => ({
+    frontDesign: stripSide(design.front),
+    backDesign: stripSide(design.back),
+    template,
+    side,
+  });
+
+  const doDraftSave = async (pending) => {
+    if (!pending) return;
+    setSaveStatus("saving");
+    const revision = ++revisionRef.current;
+    const res = await saveDraft(EDITOR_KEY, draftProductId, pending.payload, revision);
+    if (pending.seq !== saveSeqRef.current) return; // newer edits pending
+    if (res.ok || res.conflict) {
+      if (res.revision) revisionRef.current = Math.max(revisionRef.current, res.revision);
+      pendingSaveRef.current = null;
+      setSaveStatus("saved");
+    } else {
+      setSaveStatus("error");
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => doDraftSave(pending), 3000);
+    }
+  };
+
+  /* debounced autosave */
+  useEffect(() => {
+    if (!draftReady || !draftsEnabled) return;
+    const seq = ++saveSeqRef.current;
+    pendingSaveRef.current = { payload: buildDraftPayload(), seq };
+    setSaveStatus((s) => (s === "saved" ? s : "saving"));
+    const t = setTimeout(() => doDraftSave(pendingSaveRef.current), 700);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [design, template, side, draftReady]);
+
+  /* warn-on-leave + flush on unmount */
+  useEffect(() => {
+    const warn = (e) => {
+      if (pendingSaveRef.current || saveStatus === "saving" || saveStatus === "error") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      clearTimeout(retryTimerRef.current);
+      if (draftReady && pendingSaveRef.current) {
+        const rev = ++revisionRef.current;
+        writeLocalDraft(EDITOR_KEY, draftProductId, pendingSaveRef.current.payload, rev);
+        saveDraft(EDITOR_KEY, draftProductId, pendingSaveRef.current.payload, rev).catch(() => {});
+        pendingSaveRef.current = null;
+      }
+    };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [saveStatus, draftReady, draftProductId]);
+
+  const restoreDraftImages = async (sideObj) => ({
+    ...sideObj,
+    elements: await Promise.all(
+      (sideObj?.elements || []).map(async (e) => {
+        const src = String(e?.src || "");
+        if (src.startsWith("file:")) {
+          const blob = await fetchFileBlob(src.slice(5));
+          return blob ? { ...e, src: URL.createObjectURL(blob) } : e;
+        }
+        /* stale blob: URLs die across sessions */
+        if (src.startsWith("blob:")) {
+          if (e.fileId) {
+            const blob = await fetchFileBlob(e.fileId);
+            return blob ? { ...e, src: URL.createObjectURL(blob) } : e;
+          }
+          return { ...e, visible: false, src: "" };
+        }
+        return e;
+      })
+    ),
+  });
+
+  const continueDraft = async () => {
+    const found = resumeDraft;
+    setResumeDraft(null);
+    revisionRef.current = found?.revision || 0;
+    const d = found.draft;
+    setDesign({
+      front: await restoreDraftImages(d.frontDesign || { elements: [] }),
+      back: await restoreDraftImages(d.backDesign || { elements: [] }),
+    });
+    if (d.template !== undefined) setTemplate(d.template);
+    setDraftReady(true);
+  };
+
+  const startNewDesign = async () => {
+    setResumeDraft(null);
+    await deleteDraft(EDITOR_KEY, draftProductId);
+    try { localStorage.removeItem(`businessCardDesign-${draftProductId}`); } catch {}
+    revisionRef.current = 0;
+    setDesign(buildInitialDesign());
+    setTemplate(defaultTemplate);
+    setDraftReady(true);
+  };
+
+  const discardDraft = async () => {
+    if (!window.confirm("Discard the saved draft permanently?")) return;
+    await startNewDesign();
+  };
+
   /* ── image upload ── */
   const uploadImage = useCallback((event, background = false) => {
     const file = event.target.files?.[0];
@@ -585,10 +764,21 @@ export default function BusinessCardCustomizer({
     const reader = new FileReader();
     reader.onload = () => {
       if (background) updateSide({ backgroundImage: reader.result });
-      else addElement({ id: uid(), type: "image", src: reader.result, name: file.name, label: file.name.slice(0, 16), x: 50, y: 50, width: 25, rotation: 0, opacity: 1, visible: true });
+      else {
+        const el = { id: uid(), type: "image", src: reader.result, name: file.name, label: file.name.slice(0, 16), x: 50, y: 50, width: 25, rotation: 0, opacity: 1, visible: true };
+        addElement(el);
+        /* logged-in: keep a stable server file ref for drafts */
+        if (user) {
+          uploadDesignFile({ name: file.name || "image", type: file.type, dataUrl: reader.result })
+            .then((up) => {
+              if (up?.success && up.fileId) updateElementById(el.id, { fileId: up.fileId });
+            })
+            .catch(() => {});
+        }
+      }
     };
     reader.readAsDataURL(file);
-  }, [updateSide, addElement]);
+  }, [updateSide, addElement, user, updateElementById]);
 
   /* ── replace image for selected image element ── */
   const replaceImage = useCallback((event) => {
@@ -601,10 +791,17 @@ export default function BusinessCardCustomizer({
     }
     const reader = new FileReader();
     reader.onload = () => {
-      updateElement({ src: reader.result, name: file.name, label: file.name.slice(0, 16) });
+      updateElement({ src: reader.result, name: file.name, label: file.name.slice(0, 16), fileId: undefined });
+      if (user) {
+        uploadDesignFile({ name: file.name || "image", type: file.type, dataUrl: reader.result })
+          .then((up) => {
+            if (up?.success && up.fileId) updateElement({ fileId: up.fileId });
+          })
+          .catch(() => {});
+      }
     };
     reader.readAsDataURL(file);
-  }, [updateElement]);
+  }, [updateElement, user]);
 
   /* ── drag ── */
   const startDrag = useCallback((event, element) => {
@@ -657,13 +854,33 @@ export default function BusinessCardCustomizer({
   }, [preview, design, side, editingId, startTextEdit]);
 
   /* ── save / cart ── */
+  /* Save Design → draft save + favourites (same behavior
+     as the generic customizer) */
   const saveDesign = useCallback(() => {
+    /* draft save through the shared pipeline — status
+       shows in the badge, no alerts */
+    const seq = ++saveSeqRef.current;
+    pendingSaveRef.current = { payload: buildDraftPayload(), seq };
+    doDraftSave(pendingSaveRef.current);
+
+    /* cart's "Edit Design" still reads this key */
     const state = { productId: product?.id, paperType: product?.paperType, size: product?.size, quantity: product?.quantity, frontDesign: design.front, backDesign: design.back, uploadedDesign: null, template };
-    localStorage.setItem(`businessCardDesign-${product?.id || "draft"}`, JSON.stringify(state));
-    alert("Design saved successfully.");
+    try {
+      localStorage.setItem(`businessCardDesign-${product?.id || "draft"}`, JSON.stringify(state));
+    } catch { /* quota — non-fatal */ }
+
+    /* favourites — server for logged-in, local mirror
+       for guests; full snapshot (with image) goes to DB */
+    addFavorite({
+      ...product,
+      badge: product?.badge || "Custom Design",
+    }).catch(() => {});
+
+    setFavToast(true);
+    setTimeout(() => setFavToast(false), 2500);
   }, [product, design, template]);
 
-  const addToCart = useCallback(() => {
+  const addToCart = useCallback(async () => {
     if (!product) return;
     const customization = { productId: product.id, paperType: product.paperType, size: product.size, quantity: product.quantity || 100, frontDesign: design.front, backDesign: design.back, uploadedDesign: null, template };
 
@@ -683,11 +900,10 @@ export default function BusinessCardCustomizer({
       );
     } catch { /* storage full — ignore */ }
 
-    const cartItem = {
-      ...product,
+    await contextAddToCart({
       productId: product.id,
+      product_id: product.id,
       originalProductId: product.id,
-      id: `custom-card-${product.id}-${Date.now()}`,
       name: product.name,
       image: product.image || product.images?.[0] || "",
       price: Number(product.price || 0),
@@ -696,18 +912,15 @@ export default function BusinessCardCustomizer({
       size: product.size || "Standard",
       isCustomized: true,
       customized: true,
+      itemType: "business-card",
       customizationType: "business-card",
       customization,
       frontDesign: design.front,
       backDesign: design.back,
       template,
-    };
-    const cart = JSON.parse(localStorage.getItem("ananyaCart") || "[]");
-    localStorage.setItem("ananyaCart", JSON.stringify([...cart, cartItem]));
-    window.dispatchEvent(new Event("ananyaCartUpdated"));
-    window.dispatchEvent(new Event("cartUpdated"));
+    });
     navigate("/cart");
-  }, [product, design, template, navigate]);
+  }, [product, design, template, navigate, contextAddToCart]);
 
   /* ── render element on canvas ── */
   const renderElement = (element) => {
@@ -773,6 +986,38 @@ export default function BusinessCardCustomizer({
   /* ══════════════════ JSX ══════════════════ */
   return (
     <main className="bc-editor">
+      {/* ── favourites toast ── */}
+      {favToast && (
+        <div className="fav-toast">
+          <span>❤️ Added to Favourites</span>
+        </div>
+      )}
+
+      {/* ── resume draft prompt ── */}
+      {resumeDraft && (
+        <div className="draft-overlay">
+          <div className="draft-modal">
+            <h3>Continue previous design?</h3>
+            <p>
+              You have an unfinished design for this product
+              {resumeDraft.updatedAt
+                ? ` (saved ${new Date(resumeDraft.updatedAt).toLocaleString()})`
+                : ""}
+              . Continue where you left off or start fresh.
+            </p>
+            <button type="button" className="draft-btn draft-primary" onClick={continueDraft}>
+              Continue Previous Design
+            </button>
+            <button type="button" className="draft-btn" onClick={startNewDesign}>
+              Start New Design
+            </button>
+            <button type="button" className="draft-btn draft-danger" onClick={discardDraft}>
+              Discard Draft
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── confirmation dialog ── */}
       {confirmDialog && (
         <div className="bc-dialog-overlay" onClick={confirmDialog.onCancel}>
@@ -792,6 +1037,13 @@ export default function BusinessCardCustomizer({
         <button type="button" className="bc-icon-btn" onClick={() => (embedded ? onCancel?.() : navigate(-1))}><ArrowLeft size={19} /></button>
         <div className="bc-title"><span>{embedded ? "TEMPLATE DESIGNER" : "BUSINESS CARD EDITOR"}</span><strong>{product?.name || "Custom Business Card"}</strong></div>
         <div className="bc-history-actions">
+          {!embedded && (
+            <span className={`draft-status ds-${saveStatus}`}>
+              {saveStatus === "saving" && "Saving…"}
+              {saveStatus === "saved" && "Saved"}
+              {saveStatus === "error" && "Save failed — retrying"}
+            </span>
+          )}
           <button type="button" onClick={undo} disabled={!history.length}><Undo2 size={17} /> Undo</button>
           <button type="button" onClick={redo} disabled={!future.length}><Redo2 size={17} /> Redo</button>
           <button type="button" onClick={() => setPreview((v) => { setEditingId(null); return !v; })}><Eye size={17} /> Preview</button>

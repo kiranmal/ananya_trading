@@ -1,9 +1,10 @@
-/* =========================================================
+﻿/* =========================================================
    CUSTOMIZER PAGE
 ========================================================= */
 
 .customizer-page {
   min-height: 100vh;
+  overflow-x: clip;
   background: #ffffff;
   color: #102a4c;
   font-family:
@@ -89,9 +90,19 @@
 
 .customizer-main {
   display: grid;
-  grid-template-columns: 150px 320px minmax(420px, 1fr) 375px;
+  /* flexible columns â€” nothing can push past the viewport
+     and clip the toolbar on narrower desktops */
+  grid-template-columns:
+    96px
+    minmax(240px, 300px)
+    minmax(0, 1fr)
+    minmax(300px, 370px);
   min-height: 775px;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.customizer-main > * {
+  min-width: 0;
 }
 
 /* =========================================================
@@ -453,7 +464,7 @@
 ========================================================= */
 
 .product-area {
-  background: #f7f7f6;
+  background: linear-gradient(180deg, #f5f6f7 0%, #eef2f6 100%);
   position: relative;
   overflow: hidden;
 }
@@ -464,11 +475,12 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  padding: 18px 92px 18px 18px;
 }
 
 .product-canvas {
-  width: min(590px, 90%);
-  height: 570px;
+  width: min(640px, 84%);
+  height: 520px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -476,8 +488,13 @@
   transition: transform 0.2s ease;
 }
 
+.pen-product-canvas {
+  width: min(760px, 90%);
+  height: min(440px, 62vh);
+}
+
 .real-product-preview {
-  /* garment SVG (400x430) ke saath align — print-area % sahi banti hai */
+  /* garment SVG (400x430) ke saath align â€” print-area % sahi banti hai */
   height: 100%;
   aspect-ratio: 400 / 430;
   max-width: 100%;
@@ -491,9 +508,128 @@
    REAL PRODUCT IMAGE
 ========================================================= */
 
-/* image-based products — mockup 600x500, print-area % align */
+/* image-based products â€” mockup 600x500, print-area % align */
 .real-product-preview.has-image {
   aspect-ratio: 600 / 500;
+}
+
+.flyer-preview {
+  width: min(74%, 360px);
+  height: auto;
+  max-height: 92%;
+  filter: drop-shadow(0 18px 28px rgba(15, 23, 42, 0.18));
+}
+
+.brochure-product-canvas {
+  width: min(860px, 100%);
+  height: min(610px, 76vh);
+}
+
+.brochure-preview {
+  width: min(100%, 820px);
+  height: auto;
+  max-height: 94%;
+  aspect-ratio: 297 / 210;
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.13));
+}
+
+.brochure-sheet {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #cbd4df;
+}
+
+.brochure-fold-guides {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.brochure-fold-guides span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed rgba(49, 78, 108, 0.34);
+}
+
+.flyer-sheet {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d8dfe8;
+  border-radius: 6px;
+}
+
+.flyer-hero {
+  height: 32%;
+  background: #e1523d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flyer-hero span {
+  width: 15%;
+  aspect-ratio: 1;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.flyer-back-band {
+  height: 20%;
+  background: #e1523d;
+}
+
+.flyer-rule {
+  height: 1.6%;
+  margin: 6% auto 0;
+  width: 78%;
+  border-radius: 99px;
+  background: #c8d2de;
+}
+
+.flyer-rule-strong {
+  height: 4%;
+  width: 72%;
+  margin-top: 9%;
+  background: #1d3252;
+}
+
+.flyer-rule-short {
+  width: 58%;
+}
+
+.flyer-rule-mid {
+  width: 68%;
+}
+
+.flyer-cta {
+  position: absolute;
+  left: 12%;
+  bottom: 7%;
+  width: 38%;
+  height: 8%;
+  border-radius: 999px;
+  background: #e1523d;
+}
+
+.flyer-sheet-dl .flyer-hero {
+  height: 25%;
+}
+
+.flyer-sheet-dl .flyer-rule {
+  margin-top: 10%;
 }
 
 .selected-product-image {
@@ -516,20 +652,29 @@
   filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.18));
 }
 
-/* notebook mockup — different aspect ratio */
+/* notebook mockup â€” different aspect ratio */
 .notebook-preview {
   aspect-ratio: 380 / 480 !important;
 }
 
-/* pen mockup — halka tilt; print-area + elements
+/* pen mockup â€” halka tilt; print-area + elements
    iske saath rotate hote hain (text pen ke angle
    ko follow karta hai) */
 .pen-preview {
+  width: min(84%, 660px);
+  max-width: 660px;
+  height: auto;
   aspect-ratio: 600 / 500;
-  transform: rotate(-7deg);
+  transform: rotate(-7deg) scale(1.08);
+  filter: drop-shadow(0 18px 28px rgba(15, 23, 42, 0.18));
 }
 
-/* envelope mockup — landscape; aspect size ke hisaab se
+.pen-product-canvas .real-product-preview {
+  width: 100%;
+  max-width: 660px;
+}
+
+/* envelope mockup â€” landscape; aspect size ke hisaab se
    inline style se aata hai */
 .envelope-preview {
   width: 100%;
@@ -541,7 +686,7 @@
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.16));
 }
 
-/* spiral rings — design layer ke UPAR, clicks block nahi karte */
+/* spiral rings â€” design layer ke UPAR, clicks block nahi karte */
 .spiral-overlay {
   position: absolute;
   inset: 0;
@@ -601,7 +746,7 @@
 }
 
 /* =========================================================
-   PRINT AREA — design yahan clipped rehta hai
+   PRINT AREA â€” design yahan clipped rehta hai
 ========================================================= */
 
 .print-area {
@@ -621,7 +766,7 @@
   background: rgba(37, 99, 235, 0.03);
 }
 
-/* notebook print area — spiral ke RIGHT side, safe margins */
+/* notebook print area â€” spiral ke RIGHT side, safe margins */
 .print-area-notebook {
   left: 17%;
   top: 9%;
@@ -632,6 +777,30 @@
 .print-area.preview-clean {
   border: 0;
   background: transparent;
+}
+
+.print-area-flyer {
+  border-radius: 4px;
+}
+
+.print-area-brochure {
+  border-radius: 0;
+}
+
+.print-area-brochure.editing {
+  border: 1px dashed rgba(49, 78, 108, 0.18);
+  background: transparent;
+}
+
+.print-area-brochure .design-text {
+  padding: 1px 3px;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.print-area-flyer .design-text {
+  max-width: 100%;
+  padding: 0 2px;
 }
 
 .design-el {
@@ -647,6 +816,11 @@
   /* multiline + wrapping; canvas se bahar overflow na ho */
   white-space: pre-wrap;
   overflow-wrap: break-word;
+  word-break: normal;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   max-width: 85%;
   max-height: 90%;
   overflow: hidden;
@@ -862,22 +1036,26 @@
 
 .canvas-tools {
   position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 70px;
-  background: white;
+  right: 18px;
+  top: 18px;
+  width: 90px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
   border: 1px solid #e0e4ea;
-  border-radius: 11px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
   overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
 }
 
 .canvas-tools button {
   width: 100%;
-  min-height: 67px;
-  border: 0;
-  border-bottom: 1px solid #edf0f3;
+  min-height: 62px;
+  border: 1px solid #edf0f3;
+  border-radius: 10px;
   background: white;
   color: #32465e;
   cursor: pointer;
@@ -886,10 +1064,6 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-}
-
-.canvas-tools button:last-child {
-  border-bottom: 0;
 }
 
 .canvas-tools button:hover {
@@ -902,7 +1076,7 @@
 }
 
 .canvas-tools svg {
-  width: 20px;
+  width: 18px;
 }
 
 .canvas-tools span {
@@ -992,22 +1166,25 @@
 
 .product-colors {
   display: flex;
-  gap: 17px;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
 .product-color {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 2px solid white;
   outline: 1px solid #cfd5dd;
   cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .product-color.selected-product-color {
   outline: 2px solid #123d70;
   outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(18, 61, 112, 0.12);
 }
 
 /* =========================================================
@@ -1027,27 +1204,32 @@
 .size-options {
   display: flex;
   gap: 9px;
+  flex-wrap: wrap;
 }
 
 .size-options button {
-  width: 43px;
+  min-width: 68px;
   height: 38px;
+  padding: 0 14px;
   border: 1px solid #d4d9e0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: white;
   color: #26364d;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.18s ease;
 }
 
 .size-options button:hover {
   border-color: #6c8eb7;
+  box-shadow: 0 4px 12px rgba(18, 61, 112, 0.08);
 }
 
 .size-options button.size-selected {
   background: #123d70;
   color: white;
   border-color: #123d70;
+  box-shadow: 0 8px 18px rgba(18, 61, 112, 0.18);
 }
 
 /* =========================================================
@@ -1415,10 +1597,10 @@
 @media (max-width: 1250px) {
   .customizer-main {
     grid-template-columns:
-      110px
-      290px
-      minmax(400px, 1fr)
-      340px;
+      84px
+      minmax(220px, 260px)
+      minmax(0, 1fr)
+      minmax(270px, 320px);
   }
 
   .left-toolbar button {
@@ -1480,6 +1662,7 @@
 
   .product-canvas-wrapper {
     height: 520px;
+    padding: 18px;
   }
 
   .canvas-tools {
@@ -1504,7 +1687,11 @@
     height: 450px;
   }
 
-  /* canvas tools — bottom horizontal bar */
+  .brochure-product-canvas {
+    height: min(450px, 62vh);
+  }
+
+  /* canvas tools â€” bottom horizontal bar */
   .canvas-tools {
     top: auto;
     right: 50%;
@@ -1513,6 +1700,11 @@
     width: auto;
     display: flex;
     border-radius: 24px;
+  }
+
+  .product-canvas-wrapper {
+    height: 500px;
+    padding: 16px 12px 76px;
   }
 
   .canvas-tools button {
@@ -1564,4 +1756,428 @@
 .need-help-link:hover {
   background: #eaf2fc;
   border-color: #1263bd;
+}
+
+/* ============ draft auto-save ============ */
+
+.draft-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.draft-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.draft-status.ds-saving::before { background: #f59e0b; }
+.draft-status.ds-saved::before { background: #22c55e; }
+.draft-status.ds-error::before { background: #ef4444; }
+.draft-status.ds-error { color: #b91c1c; }
+
+.draft-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.draft-modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.draft-modal h3 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  color: #0f2544;
+}
+
+.draft-modal p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 18px;
+}
+
+.draft-btn {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f2544;
+  cursor: pointer;
+}
+
+.draft-btn.draft-primary {
+  background: #0f2544;
+  color: #fff;
+  border-color: #0f2544;
+}
+
+.draft-btn.draft-danger {
+  color: #b91c1c;
+}
+
+/* no-product empty state */
+.no-product-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  gap: 8px;
+}
+
+.no-product-state h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #0f2544;
+}
+
+.no-product-state p {
+  margin: 0 0 18px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.no-product-state button {
+  padding: 11px 26px;
+  border: none;
+  border-radius: 9px;
+  background: #0f2544;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* favourites toast */
+.fav-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  background: #0f2544;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(15, 37, 68, 0.35);
+  z-index: 1300;
+  animation: favToastIn 0.25s ease;
+}
+
+.fav-toast svg { color: #fb7185; }
+
+@keyframes favToastIn {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* =====================================================
+   VINYL STICKER - die-cut preview + circular print area
+===================================================== */
+
+.sticker-preview {
+  width: min(58%, 430px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 22px 34px rgba(15, 23, 42, 0.2));
+}
+
+.sticker-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* circular printable disc - clip + circular safe guide */
+.print-area-sticker {
+  border-radius: 50%;
+}
+
+.print-area-sticker.editing {
+  border-color: rgba(37, 99, 235, 0.6);
+  border-radius: 50%;
+  /* dashed cut-line sits just inside the edge */
+  outline: 1.5px dashed rgba(15, 23, 42, 0.28);
+  outline-offset: -4px;
+}
+
+/* size / material option cards */
+.size-options-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.size-option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.size-option-card span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f2544;
+}
+
+.size-option-card small {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.size-option-card:hover {
+  border-color: #94a3b8;
+}
+
+.size-option-card.size-selected {
+  border-color: #0f2544;
+  background: #f0f4fa;
+  box-shadow: inset 0 0 0 1px #0f2544;
+}
+
+/* custom width/height fields */
+.custom-size-fields {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.custom-size-fields label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.custom-size-fields span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.custom-size-fields input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f2544;
+}
+
+.custom-size-fields input:focus {
+  outline: none;
+  border-color: #0f2544;
+}
+
+@media (max-width: 768px) {
+  .sticker-preview {
+    width: min(80%, 340px);
+  }
+}
+
+/* gift-set face text â€” use nearly the full zone width */
+.print-area-giftset .design-text {
+  max-width: 96%;
+}
+
+/* gift set box preview */
+.giftset-preview {
+  width: min(62%, 460px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 20px 30px rgba(15, 23, 42, 0.18));
+}
+
+.giftset-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* tote bag preview */
+.totebag-preview {
+  width: min(56%, 430px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 20px 30px rgba(15, 23, 42, 0.16));
+}
+
+.totebag-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.print-area-tote .design-text {
+  max-width: 96%;
+}
+
+/* embroidered cap preview */
+.cap-preview {
+  width: min(62%, 460px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 18px 26px rgba(15, 23, 42, 0.16));
+}
+
+.cap-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* embroidery zone: rounded-rect guide + subtle stitch tint */
+.print-area-cap.editing {
+  border-radius: 10px;
+  outline: none;
+}
+
+.print-area-cap .design-text {
+  max-width: 96%;
+  text-shadow: 0 0.5px 0 rgba(0, 0, 0, 0.18);
+}
+
+/* shipping box preview */
+.box-preview {
+  width: min(58%, 440px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 20px 30px rgba(15, 23, 42, 0.16));
+}
+
+.box-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.print-area-box .design-text {
+  max-width: 96%;
+}
+
+/* letterhead A4 sheet preview */
+.letterhead-preview {
+  width: min(64%, 470px);
+  height: auto;
+  aspect-ratio: 400 / 560;
+  filter: drop-shadow(0 20px 30px rgba(15, 23, 42, 0.16));
+}
+
+.letterhead-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.print-area-letterhead.editing {
+  border-radius: 4px;
+}
+
+.print-area-letterhead .design-text {
+  max-width: 97%;
+}
+
+/* event poster preview - A-series portrait */
+.poster-preview {
+  width: min(62%, 430px);
+  height: auto;
+  aspect-ratio: 400 / 566;
+  filter: drop-shadow(0 20px 30px rgba(15, 23, 42, 0.16));
+}
+
+.poster-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.print-area-poster.editing {
+  border-radius: 4px;
+}
+
+.print-area-poster .design-text {
+  max-width: 98%;
+}
+
+/* paper bag preview */
+.paperbag-preview {
+  width: min(56%, 430px);
+  height: auto;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 20px 30px rgba(15, 23, 42, 0.16));
+}
+
+.paperbag-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.print-area-paperbag .design-text {
+  max-width: 96%;
+}
+
+/* replace-image button in the selected-image panel */
+.replace-logo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 9px 12px;
+  border: 1.5px solid #0f2544;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f2544;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.replace-logo-btn:hover {
+  background: #f0f4fa;
 }

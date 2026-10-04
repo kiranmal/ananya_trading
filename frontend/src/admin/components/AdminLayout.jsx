@@ -4,7 +4,6 @@ import { API_URL } from "../../services/apiConfig";
 
 import {
   LayoutDashboard,
-  LayoutTemplate,
   Package,
   Tags,
   CreditCard,
@@ -71,12 +70,6 @@ function AdminLayout() {
       name: "Products",
       path: "/admin/products",
       icon: Package,
-    },
-
-    {
-      name: "Templates",
-      path: "/admin/templates",
-      icon: LayoutTemplate,
     },
 
     {
@@ -172,9 +165,25 @@ function AdminLayout() {
       localStorage.removeItem("currentUser");
       localStorage.removeItem("ananyaUser");
       localStorage.removeItem("rememberMe");
+      localStorage.removeItem("ananyaOrderSuccess");
+      sessionStorage.removeItem("ananyaSessionAlive");
     };
 
     const verifyAdmin = async () => {
+      /* "Remember me" unchecked → session dies with the
+         browser. No alive-marker = previous session only. */
+      const remembered =
+        localStorage.getItem("rememberMe") === "true";
+      if (
+        !remembered &&
+        !sessionStorage.getItem("ananyaSessionAlive") &&
+        localStorage.getItem("authToken")
+      ) {
+        clearAdminSession();
+        navigate("/admin/login", { replace: true });
+        return;
+      }
+
       const token = localStorage.getItem("authToken");
       const savedUser = localStorage.getItem("currentUser");
       const currentUser = (() => {
@@ -201,20 +210,35 @@ function AdminLayout() {
         });
         const data = await response.json();
 
-        if (!response.ok || data.user?.role !== "admin") {
+        if (
+          response.status === 401 ||
+          response.status === 403 ||
+          (response.ok && data.user?.role !== "admin")
+        ) {
           clearAdminSession();
           navigate("/admin/login", { replace: true });
           return;
         }
 
-        localStorage.setItem("adminLoggedIn", "true");
-        localStorage.setItem("currentUser", JSON.stringify(data.user));
-        localStorage.setItem("ananyaUser", JSON.stringify(data.user));
+        if (response.ok && data.user?.role === "admin") {
+          localStorage.setItem("adminLoggedIn", "true");
+          localStorage.setItem("currentUser", JSON.stringify(data.user));
+          localStorage.setItem("ananyaUser", JSON.stringify(data.user));
+        }
+
+        /* server down / 5xx → keep the cached admin session
+           instead of forcing a re-login on every restart */
         setAuthChecking(false);
       } catch (error) {
         if (error.name !== "AbortError") {
-          clearAdminSession();
-          navigate("/admin/login", { replace: true });
+          /* network error — backend unreachable. Keep the
+             session; the admin stays on the page with the
+             cached credentials rather than being logged out */
+          console.error(
+            "Admin verify error (session kept):",
+            error
+          );
+          setAuthChecking(false);
         }
       }
     };
@@ -417,11 +441,21 @@ function AdminLayout() {
   ===================================================== */
 
   const handleLogout = () => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+
     localStorage.removeItem("adminLoggedIn");
     localStorage.removeItem("authToken");
     localStorage.removeItem("currentUser");
     localStorage.removeItem("ananyaUser");
     localStorage.removeItem("rememberMe");
+    localStorage.removeItem("ananyaOrderSuccess");
+    sessionStorage.removeItem("ananyaSessionAlive");
 
     setProfileOpen(false);
 

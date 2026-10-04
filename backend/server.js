@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
@@ -469,10 +470,14 @@ app.post("/api/auth/login", async (req, res) => {
         id: user.id,
         email: user.email,
         role: user.role || "user",
+        /* unique id per session — without it, two logins
+           within the same second produce the SAME token
+           and a logout revoke would kill both */
+        jti: crypto.randomBytes(16).toString("hex"),
       },
       JWT_SECRET,
       {
-        expiresIn: "7d",
+        expiresIn: "30d",
       }
     );
 
@@ -514,6 +519,13 @@ app.post("/api/auth/login", async (req, res) => {
    JWT AUTHENTICATION MIDDLEWARE
 ========================================================= */
 
+/* tokens revoked via POST /api/auth/logout — in-memory
+   blacklist, keyed by token hash. Scoped to the process;
+   JWT expiry (30d) covers anything that outlives it. */
+const revokedTokens = new Set();
+const tokenHash = (t) =>
+  crypto.createHash("sha256").update(String(t)).digest("hex");
+
 function authenticateToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -534,6 +546,13 @@ function authenticateToken(req, res, next) {
       return res.status(401).json({
         success: false,
         message: "Authentication token missing.",
+      });
+    }
+
+    if (revokedTokens.has(tokenHash(token))) {
+      return res.status(401).json({
+        success: false,
+        message: "Session has been logged out.",
       });
     }
 
@@ -628,6 +647,678 @@ app.get(
         success: false,
         message:
           "Server error while fetching user.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   LOGOUT — revoke the presented token so it cannot be
+   replayed even while its JWT expiry is still valid
+   POST /api/auth/logout
+========================================================= */
+
+app.post(
+  "/api/auth/logout",
+  authenticateToken,
+  (req, res) => {
+    const token = req.headers.authorization.substring(7);
+    revokedTokens.add(tokenHash(token));
+    return res.json({
+      success: true,
+      message: "Logged out.",
+    });
+  }
+);
+
+/* =========================================================
+   FORGOT PASSWORD — email OTP flow
+   POST /api/auth/forgot-password  { email }
+   POST /api/auth/reset-password   { email, otp, newPassword }
+========================================================= */
+
+let resetTableEnsured = false;
+async function ensurePasswordResetTable() {
+  if (resetTableEnsured) return;
+  resetTableEnsured = true;
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id          INT          NOT NULL AUTO_INCREMENT,
+      email       VARCHAR(190) NOT NULL,
+      otp         VARCHAR(6)   NOT NULL,
+      expires_at  DATETIME     NOT NULL,
+      attempts    INT          NOT NULL DEFAULT 0,
+      used        TINYINT(1)   NOT NULL DEFAULT 0,
+      created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_pr_email (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+}
+
+/* lazy transporter — created once, only when SMTP creds exist */
+let mailTransporter = null;
+function getMailer() {
+  if (mailTransporter !== null) return mailTransporter || null;
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    console.warn(
+      "SMTP not configured (SMTP_HOST/USER/PASS) — reset emails cannot be sent."
+    );
+    mailTransporter = false;
+    return null;
+  }
+
+  mailTransporter = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  });
+  return mailTransporter;
+}
+
+async function sendResetOtpEmail(email, otp) {
+  const mailer = getMailer();
+  if (!mailer) return false;
+
+  await mailer.sendMail({
+    from:
+      process.env.SMTP_FROM ||
+      `"Ananya Trading Company" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: "Your password reset code — Ananya Trading Company",
+    text: `Your password reset code is: ${otp}\n\nIt expires in 10 minutes. If you did not request this, ignore this email.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:420px;margin:auto">
+        <h2 style="color:#0f2544">Password Reset</h2>
+        <p>Your password reset code is:</p>
+        <p style="font-size:32px;font-weight:700;letter-spacing:6px;color:#0f2544">${otp}</p>
+        <p style="color:#64748b">It expires in <b>10 minutes</b>. If you did not request this, ignore this email.</p>
+        <p style="color:#94a3b8;font-size:12px">Ananya Trading Company</p>
+      </div>`,
+  });
+  return true;
+}
+
+/* ---- request OTP ---- */
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid email address.",
+      });
+    }
+
+    await ensurePasswordResetTable();
+
+    const [users] = await db.execute(
+      "SELECT id FROM users WHERE email = ? LIMIT 1",
+      [email]
+    );
+
+    /* generic response — do not leak whether the account exists */
+    if (users.length === 0) {
+      return res.json({
+        success: true,
+        message:
+          "If this email is registered, a reset code has been sent.",
+      });
+    }
+
+    /* rate limit — max 3 OTPs per email per hour */
+    const [recent] = await db.execute(
+      `SELECT COUNT(*) AS c FROM password_resets
+       WHERE email = ? AND created_at > NOW() - INTERVAL 1 HOUR`,
+      [email]
+    );
+    if (Number(recent[0].c) >= 3) {
+      return res.status(429).json({
+        success: false,
+        message:
+          "Too many reset requests. Please try again later.",
+      });
+    }
+
+    const otp = String(
+      crypto.randomInt(100000, 1000000)
+    );
+
+    await db.execute(
+      `INSERT INTO password_resets (email, otp, expires_at)
+       VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))`,
+      [email, otp]
+    );
+
+    const sent = await sendResetOtpEmail(email, otp).catch(
+      (e) => {
+        console.error("Reset email send failed:", e.message);
+        return false;
+      }
+    );
+
+    if (!sent) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Could not send the reset email. Please try again later.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message:
+        "If this email is registered, a reset code has been sent.",
+    });
+  } catch (error) {
+    console.error("forgot-password error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to process the request.",
+    });
+  }
+});
+
+/* ---- verify OTP + set new password ---- */
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    const otp = String(req.body?.otp || "").trim();
+    const newPassword = String(req.body?.newPassword || "");
+
+    if (!email || !/^\d{6}$/.test(otp)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid reset code.",
+      });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 6 characters.",
+      });
+    }
+
+    await ensurePasswordResetTable();
+
+    /* latest unused OTP for this email */
+    const [rows] = await db.execute(
+      `SELECT * FROM password_resets
+       WHERE email = ? AND used = 0
+       ORDER BY id DESC LIMIT 1`,
+      [email]
+    );
+
+    const bad = () =>
+      res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset code.",
+      });
+
+    if (rows.length === 0) return bad();
+    const row = rows[0];
+
+    if (
+      new Date(row.expires_at).getTime() < Date.now() ||
+      row.attempts >= 5
+    ) {
+      return bad();
+    }
+
+    if (row.otp !== otp) {
+      await db.execute(
+        "UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?",
+        [row.id]
+      );
+      return bad();
+    }
+
+    /* OTP correct — mark used, update password */
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.execute(
+      "UPDATE password_resets SET used = 1 WHERE id = ?",
+      [row.id]
+    );
+    await db.execute(
+      "UPDATE users SET password = ? WHERE email = ?",
+      [hash, email]
+    );
+
+    return res.json({
+      success: true,
+      message:
+        "Password updated. You can sign in now.",
+    });
+  } catch (error) {
+    console.error("reset-password error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to reset password.",
+    });
+  }
+});
+
+/* =========================================================
+   CUSTOMIZATION DRAFTS — auto-save/resume (logged-in users)
+
+   One draft per (user, editor, product). Drafts never touch
+   cart/orders/stock — they are working state only.
+   Expiry: 30 days since last update (lazy purge).
+========================================================= */
+
+const DRAFT_MAX_AGE_DAYS = 30;
+
+let draftsTableEnsured = false;
+async function ensureDraftsTable() {
+  if (draftsTableEnsured) return;
+  draftsTableEnsured = true;
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS customization_drafts (
+      id          INT          NOT NULL AUTO_INCREMENT,
+      user_id     INT          NOT NULL,
+      editor      VARCHAR(30)  NOT NULL DEFAULT 'customizer',
+      product_id  VARCHAR(64)  NOT NULL,
+      draft       LONGTEXT     NOT NULL,
+      revision    INT          NOT NULL DEFAULT 1,
+      created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_draft_user (user_id, editor, product_id),
+      KEY idx_draft_updated (updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+}
+
+/* lazy expiry — rows older than DRAFT_MAX_AGE_DAYS are dead */
+async function purgeOldDrafts(userId = null) {
+  try {
+    await ensureDraftsTable();
+    await db.execute(
+      `DELETE FROM customization_drafts
+       WHERE updated_at < NOW() - INTERVAL ? DAY
+       ${userId ? "AND user_id = ?" : ""}`,
+      userId ? [DRAFT_MAX_AGE_DAYS, userId] : [DRAFT_MAX_AGE_DAYS]
+    );
+  } catch {
+    /* best-effort cleanup */
+  }
+}
+
+function sanitizeDraftInput(d) {
+  /* allow only plain-JSON objects, cap size ~8MB */
+  if (!d || typeof d !== "object" || Array.isArray(d))
+    return null;
+  try {
+    const s = JSON.stringify(d);
+    return s.length <= 8 * 1024 * 1024 ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ---- read one draft ---- */
+app.get(
+  "/api/drafts/:editor/:productId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureDraftsTable();
+      await purgeOldDrafts(req.user.id);
+
+      const editor = String(req.params.editor).slice(0, 30);
+      const productId = String(req.params.productId).slice(0, 64);
+
+      const [rows] = await db.execute(
+        `SELECT draft, revision, updated_at
+         FROM customization_drafts
+         WHERE user_id = ? AND editor = ? AND product_id = ?`,
+        [req.user.id, editor, productId]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "No saved draft.",
+        });
+      }
+
+      let draft;
+      try {
+        draft = JSON.parse(rows[0].draft);
+      } catch {
+        draft = null;
+      }
+
+      return res.json({
+        success: true,
+        draft,
+        revision: rows[0].revision,
+        updatedAt: rows[0].updated_at,
+        expiresInDays: DRAFT_MAX_AGE_DAYS,
+      });
+    } catch (error) {
+      console.error("GET /api/drafts error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load draft.",
+      });
+    }
+  }
+);
+
+/* ---- create/update draft (upsert, revision-checked) ---- */
+app.put(
+  "/api/drafts/:editor/:productId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureDraftsTable();
+      await purgeOldDrafts(req.user.id);
+
+      const editor = String(req.params.editor).slice(0, 30);
+      const productId = String(req.params.productId).slice(0, 64);
+      const draftJson = sanitizeDraftInput(req.body?.draft);
+      const revision = Math.max(
+        1,
+        parseInt(req.body?.revision, 10) || 1
+      );
+
+      if (!draftJson) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or oversized draft payload.",
+        });
+      }
+
+      const [existing] = await db.execute(
+        `SELECT revision FROM customization_drafts
+         WHERE user_id = ? AND editor = ? AND product_id = ?`,
+        [req.user.id, editor, productId]
+      );
+
+      /* an older/later revision must not overwrite a newer one */
+      if (
+        existing.length &&
+        existing[0].revision > revision
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: "A newer draft exists.",
+          currentRevision: existing[0].revision,
+        });
+      }
+
+      const nextRev = existing.length
+        ? Math.max(existing[0].revision + 1, revision)
+        : revision;
+
+      await db.execute(
+        `INSERT INTO customization_drafts
+           (user_id, editor, product_id, draft, revision)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           draft = VALUES(draft),
+           revision = VALUES(revision)`,
+        [req.user.id, editor, productId, draftJson, nextRev]
+      );
+
+      return res.json({ success: true, revision: nextRev });
+    } catch (error) {
+      console.error("PUT /api/drafts error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save draft.",
+      });
+    }
+  }
+);
+
+/* ---- discard draft ---- */
+app.delete(
+  "/api/drafts/:editor/:productId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureDraftsTable();
+      await db.execute(
+        `DELETE FROM customization_drafts
+         WHERE user_id = ? AND editor = ? AND product_id = ?`,
+        [
+          req.user.id,
+          String(req.params.editor).slice(0, 30),
+          String(req.params.productId).slice(0, 64),
+        ]
+      );
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("DELETE /api/drafts error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete draft.",
+      });
+    }
+  }
+);
+
+/* ---- merge guest drafts into the account ---- */
+app.post(
+  "/api/drafts/merge",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureDraftsTable();
+      await purgeOldDrafts(req.user.id);
+
+      const items = Array.isArray(req.body?.drafts)
+        ? req.body.drafts.slice(0, 50)
+        : [];
+
+      let merged = 0;
+      for (const item of items) {
+        const editor = String(item?.editor || "customizer").slice(0, 30);
+        const productId = String(item?.productId || "").slice(0, 64);
+        const draftJson = sanitizeDraftInput(item?.draft);
+        const revision = Math.max(1, parseInt(item?.revision, 10) || 1);
+        if (!productId || !draftJson) continue;
+
+        const [existing] = await db.execute(
+          `SELECT revision FROM customization_drafts
+           WHERE user_id = ? AND editor = ? AND product_id = ?`,
+          [req.user.id, editor, productId]
+        );
+
+        /* keep whichever is newer — never lose either version */
+        if (existing.length && existing[0].revision > revision)
+          continue;
+
+        await db.execute(
+          `INSERT INTO customization_drafts
+             (user_id, editor, product_id, draft, revision)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             draft = VALUES(draft),
+             revision = VALUES(revision)`,
+          [req.user.id, editor, productId, draftJson, revision]
+        );
+        merged++;
+      }
+
+      return res.json({ success: true, merged });
+    } catch (error) {
+      console.error("POST /api/drafts/merge error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to merge drafts.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   USER FAVORITES — wishlist for logged-in customers.
+
+   Snapshot keeps a small product copy (name/price/image)
+   so cards render without re-fetching; product_id joins
+   still let admins/trace the real product.
+========================================================= */
+
+let favoritesTableEnsured = false;
+async function ensureFavoritesTable() {
+  if (favoritesTableEnsured) return;
+  favoritesTableEnsured = true;
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS user_favorites (
+      id          INT         NOT NULL AUTO_INCREMENT,
+      user_id     INT         NOT NULL,
+      product_id  VARCHAR(64) NOT NULL,
+      snapshot    LONGTEXT    NOT NULL,
+      created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_fav_user (user_id, product_id),
+      KEY idx_fav_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+}
+
+function sanitizeFavoriteInput(b) {
+  const productId = String(b?.productId || "").slice(0, 64);
+  const snapshot = b?.snapshot;
+  if (!productId || !snapshot || typeof snapshot !== "object")
+    return null;
+  try {
+    const s = JSON.stringify(snapshot);
+    return s.length <= 8 * 1024 * 1024
+      ? { productId, snapshot: s }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/* list */
+app.get("/api/favorites", authenticateToken, async (req, res) => {
+  try {
+    await ensureFavoritesTable();
+    const [rows] = await db.execute(
+      `SELECT product_id, snapshot, created_at
+       FROM user_favorites WHERE user_id = ?
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+    const favorites = rows
+      .map((r) => {
+        try {
+          const snap = JSON.parse(r.snapshot);
+          return { ...snap, id: snap?.id ?? r.product_id };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    return res.json({ success: true, favorites });
+  } catch (error) {
+    console.error("GET /api/favorites error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load favorites.",
+    });
+  }
+});
+
+/* add (idempotent per product) */
+app.post("/api/favorites", authenticateToken, async (req, res) => {
+  try {
+    await ensureFavoritesTable();
+    const clean = sanitizeFavoriteInput(req.body);
+    if (!clean) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid favorite payload.",
+      });
+    }
+    await db.execute(
+      `INSERT INTO user_favorites (user_id, product_id, snapshot)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE snapshot = VALUES(snapshot)`,
+      [req.user.id, clean.productId, clean.snapshot]
+    );
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("POST /api/favorites error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save favorite.",
+    });
+  }
+});
+
+/* remove */
+app.delete(
+  "/api/favorites/:productId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureFavoritesTable();
+      await db.execute(
+        `DELETE FROM user_favorites
+         WHERE user_id = ? AND product_id = ?`,
+        [req.user.id, String(req.params.productId).slice(0, 64)]
+      );
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("DELETE /api/favorites error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to remove favorite.",
+      });
+    }
+  }
+);
+
+/* merge guest localStorage favorites on login */
+app.post(
+  "/api/favorites/merge",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureFavoritesTable();
+      const items = Array.isArray(req.body?.favorites)
+        ? req.body.favorites.slice(0, 200)
+        : [];
+      let merged = 0;
+      for (const item of items) {
+        const clean = sanitizeFavoriteInput({
+          productId: item?.productId ?? item?.id,
+          snapshot: item?.snapshot ?? item,
+        });
+        if (!clean) continue;
+        await db.execute(
+          `INSERT IGNORE INTO user_favorites
+             (user_id, product_id, snapshot)
+           VALUES (?, ?, ?)`,
+          [req.user.id, clean.productId, clean.snapshot]
+        );
+        merged++;
+      }
+      return res.json({ success: true, merged });
+    } catch (error) {
+      console.error("POST /api/favorites/merge error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to merge favorites.",
       });
     }
   }
@@ -1260,6 +1951,13 @@ const sanitizeDesignElement = (el) => {
     hidden: Boolean(el.hidden),
   };
 
+  if (el.panel != null) {
+    clean.panel = clampNum(el.panel, 0, 2, 0);
+  }
+  if (el.panelCount != null) {
+    clean.panelCount = clampNum(el.panelCount, 2, 3, 3);
+  }
+
   if (clean.type === "text") {
     clean.text = String(el.text || "").slice(0, 500);
     clean.fontSize = clampNum(el.fontSize, 4, 200, 16);
@@ -1273,6 +1971,9 @@ const sanitizeDesignElement = (el) => {
       : "center";
     clean.letterSpacing = clampNum(el.letterSpacing, -5, 30, 0);
     clean.opacity = clampNum(el.opacity, 0, 1, 1);
+    if (el.width != null) clean.width = clampNum(el.width, 1, 100, 70);
+    if (el.height != null) clean.height = clampNum(el.height, 1, 100, 10);
+    if (el.lineHeight != null) clean.lineHeight = clampNum(el.lineHeight, 0.5, 3, 1.18);
   } else if (clean.type === "image") {
     clean.src =
       typeof el.src === "string" && el.src.length < 6000000
@@ -1467,14 +2168,39 @@ function getProductPayload(body) {
       ? [body.image]
       : [];
 
+  /* stock: absent → null so updates can preserve the saved
+     value; provided but invalid → stockError for callers to
+     reject. Only non-negative integers are accepted. */
+  let stock = null;
+  let stockError = null;
+  if (
+    body.stock !== undefined &&
+    body.stock !== null &&
+    String(body.stock) !== ""
+  ) {
+    const n = Number(body.stock);
+    if (!Number.isInteger(n) || n < 0) {
+      stockError =
+        "Stock must be a whole number of 0 or more.";
+    } else {
+      stock = n;
+    }
+  }
+
   return {
     name: String(body.name || "").trim(),
     category: String(body.category || "General").trim(),
     subcategory: String(body.subcategory || "").trim() || null,
     price: Number(body.price || 0),
     oldPrice: Number(body.oldPrice ?? body.price ?? 0),
-    stock: Math.max(0, Number(body.stock ?? 0)),
-    status: String(body.status || "Active").trim(),
+    stock,
+    stockError,
+    /* canonical product status is Active/Inactive — display labels
+       like "In Stock" must never be stored in this column */
+    status:
+      String(body.status || "Active").trim() === "Inactive"
+        ? "Inactive"
+        : "Active",
     badge: String(body.badge || "").trim() || null,
     rating: Number(body.rating ?? 4.8),
     reviews: Math.max(0, Number(body.reviews ?? 0)),
@@ -1520,9 +2246,36 @@ app.get("/api/products", async (req, res) => {
     ).trim();
     const tag = String(req.query.tag || "").trim();
 
+    /* optional admin check — only when a valid admin
+       token is supplied may out-of-stock/inactive
+       products be included (?includeAll=1) */
+    let isAdmin = false;
+    const authHeader = req.headers.authorization || "";
+    if (authHeader.startsWith("Bearer ")) {
+      try {
+        const decoded = jwt.verify(
+          authHeader.slice(7),
+          JWT_SECRET
+        );
+        isAdmin =
+          decoded?.role === "admin" ||
+          decoded?.user?.role === "admin";
+      } catch {
+        isAdmin = false;
+      }
+    }
+    const includeAll =
+      String(req.query.includeAll || "") === "1" && isAdmin;
+
     let sql = "SELECT * FROM products";
     const params = [];
     const where = [];
+
+    /* customer-facing catalog: only active products
+       with available stock are visible */
+    if (!includeAll) {
+      where.push("status = 'Active' AND stock > 0");
+    }
 
     if (search) {
       where.push(`(
@@ -1653,6 +2406,36 @@ app.get("/api/products/:id", async (req, res) => {
         success: false,
         message: "Product not found.",
       });
+    }
+
+    /* customer-facing: inactive or out-of-stock products
+       are not viewable; admins (valid token) still see them */
+    const row = rows[0];
+    const purchasable =
+      row.status === "Active" && Number(row.stock) > 0;
+
+    if (!purchasable) {
+      let isAdmin = false;
+      const authHeader = req.headers.authorization || "";
+      if (authHeader.startsWith("Bearer ")) {
+        try {
+          const decoded = jwt.verify(
+            authHeader.slice(7),
+            JWT_SECRET
+          );
+          isAdmin =
+            decoded?.role === "admin" ||
+            decoded?.user?.role === "admin";
+        } catch {
+          isAdmin = false;
+        }
+      }
+      if (!isAdmin) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found.",
+        });
+      }
     }
 
     const tagMap = await getTagsForProducts([id]);
@@ -2261,7 +3044,7 @@ app.post(
       for (const item of products) {
         const product = getProductPayload(item);
 
-        if (!product.name || product.price <= 0) {
+        if (!product.name || product.price <= 0 || product.stockError) {
           continue;
         }
 
@@ -2278,7 +3061,7 @@ app.post(
             product.subcategory,
             product.price,
             product.oldPrice,
-            product.stock,
+            product.stock ?? 0,
             product.status,
             product.badge,
             product.rating,
@@ -2335,6 +3118,13 @@ app.post(
         });
       }
 
+      if (product.stockError) {
+        return res.status(400).json({
+          success: false,
+          message: product.stockError,
+        });
+      }
+
       /* categoryId/subcategoryId diya ho to naam wahi se resolve;
          otherwise resolve the id by name */
       const categoryRow = await resolveCategoryId(req.body);
@@ -2366,7 +3156,7 @@ app.post(
           subcategoryRow?.id || null,
           product.price,
           product.oldPrice,
-          product.stock,
+          product.stock ?? 0,
           product.status,
           product.badge,
           product.rating,
@@ -2447,6 +3237,13 @@ app.put(
         });
       }
 
+      if (product.stockError) {
+        return res.status(400).json({
+          success: false,
+          message: product.stockError,
+        });
+      }
+
       const categoryRow = await resolveCategoryId(req.body);
       const subcategoryRow = await resolveSubcategoryId(
         req.body,
@@ -2465,7 +3262,7 @@ app.put(
           name = ?, category = ?, subcategory = ?,
           category_id = ?, subcategory_id = ?,
           price = ?, old_price = ?,
-          stock = ?, status = ?, badge = ?, rating = ?, reviews = ?,
+          stock = COALESCE(?, stock), status = ?, badge = ?, rating = ?, reviews = ?,
           discount = ?, description = ?, images = ?, paper_types = ?,
           sizes = ?, features = ?, quantity_step = ?,
           customizable = ?, customization_type = ?, unit = COALESCE(?, unit), max_qty = ?
@@ -5415,6 +6212,816 @@ app.delete(
 );
 
 /* =========================================================
+   CART  (persistent, user-specific)
+========================================================= */
+
+let cartTableEnsured = false;
+async function ensureCartTable() {
+  if (cartTableEnsured) return;
+  cartTableEnsured = true;
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS cart_items (
+      id            INT          NOT NULL AUTO_INCREMENT,
+      user_id       INT          NOT NULL,
+      product_id    INT          NOT NULL,
+      quantity      INT          NOT NULL DEFAULT 1,
+      paper_type    VARCHAR(50)  DEFAULT NULL,
+      size          VARCHAR(50)  DEFAULT NULL,
+      attributes    JSON         DEFAULT NULL,
+      item_type     VARCHAR(20)  NOT NULL DEFAULT 'standard',
+      customization JSON         DEFAULT NULL,
+      variant_hash  VARCHAR(64)  NOT NULL,
+      created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_ci_user (user_id),
+      KEY idx_ci_product (product_id),
+      UNIQUE KEY uq_ci_variant (user_id, variant_hash)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  /* uploaded design file references (metadata + fileId —
+     raw bytes live in uploaded_files) */
+  try {
+    await db.execute(
+      "ALTER TABLE cart_items ADD COLUMN uploaded_designs JSON DEFAULT NULL"
+    );
+  } catch {
+    /* column already exists */
+  }
+}
+
+/* ---- cart helper: sanitize uploaded-design references ----
+   keeps only metadata + durable fileId; strips base64/blob
+   payloads so cart rows stay light */
+function sanitizeUploadedDesigns(body) {
+  const list = Array.isArray(body?.uploadedDesigns)
+    ? body.uploadedDesigns
+    : Array.isArray(body?.uploaded_designs)
+    ? body.uploaded_designs
+    : [];
+
+  if (!list.length) return null;
+
+  const clean = list
+    .slice(0, 5)
+    .map((d) => {
+      if (!d || typeof d !== "object") return null;
+      const name = String(d.name || "").slice(0, 200);
+      const type = String(d.type || "").slice(0, 80);
+      const size = Number.isFinite(Number(d.size))
+        ? Number(d.size)
+        : null;
+      const fileId = String(d.fileId || d.file_id || "")
+        .slice(0, 64)
+        .trim() || null;
+      if (!name && !fileId) return null;
+      return { name, type, size, fileId };
+    })
+    .filter(Boolean);
+
+  return clean.length ? clean : null;
+}
+
+/* ---- cart helper: compute variant_hash ---- */
+function computeVariantHash(fields) {
+  const canonical = JSON.stringify(fields);
+  return crypto.createHash("sha256").update(canonical).digest("hex");
+}
+
+/* ---- cart helper: sanitize customization payload ---- */
+function sanitizeCartCustomization(itemType, body) {
+  if (itemType === "standard") return null;
+
+  const c = body.customization;
+  if (!c || typeof c !== "object" || Array.isArray(c)) return null;
+  if (JSON.stringify(c).length > 300000) return null; // 300 KB cap
+
+  if (itemType === "business-card") {
+    return {
+      ...c,
+      frontDesign: sanitizeCardDesign(c.frontDesign || body.frontDesign),
+      backDesign: sanitizeCardDesign(c.backDesign || body.backDesign),
+      template: c.template
+        ? String(c.template).slice(0, 40)
+        : null,
+    };
+  }
+
+  /* custom / generic customizer items */
+  return {
+    ...c,
+    designs: sanitizeDesigns(c.designs || body.designs),
+    text: String(c.text || body.text || "").slice(0, 500),
+    color: c.color ? sanitizeColor(c.color) : null,
+    personName: String(c.personName || body.personName || "").slice(0, 120),
+    designation: String(c.designation || body.designation || "").slice(0, 120),
+    companyName: String(c.companyName || body.companyName || "").slice(0, 160),
+  };
+}
+
+/* =========================================================
+   CART API ROUTES
+========================================================= */
+
+/* ---------- GET /api/cart ---------- */
+app.get(
+  "/api/cart",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureCartTable();
+      await ensureProductsTable();
+
+      const userId = req.user.id;
+
+      const [userRows] = await db.execute(
+        `SELECT ci.*,
+                p.name        AS product_name,
+                p.price       AS product_price,
+                p.old_price   AS product_old_price,
+                p.images      AS product_images,
+                p.status      AS product_status,
+                p.category    AS product_category,
+                p.subcategory AS product_subcategory,
+                p.quantity_step,
+                p.max_qty,
+                p.unit        AS product_unit,
+                p.customizable,
+                p.customization_type,
+                p.description AS product_description,
+                p.stock       AS product_stock
+         FROM cart_items ci
+         LEFT JOIN products p ON p.id = ci.product_id
+         WHERE ci.user_id = ?
+         ORDER BY ci.created_at DESC`,
+        [userId]
+      );
+
+      const items = userRows.map((row) => {
+        const attrs =
+          row.attributes && typeof row.attributes === "string"
+            ? JSON.parse(row.attributes)
+            : row.attributes || null;
+
+        const custom =
+          row.customization && typeof row.customization === "string"
+            ? JSON.parse(row.customization)
+            : row.customization || null;
+
+        const uploadedDesigns =
+          row.uploaded_designs &&
+          typeof row.uploaded_designs === "string"
+            ? JSON.parse(row.uploaded_designs)
+            : row.uploaded_designs || null;
+
+        const productImages = parseProductList(row.product_images);
+
+        return {
+          id: row.id,
+          productId: row.product_id,
+          quantity: row.quantity,
+          paperType: row.paper_type,
+          size: row.size,
+          attributes: attrs,
+          itemType: row.item_type,
+          customization: custom,
+          uploadedDesigns,
+          isCustomized:
+            (custom && Object.keys(custom).length > 0) ||
+            (Array.isArray(uploadedDesigns) &&
+              uploadedDesigns.length > 0),
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+
+          /* live product data */
+          name: row.product_name || "Unknown Product",
+          price: Number(row.product_price || 0),
+          oldPrice: Number(row.product_old_price || row.product_price || 0),
+          image: productImages[0] || "",
+          images: productImages,
+          category: row.product_category || "General",
+          subcategory: row.product_subcategory || "",
+          status: row.product_status || "Deleted",
+          quantityStep: Math.max(1, Number(row.quantity_step || 1)),
+          maxQuantity:
+            row.max_qty !== null && row.max_qty !== undefined
+              ? Number(row.max_qty)
+              : null,
+          unit: row.product_unit || "Pieces",
+          customizable: row.customizable === 1 || row.customizable === true,
+          customizationType: row.customization_type || "",
+          description: row.product_description || "",
+          stock: Number(row.product_stock || 0),
+          productAvailable:
+            row.product_name !== null &&
+            row.product_status === "Active" &&
+            Number(row.product_stock || 0) > 0,
+        };
+      });
+
+      return res.json({ success: true, cart: items });
+    } catch (error) {
+      console.error("GET /api/cart error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to load cart.",
+      });
+    }
+  }
+);
+
+/* ---------- POST /api/cart ---------- */
+app.post(
+  "/api/cart",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureCartTable();
+      await ensureProductsTable();
+
+      const userId = req.user.id;
+      const body = req.body || {};
+
+      /* ---- resolve product_id ---- */
+      const productId = Number(
+        body.product_id || body.productId || body.originalProductId || 0
+      );
+      if (!productId || !Number.isFinite(productId) || productId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid product_id is required.",
+        });
+      }
+
+      /* ---- fetch product ---- */
+      const [prodRows] = await db.execute(
+        "SELECT * FROM products WHERE id = ? LIMIT 1",
+        [productId]
+      );
+      if (prodRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found.",
+        });
+      }
+
+      const product = mapProduct(prodRows[0]);
+
+      if (product.status !== "Active") {
+        return res.status(400).json({
+          success: false,
+          message: `Product "${product.name}" is not currently available.`,
+        });
+      }
+
+      const stock = Number(product.stock) || 0;
+
+      if (stock <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Product "${product.name}" is out of stock.`,
+        });
+      }
+
+      /* ---- item_type ---- */
+      const allowedTypes = ["standard", "business-card", "custom"];
+      const itemType = allowedTypes.includes(body.item_type || body.itemType)
+        ? (body.item_type || body.itemType)
+        : "standard";
+
+      /* ---- quantity ---- */
+      const minQty = Math.max(1, Number(product.quantityStep) || 1);
+      const maxQty = product.maxQuantity;
+
+      let quantity = Math.floor(Number(body.quantity) || 0);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid quantity.",
+        });
+      }
+      if (quantity < minQty) quantity = minQty;
+      if (maxQty && quantity > maxQty) {
+        return res.status(400).json({
+          success: false,
+          message: `Maximum quantity for "${product.name}" is ${maxQty}.`,
+        });
+      }
+      /* never allow a cart quantity greater than available stock */
+      if (quantity > stock) quantity = stock;
+
+      /* ---- paper_type & size ---- */
+      const paperType = body.paper_type || body.paperType || null;
+      const size = body.size || null;
+
+      /* ---- attributes (validate against product_attribute_values) ---- */
+      let cleanAttrs = null;
+      const rawAttrs = body.attributes;
+
+      if (rawAttrs && typeof rawAttrs === "object" && !Array.isArray(rawAttrs)) {
+        const [pavRows] = await db.execute(
+          `SELECT a.name AS attr_name, av.value
+           FROM product_attribute_values pav
+           JOIN product_attributes a ON a.id = pav.attribute_id
+           JOIN attribute_values av  ON av.id = pav.attribute_value_id
+           WHERE pav.product_id = ?`,
+          [productId]
+        );
+
+        const allowed = new Map();
+        pavRows.forEach((r) => {
+          const key = String(r.attr_name).toLowerCase();
+          if (!allowed.has(key)) allowed.set(key, new Set());
+          allowed.get(key).add(String(r.value).toLowerCase());
+        });
+
+        const filtered = {};
+        for (const [attrName, val] of Object.entries(rawAttrs)) {
+          const key = String(attrName).toLowerCase();
+          const value = String(val).trim();
+          if (!value) continue;
+          if (allowed.has(key) && allowed.get(key).has(value.toLowerCase())) {
+            filtered[attrName] = value;
+          }
+        }
+        if (Object.keys(filtered).length > 0) cleanAttrs = filtered;
+      }
+
+      /* ---- customization ---- */
+      const customization = sanitizeCartCustomization(itemType, body);
+
+      /* ---- uploaded design references ---- */
+      const uploadedDesigns = sanitizeUploadedDesigns(body);
+
+      /* ---- variant_hash ---- */
+      let hashInput;
+      if (itemType === "standard") {
+        /* sort attributes for deterministic hash */
+        const sortedAttrs = cleanAttrs
+          ? Object.keys(cleanAttrs).sort().reduce((o, k) => { o[k] = cleanAttrs[k]; return o; }, {})
+          : null;
+        hashInput = {
+          product_id: productId,
+          item_type: "standard",
+          paper_type: paperType || null,
+          size: size || null,
+          attributes: sortedAttrs,
+          /* different upload sets must NOT merge into the
+             same cart row — include their signature */
+          uploaded_designs: uploadedDesigns
+            ? uploadedDesigns.map((d) => d.fileId || d.name)
+            : null,
+        };
+      } else {
+        /* customized items: always unique */
+        hashInput = {
+          product_id: productId,
+          item_type: itemType,
+          custom_key: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        };
+      }
+      const variantHash = computeVariantHash(hashInput);
+
+      /* ---- insert or merge ---- */
+      const attrsJson = cleanAttrs ? JSON.stringify(cleanAttrs) : null;
+      const customJson = customization ? JSON.stringify(customization) : null;
+      const uploadsJson = uploadedDesigns
+        ? JSON.stringify(uploadedDesigns)
+        : null;
+
+      if (itemType === "standard") {
+        /* UPSERT: same variant → add quantity */
+        const [result] = await db.execute(
+          `INSERT INTO cart_items
+             (user_id, product_id, quantity, paper_type, size, attributes,
+              item_type, customization, uploaded_designs, variant_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             quantity = LEAST(quantity + VALUES(quantity), ?),
+             updated_at = CURRENT_TIMESTAMP`,
+          [
+            userId, productId, quantity,
+            paperType, size, attrsJson,
+            itemType, customJson, uploadsJson, variantHash,
+            Math.min(maxQty || 999999999, stock),
+          ]
+        );
+
+        /* fetch the upserted row */
+        const [inserted] = await db.execute(
+          "SELECT * FROM cart_items WHERE user_id = ? AND variant_hash = ?",
+          [userId, variantHash]
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: result.affectedRows > 1
+            ? "Cart item quantity updated."
+            : "Item added to cart.",
+          merged: result.affectedRows > 1,
+          item: inserted[0] || null,
+        });
+      } else {
+        /* customized: always a new row */
+        const [result] = await db.execute(
+          `INSERT INTO cart_items
+             (user_id, product_id, quantity, paper_type, size, attributes,
+              item_type, customization, uploaded_designs, variant_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            userId, productId, quantity,
+            paperType, size, attrsJson,
+            itemType, customJson, uploadsJson, variantHash,
+          ]
+        );
+
+        return res.status(201).json({
+          success: true,
+          message: "Customized item added to cart.",
+          item: {
+            id: result.insertId,
+            user_id: userId,
+            product_id: productId,
+            quantity,
+            paper_type: paperType,
+            size,
+            attributes: cleanAttrs,
+            item_type: itemType,
+            customization,
+            uploaded_designs: uploadedDesigns,
+            variant_hash: variantHash,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("POST /api/cart error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to add item to cart.",
+      });
+    }
+  }
+);
+
+/* ---------- PUT /api/cart/:id ---------- */
+app.put(
+  "/api/cart/:id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureCartTable();
+      await ensureProductsTable();
+
+      const userId = req.user.id;
+      const cartItemId = Number(req.params.id);
+
+      if (!cartItemId || !Number.isFinite(cartItemId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid cart item ID is required.",
+        });
+      }
+
+      /* fetch item — scoped to user */
+      const [existing] = await db.execute(
+        "SELECT * FROM cart_items WHERE id = ? AND user_id = ?",
+        [cartItemId, userId]
+      );
+
+      if (existing.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Cart item not found.",
+        });
+      }
+
+      const cartItem = existing[0];
+
+      /* fetch product for rules */
+      const [prodRows] = await db.execute(
+        "SELECT * FROM products WHERE id = ? LIMIT 1",
+        [cartItem.product_id]
+      );
+
+      const product = prodRows.length > 0 ? mapProduct(prodRows[0]) : null;
+
+      const minQty = product
+        ? Math.max(1, Number(product.quantityStep) || 1)
+        : 1;
+      const maxQty = product?.maxQuantity || null;
+
+      /* validate new quantity */
+      let quantity = Math.floor(Number(req.body.quantity) || 0);
+
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid quantity.",
+        });
+      }
+
+      if (quantity < minQty) quantity = minQty;
+      if (maxQty && quantity > maxQty) {
+        return res.status(400).json({
+          success: false,
+          message: `Maximum quantity is ${maxQty}.`,
+        });
+      }
+
+      /* stock guard — product may have sold out after being
+         added to the cart; quantity can never exceed stock */
+      if (product) {
+        const stock = Number(product.stock) || 0;
+        if (stock <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `"${product.name}" is out of stock. Please remove it from your cart.`,
+          });
+        }
+        if (quantity > stock) quantity = stock;
+      }
+
+      await db.execute(
+        "UPDATE cart_items SET quantity = ? WHERE id = ? AND user_id = ?",
+        [quantity, cartItemId, userId]
+      );
+
+      return res.json({
+        success: true,
+        message: "Cart item updated.",
+        item: { ...cartItem, quantity },
+      });
+    } catch (error) {
+      console.error("PUT /api/cart/:id error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update cart item.",
+      });
+    }
+  }
+);
+
+/* ---------- DELETE /api/cart/:id ---------- */
+app.delete(
+  "/api/cart/:id",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureCartTable();
+
+      const userId = req.user.id;
+      const cartItemId = Number(req.params.id);
+
+      if (!cartItemId || !Number.isFinite(cartItemId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid cart item ID is required.",
+        });
+      }
+
+      const [result] = await db.execute(
+        "DELETE FROM cart_items WHERE id = ? AND user_id = ?",
+        [cartItemId, userId]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Cart item not found.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Item removed from cart.",
+      });
+    } catch (error) {
+      console.error("DELETE /api/cart/:id error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to remove cart item.",
+      });
+    }
+  }
+);
+
+/* ---------- DELETE /api/cart (clear all) ---------- */
+app.delete(
+  "/api/cart",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureCartTable();
+
+      const userId = req.user.id;
+
+      const [result] = await db.execute(
+        "DELETE FROM cart_items WHERE user_id = ?",
+        [userId]
+      );
+
+      return res.json({
+        success: true,
+        message: "Cart cleared.",
+        deletedCount: result.affectedRows,
+      });
+    } catch (error) {
+      console.error("DELETE /api/cart error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to clear cart.",
+      });
+    }
+  }
+);
+
+/* ---------- POST /api/cart/merge (guest → user, idempotent) ---------- */
+app.post(
+  "/api/cart/merge",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await ensureCartTable();
+      await ensureProductsTable();
+
+      const userId = req.user.id;
+      const guestItems = req.body.items;
+
+      if (!Array.isArray(guestItems) || guestItems.length === 0) {
+        return res.json({ success: true, merged: 0, skipped: 0 });
+      }
+
+      /* cap to 50 items to prevent abuse */
+      const items = guestItems.slice(0, 50);
+      let merged = 0;
+      let skipped = 0;
+
+      for (const gi of items) {
+        try {
+          /* resolve product */
+          const productId = Number(
+            gi.product_id || gi.productId || gi.originalProductId || gi.id || 0
+          );
+          if (!productId || !Number.isFinite(productId) || productId <= 0) {
+            skipped++;
+            continue;
+          }
+
+          const [prodRows] = await db.execute(
+            "SELECT * FROM products WHERE id = ? LIMIT 1", [productId]
+          );
+          if (prodRows.length === 0) { skipped++; continue; }
+
+          const product = mapProduct(prodRows[0]);
+          if (
+            product.status !== "Active" ||
+            Number(product.stock) <= 0
+          ) { skipped++; continue; }
+
+          const stock = Number(product.stock) || 0;
+
+          /* item_type */
+          const allowedTypes = ["standard", "business-card", "custom"];
+          const itemType = allowedTypes.includes(gi.item_type || gi.itemType)
+            ? (gi.item_type || gi.itemType)
+            : "standard";
+
+          /* quantity */
+          const minQty = Math.max(1, Number(product.quantityStep) || 1);
+          const maxQty = product.maxQuantity;
+          let quantity = Math.floor(Number(gi.quantity) || 0);
+          if (!Number.isFinite(quantity) || quantity <= 0) quantity = minQty;
+          if (quantity < minQty) quantity = minQty;
+          if (maxQty && quantity > maxQty) quantity = maxQty;
+          if (quantity > stock) quantity = stock;
+
+          /* paper_type & size */
+          const paperType = gi.paper_type || gi.paperType || null;
+          const size = gi.size || null;
+
+          /* attributes */
+          let cleanAttrs = null;
+          const rawAttrs = gi.attributes;
+          if (rawAttrs && typeof rawAttrs === "object" && !Array.isArray(rawAttrs)) {
+            const [pavRows] = await db.execute(
+              `SELECT a.name AS attr_name, av.value
+               FROM product_attribute_values pav
+               JOIN product_attributes a ON a.id = pav.attribute_id
+               JOIN attribute_values av  ON av.id = pav.attribute_value_id
+               WHERE pav.product_id = ?`, [productId]
+            );
+            const allowed = new Map();
+            pavRows.forEach((r) => {
+              const key = String(r.attr_name).toLowerCase();
+              if (!allowed.has(key)) allowed.set(key, new Set());
+              allowed.get(key).add(String(r.value).toLowerCase());
+            });
+            const filtered = {};
+            for (const [attrName, val] of Object.entries(rawAttrs)) {
+              const key = String(attrName).toLowerCase();
+              const value = String(val).trim();
+              if (!value) continue;
+              if (allowed.has(key) && allowed.get(key).has(value.toLowerCase())) {
+                filtered[attrName] = value;
+              }
+            }
+            if (Object.keys(filtered).length > 0) cleanAttrs = filtered;
+          }
+
+          /* customization */
+          const customization = sanitizeCartCustomization(itemType, gi);
+
+          /* uploaded design references */
+          const uploadedDesigns = sanitizeUploadedDesigns(gi);
+
+          /* variant_hash */
+          let hashInput;
+          if (itemType === "standard") {
+            const sortedAttrs = cleanAttrs
+              ? Object.keys(cleanAttrs).sort().reduce((o, k) => { o[k] = cleanAttrs[k]; return o; }, {})
+              : null;
+            hashInput = {
+              product_id: productId,
+              item_type: "standard",
+              paper_type: paperType || null,
+              size: size || null,
+              attributes: sortedAttrs,
+              uploaded_designs: uploadedDesigns
+                ? uploadedDesigns.map((d) => d.fileId || d.name)
+                : null,
+            };
+          } else {
+            hashInput = {
+              product_id: productId,
+              item_type: itemType,
+              custom_key: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+            };
+          }
+          const variantHash = computeVariantHash(hashInput);
+
+          const attrsJson = cleanAttrs ? JSON.stringify(cleanAttrs) : null;
+          const customJson = customization ? JSON.stringify(customization) : null;
+          const uploadsJson = uploadedDesigns
+            ? JSON.stringify(uploadedDesigns)
+            : null;
+
+          if (itemType === "standard") {
+            /* IDEMPOTENT MERGE: use GREATEST (keep the larger quantity)
+               so retrying does not inflate quantities */
+            await db.execute(
+              `INSERT INTO cart_items
+                 (user_id, product_id, quantity, paper_type, size, attributes,
+                  item_type, customization, uploaded_designs, variant_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE
+                 quantity = LEAST(GREATEST(quantity, VALUES(quantity)), ?),
+                 uploaded_designs = COALESCE(
+                   cart_items.uploaded_designs, VALUES(uploaded_designs)),
+                 updated_at = CURRENT_TIMESTAMP`,
+              [
+                userId, productId, quantity,
+                paperType, size, attrsJson,
+                itemType, customJson, uploadsJson, variantHash,
+                Math.min(maxQty || 999999999, stock),
+              ]
+            );
+          } else {
+            /* customized: always new row */
+            await db.execute(
+              `INSERT INTO cart_items
+                 (user_id, product_id, quantity, paper_type, size, attributes,
+                  item_type, customization, uploaded_designs, variant_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                userId, productId, quantity,
+                paperType, size, attrsJson,
+                itemType, customJson, uploadsJson, variantHash,
+              ]
+            );
+          }
+
+          merged++;
+        } catch (itemErr) {
+          console.error("Merge item error:", itemErr.message);
+          skipped++;
+        }
+      }
+
+      return res.json({ success: true, merged, skipped });
+    } catch (error) {
+      console.error("POST /api/cart/merge error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to merge cart.",
+      });
+    }
+  }
+);
+
+/* =========================================================
    ORDERS
 ========================================================= */
 
@@ -5477,7 +7084,34 @@ async function ensureOrdersTable() {
   await addColumn(
     "ALTER TABLE orders ADD COLUMN payment_attempts INT NOT NULL DEFAULT 0"
   );
+
+  /* cancellation fields */
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN cancelled_at TIMESTAMP NULL DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN cancelled_by VARCHAR(50) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN cancel_reason VARCHAR(500) DEFAULT NULL"
+  );
+  await addColumn(
+    "ALTER TABLE orders ADD COLUMN refund_status VARCHAR(30) DEFAULT NULL"
+  );
 }
+
+/* statuses from which an order may still be cancelled —
+   shipped/out-for-delivery/delivered/cancelled are final */
+const CANCELLABLE_STATUSES = new Set([
+  "new",
+  "pending",
+  "processing",
+  "confirmed",
+  "order placed",
+]);
+
+const isOrderCancellable = (status) =>
+  CANCELLABLE_STATUSES.has(String(status || "").trim().toLowerCase());
 
 const buildOrderTracking = (status) => {
   const s = String(status || "").toLowerCase();
@@ -5531,8 +7165,208 @@ const parseOrderRow = (row) => {
       row.payment_status || "Pending",
     razorpayOrderId: row.razorpay_order_id || null,
     razorpayPaymentId: row.razorpay_payment_id || null,
+    cancelledAt: row.cancelled_at || null,
+    cancelledBy: row.cancelled_by || null,
+    cancelReason: row.cancel_reason || null,
+    refundStatus: row.refund_status || null,
   };
 };
+
+/* Stored order items keep only lightweight images —
+   fill missing ones from the products table so order
+   views still show thumbnails (covers orders saved
+   before/after the payload-slimming change) */
+const enrichOrderItemImages = async (orders) => {
+  const list = Array.isArray(orders) ? orders : [orders];
+  const missing = new Set();
+
+  for (const o of list) {
+    const items = o?.items || o?.products || [];
+    for (const it of items) {
+      const pid = Number(
+        it?.productId || it?.originalProductId || it?.id
+      );
+      const hasImage =
+        (typeof it?.image === "string" && it.image) ||
+        (Array.isArray(it?.images) && it.images[0]);
+      if (Number.isFinite(pid) && pid > 0 && !hasImage) {
+        missing.add(pid);
+      }
+    }
+  }
+
+  if (missing.size === 0) return orders;
+
+  const ids = [...missing];
+  const [rows] = await db.execute(
+    `SELECT id, images FROM products
+     WHERE id IN (${ids.map(() => "?").join(",")})`,
+    ids
+  );
+
+  const imgMap = new Map();
+  rows.forEach((r) => {
+    const imgs = parseProductList(r.images);
+    if (imgs[0]) imgMap.set(String(r.id), imgs[0]);
+  });
+
+  for (const o of list) {
+    const items = o?.items || o?.products || [];
+    for (const it of items) {
+      const pid = String(
+        it?.productId || it?.originalProductId || it?.id || ""
+      );
+      const img = imgMap.get(pid);
+      if (!img) continue;
+      if (!it.image) it.image = img;
+      if (!Array.isArray(it.images) || !it.images[0]) {
+        it.images = [img];
+      }
+    }
+  }
+
+  return orders;
+};
+
+/* =========================================================
+   CUSTOMER-UPLOADED FILES
+   Design uploads were previously stored only in the
+   customer's browser localStorage (ananyaDesigns_<pid>)
+   and never reached the server — admins saw filenames but
+   could never open the actual file. These endpoints persist
+   the real bytes and serve them back to the owner or admin.
+========================================================= */
+
+const ensureUploadsTable = async () => {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS uploaded_files (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      mime VARCHAR(100) NOT NULL,
+      size INT NOT NULL,
+      data LONGBLOB NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+};
+
+const UPLOAD_MIME_ALLOWLIST = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+];
+const UPLOAD_MAX_BYTES = 12 * 1024 * 1024; /* 12 MB decoded */
+
+/* POST /api/files — authenticated upload of one design file.
+   Body: { name, type, dataUrl }. Returns durable fileId. */
+app.post("/api/files", authenticateToken, async (req, res) => {
+  try {
+    await ensureUploadsTable();
+
+    const name = String(req.body?.name || "file").slice(0, 255);
+    const mime = String(req.body?.type || "").toLowerCase();
+    const dataUrl = String(req.body?.dataUrl || "");
+
+    if (!UPLOAD_MIME_ALLOWLIST.includes(mime)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Unsupported file type. Allowed: PNG, JPG, WebP, GIF, PDF.",
+      });
+    }
+
+    const m = dataUrl.match(/^data:([^;,]+);base64,(.+)$/);
+    if (!m || m[1].toLowerCase() !== mime) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid file data.",
+      });
+    }
+
+    const buf = Buffer.from(m[2], "base64");
+    if (!buf.length || buf.length > UPLOAD_MAX_BYTES) {
+      return res.status(400).json({
+        success: false,
+        message: "File too large (max 12 MB).",
+      });
+    }
+
+    const fileId = `f_${crypto.randomBytes(16).toString("hex")}`;
+
+    await db.execute(
+      `INSERT INTO uploaded_files (id, user_id, name, mime, size, data)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [fileId, req.user.id, name, mime, buf.length, buf]
+    );
+
+    return res.status(201).json({
+      success: true,
+      fileId,
+      name,
+      type: mime,
+      size: buf.length,
+      url: `/api/files/${fileId}`,
+    });
+  } catch (error) {
+    console.error("UPLOAD FILE ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to upload file.",
+    });
+  }
+});
+
+/* GET /api/files/:id — owner or admin only. Streams the file. */
+app.get("/api/files/:id", authenticateToken, async (req, res) => {
+  try {
+    await ensureUploadsTable();
+
+    const fileId = String(req.params.id || "").slice(0, 64);
+    const [rows] = await db.execute(
+      `SELECT user_id, name, mime, size, data
+       FROM uploaded_files WHERE id = ? LIMIT 1`,
+      [fileId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "File not found.",
+      });
+    }
+
+    const f = rows[0];
+    const isOwner = Number(f.user_id) === Number(req.user?.id);
+    const isAdmin = req.user?.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied.",
+      });
+    }
+
+    res.setHeader("Content-Type", f.mime);
+    res.setHeader("Content-Length", f.size);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${String(f.name).replace(/[^\w.\- ]/g, "_")}"`
+    );
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    return res.end(f.data);
+  } catch (error) {
+    console.error("GET FILE ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load file.",
+    });
+  }
+});
 
 /* USER � place an order (login required) */
 app.post(
@@ -5668,6 +7502,19 @@ app.post(
         if (quantity < minQty) quantity = minQty;
         if (maxQty && quantity > maxQty) quantity = maxQty;
 
+        /* stock check — reject the whole order if any
+           item has insufficient stock (final guard) */
+        const stock = Number(product.stock) || 0;
+        if (stock < quantity) {
+          return res.status(400).json({
+            success: false,
+            message:
+              stock <= 0
+                ? `"${product.name}" is out of stock.`
+                : `Only ${stock} unit(s) of "${product.name}" are available.`,
+          });
+        }
+
         const price = Number(product.price || 0);
         const itemTotal = price * quantity;
 
@@ -5726,6 +7573,28 @@ app.post(
           }
         }
 
+        /* strip heavy catalog image blobs — the product's
+           images already live in the products table and are
+           re-fetched by productId wherever needed. Copying
+           multi-MB base64 into every order row blows past
+           MySQL max_allowed_packet and breaks order save. */
+        const lightImage =
+          typeof item.image === "string" &&
+          item.image.length > 0 &&
+          item.image.length < 200000
+            ? item.image
+            : "";
+        const lightImages = Array.isArray(item.images)
+          ? item.images
+              .filter(
+                (i) =>
+                  typeof i === "string" &&
+                  i.length > 0 &&
+                  i.length < 200000
+              )
+              .slice(0, 3)
+          : [];
+
         validatedItems.push({
           ...item,
           productId: pid,
@@ -5734,6 +7603,8 @@ app.post(
           total: itemTotal,
           unit: product.unit || "Pieces",
           attributes: cleanAttrs,
+          image: lightImage,
+          images: lightImages,
 
           /* customization sanitize � text/color/design
              structure validate karke hi store */
@@ -5862,8 +7733,13 @@ app.post(
 
       const payload = {
         ...order,
+        /* the request body's products/items/cart all carry
+           the same heavy image blobs — keep only the slim
+           validatedItems copies (undefined keys are dropped
+           by JSON.stringify) */
         products: validatedItems,
         items: validatedItems,
+        cart: undefined,
         subtotal,
         discount,
         shipping: shippingCharge,
@@ -5878,8 +7754,37 @@ app.post(
           buildOrderTracking(status),
       };
 
-      await db.execute(
-        `INSERT INTO orders
+      /* if this orderNumber already exists, treat the
+         request as an idempotent retry — run the upsert
+         but do NOT decrement stock a second time */
+      const [existingOrder] = await db.execute(
+        "SELECT id FROM orders WHERE order_id = ? LIMIT 1",
+        [orderNumber]
+      );
+      const orderAlreadyExists = existingOrder.length > 0;
+
+      const orderParams = [
+        orderNumber,
+        req.user?.id || null,
+        status,
+        customerName,
+        email,
+        phone,
+        total,
+        total,
+        String(
+          order.paymentMethod ||
+            order.payment ||
+            ""
+        ),
+        String(
+          order.paymentStatus || "Pending"
+        ),
+        JSON.stringify(validatedItems),
+        JSON.stringify(payload),
+      ];
+
+      const orderInsertSql = `INSERT INTO orders
           (order_id, user_id, status,
            customer_name, email, phone,
            total_price, total,
@@ -5890,33 +7795,73 @@ app.post(
            user_id = VALUES(user_id),
            status = VALUES(status),
            payload = VALUES(payload),
-           updated_at = CURRENT_TIMESTAMP`,
-        [
-          orderNumber,
-          req.user?.id || null,
-          status,
-          customerName,
-          email,
-          phone,
-          total,
-          total,
-          String(
-            order.paymentMethod ||
-              order.payment ||
-              ""
-          ),
-          String(
-            order.paymentStatus || "Pending"
-          ),
-          JSON.stringify(validatedItems),
-          JSON.stringify(payload),
-        ]
-      );
+           updated_at = CURRENT_TIMESTAMP`;
+
+      if (orderAlreadyExists) {
+        /* idempotent retry — same order, no stock change */
+        await db.execute(orderInsertSql, orderParams);
+      } else {
+        /* new order — transaction: atomically decrement
+           stock per item, then insert the order. Any
+           failure rolls everything back (no oversell) */
+        const conn = await db.getConnection();
+        try {
+          await conn.beginTransaction();
+
+          for (const item of validatedItems) {
+            const [upd] = await conn.execute(
+              `UPDATE products
+               SET stock = stock - ?
+               WHERE id = ? AND stock >= ?`,
+              [
+                Number(item.quantity),
+                Number(item.productId),
+                Number(item.quantity),
+              ]
+            );
+            if (upd.affectedRows !== 1) {
+              throw new Error(
+                `INSUFFICIENT_STOCK:${item.name || item.productId}`
+              );
+            }
+          }
+
+          await conn.execute(orderInsertSql, orderParams);
+          await conn.commit();
+        } catch (txErr) {
+          await conn.rollback().catch(() => {});
+          if (
+            String(txErr?.message || "").startsWith(
+              "INSUFFICIENT_STOCK:"
+            )
+          ) {
+            return res.status(400).json({
+              success: false,
+              message: `"${txErr.message.split(":")[1]}" went out of stock. Please update your cart.`,
+            });
+          }
+          throw txErr;
+        } finally {
+          conn.release();
+        }
+      }
 
       return res.status(201).json({
         success: true,
         message: "Order saved.",
         orderNumber,
+        /* authoritative server-computed totals — the
+           success page must display these, not the
+           client's own math */
+        total,
+        subtotal,
+        discount,
+        shippingCharge,
+        couponCode: couponCode || null,
+        status,
+        paymentMethod:
+          order.paymentMethod || order.payment || null,
+        paymentStatus: order.paymentStatus || "Pending",
       });
     } catch (error) {
       console.error("Order save error:", error);
@@ -5943,9 +7888,12 @@ app.get(
         [req.user?.id || 0]
       );
 
+      const orders = rows.map(parseOrderRow);
+      await enrichOrderItemImages(orders);
+
       return res.status(200).json({
         success: true,
-        orders: rows.map(parseOrderRow),
+        orders,
       });
     } catch (error) {
       console.error("My orders error:", error);
@@ -5990,15 +7938,194 @@ app.get(
         });
       }
 
+      const parsed = parseOrderRow(row);
+      await enrichOrderItemImages(parsed);
+
       return res.status(200).json({
         success: true,
-        order: parseOrderRow(row),
+        order: parsed,
       });
     } catch (error) {
       console.error("Track order error:", error);
       return res.status(500).json({
         success: false,
         message: "Unable to track order.",
+      });
+    }
+  }
+);
+
+/* USER/ADMIN — cancel an order
+   owner cancels own order; admin cancels any.
+   Atomic: status flip + stock restore in one transaction.
+   Idempotent: already-cancelled returns success without
+   touching stock again. */
+app.put(
+  "/api/orders/:orderNumber/cancel",
+  authenticateToken,
+  async (req, res) => {
+    const orderNumber = String(req.params.orderNumber || "");
+    const reason = String(req.body?.reason || "")
+      .trim()
+      .slice(0, 500);
+
+    try {
+      await ensureOrdersTable();
+
+      const conn = await db.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        /* lock the row — concurrent cancels serialize here */
+        const [rows] = await conn.execute(
+          `SELECT * FROM orders
+           WHERE order_id = ? LIMIT 1 FOR UPDATE`,
+          [orderNumber]
+        );
+
+        if (rows.length === 0) {
+          await conn.rollback();
+          return res.status(404).json({
+            success: false,
+            message: "Order not found.",
+          });
+        }
+
+        const row = rows[0];
+        const isAdmin = req.user?.role === "admin";
+        const isOwner =
+          Number(row.user_id) === Number(req.user?.id);
+
+        if (!isAdmin && !isOwner) {
+          await conn.rollback();
+          return res.status(403).json({
+            success: false,
+            message:
+              "You can only cancel your own orders.",
+          });
+        }
+
+        /* idempotent — already cancelled */
+        if (
+          String(row.status).toLowerCase() === "cancelled"
+        ) {
+          await conn.rollback();
+          return res.status(200).json({
+            success: true,
+            alreadyCancelled: true,
+            message: "Order is already cancelled.",
+            orderNumber,
+            cancelledAt: row.cancelled_at || null,
+            cancelledBy: row.cancelled_by || null,
+            cancelReason: row.cancel_reason || null,
+            refundStatus: row.refund_status || null,
+          });
+        }
+
+        if (!isOrderCancellable(row.status)) {
+          await conn.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Order cannot be cancelled once it is "${row.status}".`,
+          });
+        }
+
+        /* refund handling — COD / unpaid: nothing to refund.
+           paid online: mark refund pending review, never
+           claim a refund the provider hasn't confirmed */
+        const paidOnline =
+          !String(row.payment_method || "")
+            .toLowerCase()
+            .includes("cod") &&
+          ["paid", "success", "succeeded", "captured"].includes(
+            String(row.payment_status || "").toLowerCase()
+          );
+        const refundStatus = paidOnline ? "Pending" : null;
+
+        /* conditional update — also guards against races
+           that slipped past the row lock's status check */
+        const [upd] = await conn.execute(
+          `UPDATE orders
+           SET status = 'Cancelled',
+               cancelled_at = CURRENT_TIMESTAMP,
+               cancelled_by = ?,
+               cancel_reason = ?,
+               refund_status = ?,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE order_id = ?
+             AND status = ?`,
+          [
+            isAdmin ? "admin" : "customer",
+            reason || null,
+            refundStatus,
+            orderNumber,
+            row.status,
+          ]
+        );
+
+        if (upd.affectedRows !== 1) {
+          await conn.rollback();
+          return res.status(409).json({
+            success: false,
+            message:
+              "Order status changed — please refresh and try again.",
+          });
+        }
+
+        /* restore stock for every item exactly once */
+        let items = [];
+        try {
+          items = JSON.parse(row.items || "[]");
+        } catch {
+          items = [];
+        }
+
+        for (const it of items) {
+          const pid = Number(
+            it?.productId || it?.product_id || it?.id
+          );
+          const qty = Number(it?.quantity) || 0;
+          if (!pid || qty <= 0) continue;
+          await conn.execute(
+            `UPDATE products
+             SET stock = stock + ?
+             WHERE id = ?`,
+            [qty, pid]
+          );
+        }
+
+        /* read back the persisted cancellation fields so the
+           response carries the real saved values */
+        const [saved] = await conn.execute(
+          `SELECT cancelled_at, cancelled_by, cancel_reason,
+                  refund_status
+           FROM orders WHERE order_id = ? LIMIT 1`,
+          [orderNumber]
+        );
+        const savedRow = saved[0] || {};
+
+        await conn.commit();
+
+        return res.status(200).json({
+          success: true,
+          message: "Order cancelled successfully.",
+          orderNumber,
+          cancelledAt: savedRow.cancelled_at || null,
+          cancelledBy: savedRow.cancelled_by || null,
+          cancelReason: savedRow.cancel_reason || null,
+          refundStatus: savedRow.refund_status || null,
+        });
+      } catch (txErr) {
+        await conn.rollback().catch(() => {});
+        throw txErr;
+      } finally {
+        conn.release();
+      }
+    } catch (error) {
+      console.error("Cancel order error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to cancel order.",
       });
     }
   }
@@ -6017,9 +8144,12 @@ app.get(
         "SELECT * FROM orders ORDER BY created_at DESC"
       );
 
+      const orders = rows.map(parseOrderRow);
+      await enrichOrderItemImages(orders);
+
       return res.status(200).json({
         success: true,
-        orders: rows.map(parseOrderRow),
+        orders,
       });
     } catch (error) {
       console.error("Admin orders error:", error);
@@ -7340,3 +9470,65 @@ app.listen(PORT, () => {
   );
   console.log("=================================");
 });
+
+/* =========================================================
+   DAILY DATABASE BACKUP (runs while the API is up)
+
+   - OPT-IN ONLY: requires BACKUP_SCHEDULE=on AND configured
+     backup credentials (BACKUP_DB_USER or DB_USER) — never
+     fires just because NODE_ENV/APP_ENV says "production"
+   - runs ~03:00 local time and once at boot if no backup
+     exists for today
+   - script: backupDb.js (validated, gzip, retention, lock)
+========================================================= */
+
+const backupsExplicitlyEnabled =
+  process.env.BACKUP_SCHEDULE === "on" &&
+  !!(process.env.BACKUP_DB_USER || process.env.DB_USER);
+
+if (backupsExplicitlyEnabled) {
+  const { spawn } = require("child_process");
+  const fs = require("fs");
+
+  const backupDir =
+    process.env.BACKUP_DIR ||
+    require("path").join(
+      process.env.USERPROFILE || "C:\\",
+      "ananya-db-backups"
+    );
+
+  const runBackup = (why) => {
+    const child = spawn(
+      process.execPath,
+      [require("path").join(__dirname, "backupDb.js")],
+      { detached: true, stdio: "ignore" }
+    );
+    child.unref();
+    console.log(`backup scheduled (${why}) → ${backupDir}`);
+  };
+
+  const backupExistsToday = () => {
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      return fs
+        .readdirSync(backupDir)
+        .some((f) => f.endsWith(".sql.gz") && f.includes(day));
+    } catch {
+      return false;
+    }
+  };
+
+  const scheduleDaily = () => {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(3, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    setTimeout(() => {
+      runBackup("daily 03:00");
+      scheduleDaily();
+    }, next - now);
+  };
+
+  if (!backupExistsToday()) runBackup("no backup today");
+  scheduleDaily();
+}

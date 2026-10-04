@@ -1,35 +1,68 @@
 import { useEffect, useState } from "react";
-import { Heart, ShoppingCart, ArrowRight, Trash2 } from "lucide-react";
+import { Heart, ShoppingCart, ArrowRight, Trash2, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  loadFavorites as loadStoredFavorites,
+  removeFavorite as removeStoredFavorite,
+} from "../services/favoritesApi";
+import {
+  fetchProductById,
+  saveCustomizeSelection,
+} from "../services/productApi";
+import { useCart } from "../context/CartContext";
 import "./Favorites.css";
 
 function Favorites() {
   const navigate = useNavigate();
+  const { addToCart: contextAddToCart } = useCart();
 
   const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cartToast, setCartToast] = useState("");
+  const [addingId, setAddingId] = useState(null);
 
   /* =====================================================
-     LOAD FAVORITES
+     LOAD FAVORITES — server for logged-in, localStorage
+     for guests; images re-hydrated from the product API
+     when the stored snapshot has none (dataURL images are
+     kept out of localStorage to stay under quota)
   ===================================================== */
 
-  const loadFavorites = () => {
-    try {
-      const saved =
-        localStorage.getItem("ananyaFavorites");
+  const loadFavorites = async () => {
+    const list = await loadStoredFavorites();
+    setFavorites(Array.isArray(list) ? list : []);
+    setLoading(false);
 
-      const data = saved
-        ? JSON.parse(saved)
-        : [];
+    /* hydrate missing images from the API */
+    const missing = (Array.isArray(list) ? list : []).filter(
+      (f) => f && !f.image && !f.images?.length
+    );
+    if (!missing.length) return;
 
-      setFavorites(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error(
-        "Favorites loading error:",
-        error
-      );
+    const hydrated = await Promise.all(
+      missing.map(async (f) => {
+        try {
+          const p = await fetchProductById(f.id);
+          return p?.image || p?.images?.[0]
+            ? {
+                ...f,
+                image: p.image || p.images[0],
+              }
+            : f;
+        } catch {
+          return f;
+        }
+      })
+    );
 
-      setFavorites([]);
-    }
+    setFavorites((prev) =>
+      prev.map((f) => {
+        const h = hydrated.find(
+          (x) => String(x.id) === String(f.id)
+        );
+        return h || f;
+      })
+    );
   };
 
   /* =====================================================
@@ -67,33 +100,86 @@ function Favorites() {
   }, []);
 
   /* =====================================================
+     ADD TO CART — stays on the page; success shows a
+     toast. Stock checked before dispatch; server rules
+     still apply for edge cases.
+  ===================================================== */
+
+  const addFavoriteToCart = async (product) => {
+    if (addingId === product.id) return; /* no double-add */
+
+    if (
+      product.stock !== undefined &&
+      Number(product.stock) <= 0
+    ) {
+      alert(`"${product.name}" is out of stock.`);
+      return;
+    }
+
+    setAddingId(product.id);
+
+    try {
+      const res = await contextAddToCart({
+        productId: product.id,
+        product_id: product.id,
+        originalProductId: product.id,
+        name: product.name,
+        image: product.image || product.images?.[0] || "",
+        price: Number(product.price || 0),
+        quantity: 1,
+        isCustomized: false,
+      });
+
+      if (res?.success) {
+        setCartToast(`"${product.name}" added to cart`);
+        setTimeout(() => setCartToast(""), 2500);
+      } else {
+        alert(
+          res?.error ||
+            "Cart me add nahi ho paya. Please try again."
+        );
+      }
+    } catch {
+      alert("Cart service unreachable. Please try again.");
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  /* =====================================================
      REMOVE FAVORITE
   ===================================================== */
 
   const removeFavorite = (id) => {
-    const updatedFavorites =
+    setFavorites(
       favorites.filter(
         (product) =>
           String(product.id) !== String(id)
-      );
-
-    setFavorites(updatedFavorites);
-
-    localStorage.setItem(
-      "ananyaFavorites",
-      JSON.stringify(updatedFavorites)
+      )
     );
 
-    window.dispatchEvent(
-      new Event("ananyaFavoritesUpdated")
-    );
+    removeStoredFavorite(id);
   };
 
   /* =====================================================
      PRODUCT CLICK
   ===================================================== */
 
+  /* customizable products saved via Save Design reopen in
+     the EDITOR — the draft prompt restores their design;
+     plain products open the details page */
   const openProduct = (product) => {
+    const customizable =
+      product.customizable ||
+      product.customizationType ||
+      product.isCustomizable;
+
+    if (customizable) {
+      saveCustomizeSelection(product);
+      navigate("/customize");
+      return;
+    }
+
     navigate(`/product/${product.id}`, {
       state: {
         product,
@@ -152,7 +238,23 @@ function Favorites() {
           EMPTY FAVORITES
       ================================================= */}
 
-      {favorites.length === 0 ? (
+      {loading ? (
+        /* skeleton while the server/local list loads */
+        <section className="favorites-products">
+          <div className="favorites-grid">
+            {[1, 2, 3].map((i) => (
+              <article
+                className="favorite-card fav-skeleton"
+                key={i}
+              >
+                <div className="skeleton-img" />
+                <div className="skeleton-line" />
+                <div className="skeleton-line short" />
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : favorites.length === 0 ? (
 
         <section className="empty-favorites">
 
@@ -315,20 +417,47 @@ function Favorites() {
                     </div>
 
 
-                    <button
-                      type="button"
-                      className="view-product-btn"
-                      onClick={() =>
-                        openProduct(product)
-                      }
-                    >
-                      <ShoppingCart
-                        size={17}
-                      />
+                    <div className="favorite-actions">
 
-                      View
+                      <button
+                        type="button"
+                        className="view-product-btn"
+                        onClick={() =>
+                          openProduct(product)
+                        }
+                      >
+                        <Eye
+                          size={17}
+                        />
 
-                    </button>
+                        View
+
+                      </button>
+
+                      {Number(product.stock ?? 1) > 0 ? (
+                        <button
+                          type="button"
+                          className="fav-cart-btn"
+                          disabled={
+                            addingId === product.id
+                          }
+                          onClick={() =>
+                            addFavoriteToCart(product)
+                          }
+                        >
+                          <ShoppingCart size={15} />
+
+                          {addingId === product.id
+                            ? "Adding…"
+                            : "Add to Cart"}
+                        </button>
+                      ) : (
+                        <span className="fav-oos">
+                          Out of stock
+                        </span>
+                      )}
+
+                    </div>
 
                   </div>
 
@@ -342,6 +471,14 @@ function Favorites() {
 
         </section>
 
+      )}
+
+      {/* cart success toast */}
+      {cartToast && (
+        <div className="fav-toast">
+          <ShoppingCart size={15} />
+          <span>{cartToast}</span>
+        </div>
       )}
 
     </main>

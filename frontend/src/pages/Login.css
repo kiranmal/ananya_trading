@@ -483,3 +483,92 @@
   }
 
 }
+/* ============ forgot password modal ============ */
+
+.fp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.fp-modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.fp-modal h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: #0f2544;
+}
+
+.fp-modal > p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 16px;
+}
+
+.fp-modal input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.fp-modal input:focus {
+  outline: none;
+  border-color: #4338ca;
+}
+
+.fp-message {
+  font-size: 13px;
+  color: #b45309;
+  margin: 4px 0 10px;
+}
+
+.fp-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.fp-cancel {
+  padding: 9px 18px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.fp-submit {
+  padding: 9px 18px;
+  border: none;
+  background: #0f2544;
+  color: #fff;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fp-submit:disabled,
+.fp-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

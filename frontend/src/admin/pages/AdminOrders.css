@@ -884,3 +884,463 @@
   color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
 }
+
+/* ============ order drawer additions ============ */
+
+.od-copy {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.od-copy:hover {
+  background: #e2e8f0;
+  color: #0f2544;
+}
+
+.od-files {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.od-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.od-file-thumb {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.od-file-icon {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: #eef2f7;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.od-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.od-file-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f2544;
+  word-break: break-all;
+}
+
+.od-file-info small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.od-file-open {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1162b9;
+  text-decoration: none;
+  border: 1px solid #bfdbfe;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: #eff6ff;
+  flex-shrink: 0;
+}
+
+.od-file-open:hover {
+  background: #dbeafe;
+}
+
+.od-file-missing {
+  font-size: 10px;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 4px 8px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .od-drawer {
+    width: 100vw;
+    padding: 16px;
+  }
+}
+
+/* ============ full-page order details ============ */
+
+.od-page {
+  padding: 0 0 40px;
+  width: 100%;
+}
+
+/* header strip */
+.od-page-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.od-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.od-back:hover {
+  background: #eef2f7;
+}
+
+.od-page-title {
+  flex: 1;
+  min-width: 200px;
+}
+
+.od-page-title h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f2544;
+  word-break: break-all;
+}
+
+/* two-column body — products left, info right */
+.od-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+.od-col-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.od-col-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  position: sticky;
+  top: 16px;
+}
+
+/* generic card */
+.od-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+
+.od-card h4 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.od-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 26px;
+}
+
+.od-state {
+  color: #64748b;
+  font-size: 14px;
+  padding: 60px 0;
+  text-align: center;
+}
+
+.od-state-error {
+  color: #b91c1c;
+}
+
+.od-file-load {
+  border: none;
+  cursor: pointer;
+}
+
+.od-mono {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.od-break {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.od-line-total {
+  color: #0f2544;
+  font-weight: 800;
+}
+
+/* tracking stage chips */
+.od-track {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.od-track-step {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.od-track-step.done {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+/* additional information — collapsible */
+.od-extras summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  list-style: none;
+}
+
+.od-extras summary::-webkit-details-marker {
+  display: none;
+}
+
+.od-extras summary::after {
+  content: "+";
+  float: right;
+  color: #94a3b8;
+  font-size: 16px;
+}
+
+.od-extras[open] summary::after {
+  content: "−";
+}
+
+.od-extras summary:hover {
+  color: #0f2544;
+}
+
+.od-extras .od-grid {
+  margin-top: 14px;
+}
+
+.od-meta-obj {
+  font-size: 12px;
+  color: #334155;
+  word-break: break-word;
+}
+
+/* side column on smaller screens */
+@media (max-width: 1024px) {
+  .od-cols {
+    grid-template-columns: 1fr;
+  }
+  .od-col-side {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .od-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+  .od-page-head {
+    padding: 12px 14px;
+  }
+}
+
+/* ============ admin cancel order ============ */
+
+.od-cancel-btn {
+  border: none;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.od-cancel-btn:hover {
+  background: #991b1b;
+}
+
+.od-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.od-cancel-panel {
+  background: #fff7f7;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+
+.od-cancel-panel strong {
+  color: #991b1b;
+  font-size: 14px;
+}
+
+.od-cancel-panel p {
+  margin: 6px 0 10px;
+  font-size: 12px;
+  color: #7f1d1d;
+}
+
+.od-cancel-panel textarea {
+  width: 100%;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.od-cancel-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.od-cancel-confirm {
+  border: none;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.od-cancel-confirm:hover {
+  background: #991b1b;
+}
+
+.od-cancel-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.od-cancel-msg {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.od-cancel-msg.ok {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.od-cancel-msg.err {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.od-cancelled-card h4 {
+  color: #b91c1c;
+}
+
+/* ============ cancellation card polish ============ */
+
+.od-cancelled-card {
+  border-color: #fecaca;
+  background: #fffbfb;
+}
+
+.od-cancelled-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.od-cancelled-card .status.cancelled {
+  font-size: 10px;
+  padding: 3px 10px;
+}
+
+.od-row-block {
+  align-items: flex-start;
+}
+
+.od-cancel-reason {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: block;
+  font-weight: 600;
+  line-height: 1.5;
+}

@@ -9,11 +9,11 @@ import AdminLayout from "./components/AdminLayout";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminProducts from "./pages/AdminProducts";
 import AdminCategories from "./pages/AdminCategories";
-import AdminTemplates from "./pages/AdminTemplates";
 import AdminPayments from "./pages/AdminPayments";
 import AdminInventory from "./pages/AdminInventory";
 import AdminUsers from "./pages/AdminUsers";
 import AdminOrders from "./pages/AdminOrders";
+import AdminOrderDetails from "./pages/AdminOrderDetails";
 import AdminDelivery from "./pages/AdminDelivery";
 import AdminReviews from "./pages/AdminReviews";
 import AdminInquiries from "./pages/AdminInquiries";
@@ -103,17 +103,6 @@ export default function AdminApp() {
 
 
         {/* =================================================
-            TEMPLATES — product-wise customization templates
-            URL: /admin/templates
-        ================================================= */}
-
-        <Route
-          path="templates"
-          element={<AdminTemplates />}
-        />
-
-
-        {/* =================================================
             ORDERS
             URL: /admin/orders
         ================================================= */}
@@ -121,6 +110,16 @@ export default function AdminApp() {
         <Route
           path="orders"
           element={<AdminOrders />}
+        />
+
+        {/* =================================================
+            ORDER DETAILS — full dedicated page
+            URL: /admin/orders/:orderId
+        ================================================= */}
+
+        <Route
+          path="orders/:orderId"
+          element={<AdminOrderDetails />}
         />
 
 

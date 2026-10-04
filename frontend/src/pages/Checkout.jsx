@@ -3,7 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from "../services/apiConfig";
 import { saveOrderToServer } from "../services/orderApi";
+import { uploadDesignFile } from "../services/fileApi";
 import { validateCoupon } from "../services/couponApi";
+import { useCart } from "../context/CartContext";
 import {
   createRazorpayOrder,
   verifyRazorpayPayment,
@@ -17,7 +19,6 @@ import {
   Mail,
   CreditCard,
   Wallet,
-  Building2,
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
@@ -97,18 +98,36 @@ const openRazorpayCheckout = async (order) => {
 function Checkout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const {
+    clearCart: contextClearCart,
+    cartItems: contextCart,
+    loading: cartLoading,
+  } = useCart();
 
   /*
   =====================================================
-  CART
+  CART — CartContext is authoritative for normal checkout;
+  route state is used only for single-item "direct orders"
   =====================================================
   */
 
+  const isDirectOrder = Boolean(
+    location.state?.directOrder
+  );
+
   const [cart, setCart] = useState(
-    Array.isArray(location.state?.cart)
+    isDirectOrder &&
+      Array.isArray(location.state?.cart)
       ? location.state.cart
       : []
   );
+
+  /* sync from CartContext — server cart is source of truth */
+  useEffect(() => {
+    if (!isDirectOrder) {
+      setCart(contextCart);
+    }
+  }, [isDirectOrder, contextCart]);
 
   const [totalPrice, setTotalPrice] = useState(
     Number(location.state?.totalPrice || 0)
@@ -213,6 +232,142 @@ function Checkout() {
 
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [placing, setPlacing] = useState(false);
+
+  /* persisted order confirmation — survives refresh.
+     Restored only when the cart is empty (the natural
+     post-order state); a stale key is cleared when the
+     customer starts shopping again. */
+  const [restoredSuccess] = useState(() => {
+    try {
+      const s = JSON.parse(
+        localStorage.getItem("ananyaOrderSuccess") ||
+          "null"
+      );
+      /* consume-once + freshness gate: the success screen
+         only survives a refresh when it is bound to a real
+         order number AND was written <30 min ago — stale
+         confirmations never resurface on a later visit */
+      const fresh =
+        s &&
+        s.orderNumber &&
+        s.at &&
+        Date.now() - new Date(s.at).getTime() <
+          30 * 60 * 1000;
+      if (!fresh) {
+        if (s) {
+          try {
+            localStorage.removeItem("ananyaOrderSuccess");
+          } catch {}
+        }
+        return null;
+      }
+      return s;
+    } catch {
+      return null;
+    }
+  });
+  /* null = not checked | true = verified | "error" = failed */
+  const [successVerified, setSuccessVerified] =
+    useState(null);
+  const [orderItems, setOrderItems] = useState([]);
+  const freshPlaced = useRef(false);
+
+  /*
+  =====================================================
+  RESTORE ORDER CONFIRMATION AFTER REFRESH
+  Show the persisted success screen only when the cart
+  is empty (post-order state). Once restored, verify
+  against the server and display the authoritative total.
+  =====================================================
+  */
+
+  useEffect(() => {
+    if (orderPlaced || !restoredSuccess) return;
+
+    /* cart not loaded yet — wait */
+    if (!isDirectOrder && cartLoading) return;
+
+    /* customer already started shopping again — drop the
+       stale confirmation and show normal checkout */
+    if (cart.length > 0) {
+      localStorage.removeItem("ananyaOrderSuccess");
+      return;
+    }
+
+    setOrderId(restoredSuccess.orderNumber);
+    setTotalPrice(Number(restoredSuccess.total) || 0);
+    setOrderItems(
+      Array.isArray(restoredSuccess.items)
+        ? restoredSuccess.items
+        : []
+    );
+    setOrderPlaced(true);
+    /* consume once — a second refresh shows the normal
+       checkout (empty-cart) state, not a stale receipt */
+    try {
+      localStorage.removeItem("ananyaOrderSuccess");
+    } catch {}
+  }, [
+    orderPlaced,
+    restoredSuccess,
+    isDirectOrder,
+    cartLoading,
+    cart.length,
+  ]);
+
+  /* ALWAYS verify the displayed order against the saved
+     server record — fresh placement or restore alike. The
+     authoritative total overrides whatever was computed
+     client-side. Wrong user / missing order → error state,
+     never a fake ₹0. */
+  useEffect(() => {
+    if (
+      !orderPlaced ||
+      !orderId ||
+      successVerified !== null
+    )
+      return;
+
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setSuccessVerified("error");
+      return;
+    }
+
+    fetch(
+      `${API_URL}/orders/track/${encodeURIComponent(orderId)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.order) {
+          /* authoritative saved total */
+          const t = Number(
+            data.order.total ??
+              data.order.grandTotal ??
+              data.order.totalAmount ??
+              data.order.totalPrice
+          );
+          if (Number.isFinite(t)) setTotalPrice(t);
+          setSuccessVerified(true);
+        } else if (
+          res.status === 401 ||
+          res.status === 403 ||
+          res.status === 404
+        ) {
+          localStorage.removeItem("ananyaOrderSuccess");
+          setSuccessVerified("error");
+        } else {
+          /* server hiccup — keep cached confirmation */
+          setSuccessVerified(true);
+        }
+      })
+      .catch(() => {
+        /* offline — keep cached confirmation */
+        setSuccessVerified(true);
+      });
+  }, [orderPlaced, orderId, successVerified]);
 
   /*
   =====================================================
@@ -524,14 +679,9 @@ function Checkout() {
       0
     );
 
-    if (!totalQuantity) {
-      setTotalQuantity(quantity);
-    }
-
-    if (!totalPrice) {
-      setTotalPrice(price);
-    }
-  }, [cart, totalPrice, totalQuantity]);
+    setTotalQuantity(quantity);
+    setTotalPrice(price);
+  }, [cart]);
 
   /*
   =====================================================
@@ -691,6 +841,9 @@ function Checkout() {
   const handlePlaceOrder = async (event) => {
     event.preventDefault();
 
+    /* duplicate submission guard */
+    if (placing) return;
+
     /*
     -----------------------------------------------
     1. NORMAL FORM VALIDATION
@@ -700,6 +853,8 @@ function Checkout() {
     if (!validateForm()) {
       return;
     }
+
+    setPlacing(true);
 
     /*
     -----------------------------------------------
@@ -711,6 +866,7 @@ function Checkout() {
       await checkDeliveryAvailability();
 
     if (!deliveryAvailable) {
+      setPlacing(false);
       alert(
         "This address is not verified for delivery. Order cannot be placed."
       );
@@ -723,17 +879,79 @@ function Checkout() {
     -----------------------------------------------
     */
 
+    /* "Order Now" from the cart already created the order
+       and passes its id via location.state — reuse it so the
+       server upserts the same row instead of saving a second
+       order. */
     const generatedOrderId =
+      (isDirectOrder && location.state?.orderId) ||
       "ATC-" + Date.now();
 
     /*
     -----------------------------------------------
-    PREPARE PRODUCTS
+    PREPARE PRODUCTS — slim payload.
+
+    Customized items carry base64 dataURL artwork that can
+    reach many MB; send file:<id> refs instead of the blob
+    (uploading first if needed) and drop image fields the
+    server discards anyway (>200KB light-image rule). This
+    keeps POST /api/orders far under the 30mb body limit.
     -----------------------------------------------
     */
 
-    const products = cart.map(
-      (item, index) => {
+    const slimArtworkElement = async (e) => {
+      if (!e || typeof e !== "object") return e;
+      const src = String(e.src || "");
+      if (src.startsWith("file:") || src.length < 300)
+        return e;
+      if (e.fileId)
+        return { ...e, src: `file:${e.fileId}` };
+      if (src.startsWith("data:")) {
+        try {
+          const up = await uploadDesignFile({
+            name: e.name || "design.png",
+            type: e.mime || "image/png",
+            dataUrl: src,
+          });
+          if (up?.success && up.fileId) {
+            return {
+              ...e,
+              fileId: up.fileId,
+              src: `file:${up.fileId}`,
+            };
+          }
+        } catch {
+          /* upload failed — keep the dataURL, the server
+             still stores it if under its own limits */
+          return e;
+        }
+      }
+      return e;
+    };
+
+    const slimElementList = (list) =>
+      Promise.all(
+        (Array.isArray(list) ? list : []).map(
+          slimArtworkElement
+        )
+      );
+
+    const slimSides = async (d) => {
+      if (Array.isArray(d)) return slimElementList(d);
+      if (!d || typeof d !== "object") return d;
+      const out = { ...d };
+      for (const key of ["front", "back", "elements"]) {
+        if (Array.isArray(d[key]))
+          out[key] = await slimElementList(d[key]);
+      }
+      return out;
+    };
+
+    const slimImage = (v) =>
+      typeof v === "string" && v.length > 200000 ? "" : v;
+
+    const products = await Promise.all(
+      cart.map(async (item, index) => {
         const price =
           Number(item.price) || 0;
 
@@ -768,17 +986,48 @@ function Checkout() {
             item.name ||
             "Untitled Product",
 
-          image:
+          image: slimImage(
             item.image ||
             item.images?.[0] ||
-            "",
+            ""
+          ),
 
-          images:
-            Array.isArray(item.images)
-              ? item.images
-              : item.image
-              ? [item.image]
-              : [],
+          images: Array.isArray(item.images)
+            ? item.images
+                .map(slimImage)
+                .filter(Boolean)
+                .slice(0, 3)
+            : [],
+
+          designs: await slimSides(
+            item.designs || item.customization?.designs
+          ),
+          frontDesign: await slimSides(
+            item.frontDesign || item.customization?.frontDesign
+          ),
+          backDesign: await slimSides(
+            item.backDesign || item.customization?.backDesign
+          ),
+          customization: item.customization
+            ? {
+                ...item.customization,
+                designs: await slimSides(
+                  item.customization.designs
+                ),
+                frontDesign: await slimSides(
+                  item.customization.frontDesign
+                ),
+                backDesign: await slimSides(
+                  item.customization.backDesign
+                ),
+              }
+            : item.customization,
+
+          logo:
+            typeof item.logo === "string" &&
+            item.logo.length > 200000
+              ? null
+              : item.logo,
 
           price,
 
@@ -861,8 +1110,81 @@ function Checkout() {
           color:
             item.color || "",
         };
-      }
+      })
     );
+
+    /*
+    -----------------------------------------------
+    UPLOAD CUSTOMER DESIGN FILES TO SERVER
+    ProductDetails keeps real file bytes in
+    localStorage["ananyaDesigns_<pid>"]; only metadata
+    reaches the cart/order. Upload each file now so the
+    order item carries a durable fileId the admin can
+    open from any device.
+    -----------------------------------------------
+    */
+
+    const uploadable = products.filter(
+      (p) =>
+        Array.isArray(p.uploadedDesigns) &&
+        p.uploadedDesigns.some(
+          (d) => d && !d.fileId && d.name
+        )
+    );
+
+    if (uploadable.length) {
+      await Promise.all(
+        products.map(async (item) => {
+          const list = Array.isArray(item.uploadedDesigns)
+            ? item.uploadedDesigns
+            : [];
+          if (!list.length) return;
+
+          /* find the full bytes for this product's uploads */
+          let stored = [];
+          try {
+            stored = JSON.parse(
+              localStorage.getItem(
+                `ananyaDesigns_${
+                  item.productId || item.id
+                }`
+              ) || "[]"
+            );
+          } catch {
+            stored = [];
+          }
+
+          item.uploadedDesigns = await Promise.all(
+            list.map(async (d) => {
+              if (!d || d.fileId) return d;
+              const full = stored.find(
+                (s) =>
+                  s &&
+                  s.name === d.name &&
+                  s.dataUrl
+              );
+              if (!full) return d; /* metadata-only — cannot recover */
+
+              const up = await uploadDesignFile({
+                name: full.name,
+                type: full.type,
+                dataUrl: full.dataUrl,
+              });
+
+              return up.success
+                ? {
+                    name: d.name,
+                    type: d.type,
+                    size: d.size,
+                    fileId: up.fileId,
+                    url: up.url,
+                  }
+                : { ...d, uploadFailed: true };
+            })
+          );
+        })
+      );
+    }
 
     /*
     -----------------------------------------------
@@ -941,11 +1263,9 @@ function Checkout() {
 
       orderNumber: generatedOrderId,
 
-      products,
-
+      /* the server reads order.items first — sending the
+         same array as products/cart tripled the payload */
       items: products,
-
-      cart: products,
 
       customer,
 
@@ -989,10 +1309,10 @@ function Checkout() {
 
       totalItems: products.length,
 
-      status:
-        paymentMethod === "cod"
-          ? "New"
-          : "Payment Pending",
+      /* order status is ALWAYS "New" — payment state lives
+         in paymentStatus; mixing them made admin rows show
+         "Payment Pending" as an order status */
+      status: "New",
 
       notification: true,
 
@@ -1034,99 +1354,100 @@ function Checkout() {
     -----------------------------------------------
     */
 
-    let serverSaveOk = false;
+    /*
+    -----------------------------------------------
+    SAVE ORDER — SERVER FIRST
+    Server is the source of truth: if the order cannot
+    be persisted to the DB we abort — no local order,
+    no cart clear, no payment.
+    -----------------------------------------------
+    */
 
+    let apiResult;
     try {
-      const savedOrders =
-        localStorage.getItem(
-          "ananyaOrders"
-        );
+      apiResult = await saveOrderToServer(newOrder);
+    } catch (apiError) {
+      apiResult = null;
+      console.error("Order API save error:", apiError);
+    }
 
-      let orders = savedOrders
-        ? JSON.parse(savedOrders)
-        : [];
-
-      if (!Array.isArray(orders)) {
-        orders = [];
-      }
-
-      const updatedOrders = [
-        newOrder,
-        ...orders,
-      ];
-
-      localStorage.setItem(
-        "ananyaOrders",
-        JSON.stringify(updatedOrders)
-      );
-
-      /*
-      DB MEIN BHI SAVE — server fail ho toh
-      local order phir bhi placed rahega
-      */
-
-      try {
-        const apiResult =
-          await saveOrderToServer(newOrder);
-        serverSaveOk = Boolean(
-          apiResult?.success
-        );
-      } catch (apiError) {
-        console.error(
-          "Order API save error:",
-          apiError
-        );
-      }
-
-      /*
-      EVENTS
-      */
-
-      window.dispatchEvent(
-        new Event(
-          "ananyaOrdersUpdated"
-        )
-      );
-
-      window.dispatchEvent(
-        new Event(
-          "ananyaOrderCreated"
-        )
-      );
-
-      window.dispatchEvent(
-        new Event("orderUpdated")
-      );
-    } catch (error) {
-      console.error(
-        "Order save error:",
-        error
-      );
-
+    if (!apiResult?.success) {
+      setPlacing(false);
       alert(
-        "Order save nahi ho paya. Please try again."
+        apiResult?.message ||
+          "Order could not be saved to the server. Please check your connection and try again — your cart is unchanged."
       );
-
       return;
     }
 
     /*
     -----------------------------------------------
-    CLEAR CART
+    ADOPT SERVER TOTALS — the server recomputes price,
+    discount and shipping authoritatively; the client's
+    math can differ. Order history + success screen must
+    show what was actually saved.
     -----------------------------------------------
     */
 
-    localStorage.removeItem(
-      "ananyaCart"
-    );
+    if (apiResult.total != null) {
+      const st = Number(apiResult.total);
+      newOrder.total = st;
+      newOrder.grandTotal = st;
+      newOrder.totalAmount = st;
+    }
+    if (apiResult.subtotal != null) {
+      const sb = Number(apiResult.subtotal);
+      newOrder.subtotal = sb;
+      newOrder.totalPrice = sb;
+    }
+    if (apiResult.discount != null) {
+      newOrder.discount = Number(apiResult.discount);
+    }
+    if (apiResult.shippingCharge != null) {
+      const sh = Number(apiResult.shippingCharge);
+      newOrder.shippingCharge = sh;
+      newOrder.shipping = sh;
+    }
+    if (apiResult.orderNumber) {
+      newOrder.orderNumber = apiResult.orderNumber;
+    }
 
-    window.dispatchEvent(
-      new Event("ananyaCartUpdated")
-    );
+    /*
+    -----------------------------------------------
+    LOCAL MIRROR — order history ke liye
+    (server order already saved above)
+    -----------------------------------------------
+    */
 
-    window.dispatchEvent(
-      new Event("cartUpdated")
-    );
+    try {
+      const savedOrders =
+        localStorage.getItem("ananyaOrders");
+      let orders = savedOrders
+        ? JSON.parse(savedOrders)
+        : [];
+      if (!Array.isArray(orders)) orders = [];
+
+      localStorage.setItem(
+        "ananyaOrders",
+        JSON.stringify([newOrder, ...orders])
+      );
+
+      window.dispatchEvent(new Event("ananyaOrdersUpdated"));
+      window.dispatchEvent(new Event("ananyaOrderCreated"));
+      window.dispatchEvent(new Event("orderUpdated"));
+    } catch (error) {
+      /* localStorage mirror failure is non-fatal —
+         order already exists on the server */
+      console.error("Local order mirror error:", error);
+    }
+
+    /*
+    -----------------------------------------------
+    CLEAR CART — via CartContext (clears server + localStorage)
+    -----------------------------------------------
+    */
+
+    contextClearCart();
 
     /*
     -----------------------------------------------
@@ -1136,19 +1457,13 @@ function Checkout() {
     */
 
     if (paymentMethod === "online") {
-      if (!serverSaveOk) {
-        alert(
-          "Order could not be saved to the server, so online payment cannot start. Please try again or choose Cash on Delivery."
-        );
-        return;
-      }
-
+      /* order is guaranteed saved on server at this point */
       const paid =
         await openRazorpayCheckout(newOrder);
 
       if (!paid) {
-        /* order server pe pending reh gaya — cart restore nahi
-           karte, user ko pending status dikhate hain */
+        /* order stays pending on the server; cart is already
+           cleared because the order was created successfully */
         alert(
           "Payment was not completed. Your order is saved with payment pending."
         );
@@ -1161,13 +1476,89 @@ function Checkout() {
     -----------------------------------------------
     */
 
-    setTotalPrice(finalTotal);
+    /* success screen shows the AUTHORITATIVE saved total,
+       not the client's own calculation */
+    const serverTotal =
+      apiResult.total != null
+        ? Number(apiResult.total)
+        : finalTotal;
+
+    setTotalPrice(serverTotal);
 
     setOrderId(
-      generatedOrderId
+      apiResult.orderNumber || generatedOrderId
     );
 
+    /* persist for refresh — re-verified against the
+       server on restore */
+    freshPlaced.current = true;
+    const summaryItems = products.map((p) => ({
+      name: p.name,
+      quantity: p.quantity || 1,
+      price: Number(p.price) || 0,
+    }));
+    try {
+      localStorage.setItem(
+        "ananyaOrderSuccess",
+        JSON.stringify({
+          orderNumber:
+            apiResult.orderNumber || generatedOrderId,
+          total: serverTotal,
+          paymentMethod,
+          items: summaryItems.slice(0, 10),
+          at: new Date().toISOString(),
+        })
+      );
+    } catch {
+      /* non-fatal */
+    }
+
+    setOrderItems(summaryItems);
     setOrderPlaced(true);
+    setPlacing(false);
+
+    /*
+    -----------------------------------------------
+    SAVE ADDRESS BACK TO PROFILE (fire-and-forget)
+    Next checkout autofills from /api/auth/me.
+    Identity fields (name/phone/photo) are preserved
+    from the existing profile — only delivery address
+    fields are updated.
+    -----------------------------------------------
+    */
+
+    try {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            const u = d?.user;
+            if (!u) return null;
+            return fetch(`${API_URL}/auth/profile`, {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: u.name,
+                phone: u.phone || form.phone.trim(),
+                address: form.address.trim(),
+                city: form.city.trim(),
+                state: form.state.trim(),
+                pincode: form.pincode.trim(),
+                photo: u.photo || "",
+              }),
+            });
+          })
+          .catch(() => {});
+      }
+    } catch {
+      /* profile save-back is best-effort */
+    }
   };
 
   /*
@@ -1180,6 +1571,19 @@ function Checkout() {
     cart.length === 0 &&
     !orderPlaced
   ) {
+    /* while the server cart is still loading, don't flash
+       the empty-cart screen */
+    if (!isDirectOrder && cartLoading) {
+      return (
+        <main className="checkout-page">
+          <div className="checkout-empty">
+            <ShoppingBag size={55} />
+            <h2>Loading your cart...</h2>
+          </div>
+        </main>
+      );
+    }
+
     return (
       <main className="checkout-page">
         <div className="checkout-empty">
@@ -1228,37 +1632,68 @@ function Checkout() {
             successfully.
           </p>
 
-          <div className="success-details">
-            <div>
-              <small>
-                Order ID
-              </small>
+          {successVerified === "error" ? (
+            <p className="success-error-note">
+              We couldn't confirm this order. Please check
+              My Orders or contact support.
+            </p>
+          ) : (
+            <div className="success-details">
+              <div>
+                <small>
+                  Order ID
+                </small>
 
-              <strong>
-                {orderId}
-              </strong>
+                <strong>
+                  {orderId}
+                </strong>
+              </div>
+
+              {/* ordered items — the REAL order, not the
+                  cart currently on screen */}
+              {orderItems.length > 0 && (
+                <ul className="success-items">
+                  {orderItems.map((p, i) => (
+                    <li key={i}>
+                      <span>
+                        {p.name} × {p.quantity || 1}
+                      </span>
+                      <span>
+                        ₹
+                        {(
+                          Number(p.price || 0) *
+                          (p.quantity || 1)
+                        ).toLocaleString("en-IN")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div>
+                <small>
+                  Total Amount
+                </small>
+
+                <strong>
+                  ₹
+                  {totalPrice.toLocaleString(
+                    "en-IN"
+                  )}
+                </strong>
+              </div>
             </div>
-
-            <div>
-              <small>
-                Total Amount
-              </small>
-
-              <strong>
-                ₹
-                {totalPrice.toLocaleString(
-                  "en-IN"
-                )}
-              </strong>
-            </div>
-          </div>
+          )}
 
           <div className="success-buttons">
             <button
               type="button"
-              onClick={() =>
-                navigate("/")
-              }
+              onClick={() => {
+                localStorage.removeItem(
+                  "ananyaOrderSuccess"
+                );
+                navigate("/");
+              }}
             >
               Continue Shopping
             </button>
@@ -1266,9 +1701,12 @@ function Checkout() {
             <button
               type="button"
               className="secondary-success-btn"
-              onClick={() =>
-                navigate("/profile")
-              }
+              onClick={() => {
+                localStorage.removeItem(
+                  "ananyaOrderSuccess"
+                );
+                navigate("/profile");
+              }}
             >
               View My Account
             </button>
@@ -1703,44 +2141,6 @@ function Checkout() {
                   </div>
                 </label>
 
-                {/* BUSINESS */}
-
-                <label
-                  className={
-                    paymentMethod === "business"
-                      ? "payment-option active"
-                      : "payment-option"
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="business"
-                    checked={
-                      paymentMethod === "business"
-                    }
-                    onChange={(e) =>
-                      setPaymentMethod(
-                        e.target.value
-                      )
-                    }
-                  />
-
-                  <div className="payment-icon">
-                    <Building2 size={21} />
-                  </div>
-
-                  <div>
-                    <strong>
-                      Business / Bulk Order
-                    </strong>
-
-                    <span>
-                      For large business orders
-                    </span>
-                  </div>
-                </label>
-
               </div>
             </section>
 
@@ -1749,20 +2149,22 @@ function Checkout() {
             <button
               type="submit"
               className="place-order-btn"
-              disabled={checkingDelivery}
+              disabled={checkingDelivery || placing}
               style={{
                 opacity:
-                  checkingDelivery
+                  checkingDelivery || placing
                     ? 0.6
                     : 1,
 
                 cursor:
-                  checkingDelivery
+                  checkingDelivery || placing
                     ? "not-allowed"
                     : "pointer",
               }}
             >
-              {checkingDelivery
+              {placing
+                ? "Placing Order..."
+                : checkingDelivery
                 ? "Checking Address..."
                 : paymentMethod === "online"
                 ? "Continue to Payment"

@@ -177,7 +177,7 @@ export default function AdminDashboard() {
                 Authorization: `Bearer ${token}`,
               },
             }).then((r) => r.json()).catch(() => ({})),
-            fetchProducts().catch(() => []),
+            fetchProducts("", { includeAll: true }).catch(() => []),
           ]);
 
         if (cancelled) return;

@@ -22,7 +22,7 @@ export default function AdminInventory() {
 
   const loadProducts = async () => {
     try {
-      setProducts(await fetchProducts());
+      setProducts(await fetchProducts("", { includeAll: true }));
     } catch (error) {
       console.error("Inventory loading error:", error);
       alert(error.message);
@@ -34,7 +34,7 @@ export default function AdminInventory() {
   useEffect(() => {
     let active = true;
 
-    fetchProducts()
+    fetchProducts("", { includeAll: true })
       .then((loadedProducts) => {
         if (active) setProducts(loadedProducts);
       })

@@ -46,9 +46,22 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
-import { saveOrderToServer } from "../services/orderApi";
 import { saveInquiryContext } from "../services/inquiryApi";
 import { fetchProductTemplates } from "../services/templateApi";
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import {
+  uploadDesignFile,
+  fetchFileBlob,
+} from "../services/fileApi";
+import {
+  getDraft,
+  saveDraft,
+  deleteDraft,
+  writeLocalDraft,
+  migrateLegacyDraft,
+} from "../services/draftApi";
+import { addFavorite } from "../services/favoritesApi";
 
 import "./Customizer.css";
 
@@ -109,6 +122,9 @@ const TEXT_KINDS = [
   { key: "designation", label: "Designation", placeholder: "DESIGNATION" },
   { key: "custom", label: "Custom Text", placeholder: "YOUR TEXT" },
 ];
+
+const clamp = (value, min, max) =>
+  Math.max(min, Math.min(max, value));
 
 /* envelope-specific text presets — har field ek
    independent element banta hai */
@@ -1029,11 +1045,610 @@ function EnvelopeSvg({ color = "#f8f6f1", back, size = "DL" }) {
    (% of preview box — product mockup ke upar safe zone)
 ========================================================= */
 
+/* =====================================================
+   VINYL STICKER MOCKUP — die-cut round sticker.
+
+   400x400 viewBox, square face so the print-area maps 1:1:
+   - r=186 white ring  = die-cut vinyl edge (stays white)
+   - r=166 inner disc  = printable face (base colour)
+   - subtle inner shade on the edge = realistic thickness
+   - editing mode shows a dashed cut-line
+===================================================== */
+
+const StickerSvg = ({ color = "#f6f8fc" }) => (
+  <svg
+    viewBox="0 0 400 400"
+    className="sticker-svg"
+    aria-hidden="true"
+  >
+    <defs>
+      <radialGradient
+        id="stickerFace"
+        cx="38%"
+        cy="30%"
+        r="75%"
+      >
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+        <stop offset="55%" stopColor="#ffffff" stopOpacity="0" />
+        <stop offset="100%" stopColor="#0f2544" stopOpacity="0.06" />
+      </radialGradient>
+    </defs>
+
+    {/* ground shadow */}
+    <ellipse
+      cx="200"
+      cy="386"
+      rx="152"
+      ry="12"
+      fill="rgba(15, 23, 42, 0.16)"
+    />
+
+    {/* die-cut vinyl edge */}
+    <circle
+      cx="200"
+      cy="200"
+      r="186"
+      fill="#ffffff"
+      stroke="#dfe4ec"
+      strokeWidth="1.5"
+    />
+
+    {/* printable face */}
+    <circle cx="200" cy="200" r="166" fill={color} />
+    <circle cx="200" cy="200" r="166" fill="url(#stickerFace)" />
+  </svg>
+);
+
+/* =====================================================
+   GIFT SET MOCKUP — premium navy gift box, front view.
+
+   400x400 viewBox. Body sits centred; print area maps to
+   the box face (see PRINT_AREAS.giftset).
+===================================================== */
+
+const GiftSetSvg = ({ color = "#102a4c" }) => (
+  <svg
+    viewBox="0 0 400 400"
+    className="giftset-svg"
+    aria-hidden="true"
+  >
+    <defs>
+      <linearGradient
+        id="giftBox"
+        x1="0"
+        y1="0"
+        x2="0"
+        y2="1"
+      >
+        <stop offset="0%" stopColor={color} />
+        <stop
+          offset="100%"
+          stopColor={shadeHex(color, -0.18)}
+        />
+      </linearGradient>
+      <linearGradient
+        id="giftLid"
+        x1="0"
+        y1="0"
+        x2="0"
+        y2="1"
+      >
+        <stop
+          offset="0%"
+          stopColor={shadeHex(color, 0.14)}
+        />
+        <stop offset="100%" stopColor={color} />
+      </linearGradient>
+    </defs>
+
+    {/* ground shadow */}
+    <ellipse
+      cx="200"
+      cy="352"
+      rx="150"
+      ry="13"
+      fill="rgba(15, 23, 42, 0.16)"
+    />
+
+    {/* box body */}
+    <rect
+      x="70"
+      y="152"
+      width="260"
+      height="196"
+      rx="10"
+      fill="url(#giftBox)"
+    />
+
+    {/* lid (overhang) */}
+    <rect
+      x="58"
+      y="128"
+      width="284"
+      height="52"
+      rx="10"
+      fill="url(#giftLid)"
+      stroke="rgba(0,0,0,0.12)"
+      strokeWidth="1"
+    />
+
+    {/* ribbon — off-centre on the left third so the face
+        keeps a clean print zone on the right */}
+    <rect
+      x="92"
+      y="128"
+      width="28"
+      height="220"
+      fill="#c9a227"
+    />
+    <rect
+      x="58"
+      y="136"
+      width="284"
+      height="36"
+      fill="rgba(255,255,255,0.10)"
+    />
+
+    {/* ribbon bow */}
+    <g transform="translate(-94 0)">
+      <path
+        d="M200 108
+           c-14-24 -44-28 -52-12
+           c-8 16 6 34 30 36
+           c-16 8 -18 28 -6 36
+           c12 8 28-2 28-18
+           c0 16 16 26 28 18
+           c12-8 10-28 -6-36
+           c24-2 38-20 30-36
+           c-8-16 -38-12 -52 12 z"
+        fill="#c9a227"
+        opacity="0.95"
+      />
+      <circle cx="200" cy="126" r="9" fill="#8a6d14" />
+    </g>
+  </svg>
+);
+
+/* =====================================================
+   TOTE BAG MOCKUP — canvas tote, front view.
+
+   400x400 viewBox. Handles + slightly tapered body;
+   print zone = bag face under the handles
+   (see PRINT_AREAS["tote-bag"]).
+===================================================== */
+
+const ToteBagSvg = ({ color = "#e8e0d0", back = false }) => {
+  const body = color;
+  const seam = shadeHex(color, -0.12);
+  const handle = shadeHex(color, -0.22);
+
+  return (
+    <svg
+      viewBox="0 0 400 400"
+      className="totebag-svg"
+      aria-hidden="true"
+    >
+      {/* ground shadow */}
+      <ellipse
+        cx="200"
+        cy="356"
+        rx="128"
+        ry="12"
+        fill="rgba(15, 23, 42, 0.15)"
+      />
+
+      {/* handles (behind body so they read as attached) */}
+      <path
+        d="M148 156
+           C148 84 170 66 200 66
+           C230 66 252 84 252 156"
+        fill="none"
+        stroke={handle}
+        strokeWidth="12"
+        strokeLinecap="round"
+      />
+      {!back && (
+        <path
+          d="M156 156
+             C156 98 174 82 200 82
+             C226 82 244 98 244 156"
+          fill="none"
+          stroke={shadeHex(handle, 0.16)}
+          strokeWidth="7"
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* bag body — gently tapered, wider at the base */}
+      <path
+        d="M104 150
+           L296 150
+           L308 344
+           Q200 358 92 344
+           Z"
+        fill={body}
+        stroke={seam}
+        strokeWidth="2"
+      />
+
+      {/* top stitched edge */}
+      <rect
+        x="104"
+        y="150"
+        width="192"
+        height="14"
+        rx="3"
+        fill={seam}
+        opacity="0.5"
+      />
+
+      {/* side seam hints */}
+      <line
+        x1="104"
+        y1="164"
+        x2="92"
+        y2="344"
+        stroke={seam}
+        strokeWidth="1.4"
+        opacity="0.6"
+      />
+      <line
+        x1="296"
+        y1="164"
+        x2="308"
+        y2="344"
+        stroke={seam}
+        strokeWidth="1.4"
+        opacity="0.6"
+      />
+    </svg>
+  );
+};
+
+/* =====================================================
+   CAP MOCKUP — baseball cap, front view.
+
+   400x400 viewBox. Crown dome with centre panel + seams,
+   curved brim extending right. Embroidery zone = the
+   centre front panel between the side seams.
+===================================================== */
+
+const CapSvg = ({ color = "#102a4c" }) => {
+  const seam = shadeHex(color, -0.22);
+  const brim = shadeHex(color, -0.10);
+  const sheen = shadeHex(color, 0.18);
+
+  return (
+    <svg
+      viewBox="0 0 400 400"
+      className="cap-svg"
+      aria-hidden="true"
+    >
+      {/* ground shadow */}
+      <ellipse
+        cx="205"
+        cy="316"
+        rx="150"
+        ry="13"
+        fill="rgba(15, 23, 42, 0.16)"
+      />
+
+      {/* curved brim — extends right */}
+      <path
+        d="M118 244
+           Q200 282 356 246
+           Q362 230 344 222
+           Q236 252 118 228 Z"
+        fill={brim}
+        stroke={seam}
+        strokeWidth="1.5"
+      />
+      {/* brim stitching */}
+      <path
+        d="M128 236 Q200 264 344 234"
+        fill="none"
+        stroke={seam}
+        strokeWidth="1"
+        opacity="0.5"
+      />
+
+      {/* crown */}
+      <path
+        d="M96 232
+           Q90 128 200 116
+           Q310 128 304 232
+           L96 232 Z"
+        fill={color}
+      />
+      {/* crown sheen */}
+      <path
+        d="M104 214 Q108 138 200 126 Q160 138 158 214 Z"
+        fill={sheen}
+        opacity="0.5"
+      />
+
+      {/* top button */}
+      <circle cx="200" cy="114" r="7" fill={seam} />
+
+      {/* panel seams — front panel sits between these */}
+      <path
+        d="M200 120 Q150 148 144 232"
+        fill="none"
+        stroke={seam}
+        strokeWidth="1.6"
+        opacity="0.75"
+      />
+      <path
+        d="M200 120 Q250 148 256 232"
+        fill="none"
+        stroke={seam}
+        strokeWidth="1.6"
+        opacity="0.75"
+      />
+      <path
+        d="M200 120 L200 232"
+        stroke={seam}
+        strokeWidth="1"
+        opacity="0.35"
+      />
+    </svg>
+  );
+};
+
+/* =====================================================
+   SHIPPING BOX MOCKUP - kraft box, front view.
+
+   400x400 viewBox. Top flap + body + vertical tape strip
+   on the RIGHT side so the left face stays a clean print
+   zone (see PRINT_AREAS.box).
+===================================================== */
+
+const BoxSvg = ({ color = "#d9b382" }) => {
+  const shade = shadeHex(color, -0.14);
+  const dark = shadeHex(color, -0.3);
+
+  return (
+    <svg
+      viewBox="0 0 400 400"
+      className="box-svg"
+      aria-hidden="true"
+    >
+      {/* ground shadow */}
+      <ellipse
+        cx="200"
+        cy="344"
+        rx="140"
+        ry="12"
+        fill="rgba(15, 23, 42, 0.15)"
+      />
+
+      {/* top flap - shallow trapezoid */}
+      <path
+        d="M96 148 L304 148 L316 118 L84 118 Z"
+        fill={shade}
+        stroke={dark}
+        strokeWidth="1"
+      />
+      {/* flap centre slit */}
+      <line
+        x1="200"
+        y1="118"
+        x2="200"
+        y2="148"
+        stroke={dark}
+        strokeWidth="1.5"
+      />
+
+      {/* box body */}
+      <rect
+        x="96"
+        y="148"
+        width="208"
+        height="192"
+        rx="3"
+        fill={color}
+        stroke={dark}
+        strokeWidth="1.5"
+      />
+
+      {/* vertical packing tape - right of centre */}
+      <rect
+        x="244"
+        y="148"
+        width="26"
+        height="192"
+        fill="rgba(255,255,255,0.35)"
+        stroke="rgba(0,0,0,0.06)"
+      />
+      <rect
+        x="244"
+        y="148"
+        width="26"
+        height="20"
+        fill="rgba(255,255,255,0.45)"
+      />
+
+      {/* bottom edge hint */}
+      <line
+        x1="96"
+        y1="334"
+        x2="304"
+        y2="334"
+        stroke={dark}
+        strokeWidth="1"
+        opacity="0.4"
+      />
+    </svg>
+  );
+};
+
+/* =====================================================
+   LETTERHEAD MOCKUP - A4 sheet with a brand header band.
+
+   400x560 viewBox (A4). The print zone is the header
+   band (see PRINT_AREAS.letterhead); the body shows
+   faint content lines only.
+===================================================== */
+
+const LetterheadSvg = ({ color = "#102a4c" }) => (
+  <svg
+    viewBox="0 0 400 560"
+    className="letterhead-svg"
+    aria-hidden="true"
+    /* "none" keeps the print-area % aligned with the
+       band for both A4 and Letter aspect ratios */
+    preserveAspectRatio="none"
+  >
+    {/* ground shadow */}
+    <ellipse
+      cx="200"
+      cy="546"
+      rx="140"
+      ry="10"
+      fill="rgba(15, 23, 42, 0.14)"
+    />
+
+    {/* back sheets */}
+    <rect
+      x="72"
+      y="30"
+      width="270"
+      height="500"
+      rx="4"
+      fill="#e8ecf2"
+      transform="rotate(2 200 280)"
+    />
+    <rect
+      x="66"
+      y="26"
+      width="270"
+      height="500"
+      rx="4"
+      fill="#f2f5f9"
+      transform="rotate(1 200 280)"
+    />
+
+    {/* main sheet */}
+    <rect
+      x="60"
+      y="20"
+      width="280"
+      height="510"
+      rx="4"
+      fill="#ffffff"
+      stroke="#e2e8f0"
+    />
+
+    {/* brand header band - the print zone */}
+    <rect
+      x="60"
+      y="20"
+      width="280"
+      height="86"
+      rx="4"
+      fill={color}
+    />
+    {/* gold accent underline */}
+    <rect
+      x="60"
+      y="106"
+      width="280"
+      height="4"
+      fill="#c9a227"
+    />
+
+    {/* faint body content lines */}
+    {[150, 178, 206, 234, 262, 318, 346, 374].map(
+      (y, i) => (
+        <rect
+          key={i}
+          x="84"
+          y={y}
+          width={i % 4 === 3 ? 150 : 232}
+          height="7"
+          rx="3"
+          fill="#eef1f6"
+        />
+      )
+    )}
+    <rect
+      x="84"
+      y="290"
+      width="110"
+      height="7"
+      rx="3"
+      fill={color}
+      opacity="0.35"
+    />
+
+    {/* footer strip */}
+    <rect
+      x="60"
+      y="478"
+      width="280"
+      height="52"
+      fill="#f4f6fa"
+    />
+    <rect
+      x="84"
+      y="494"
+      width="180"
+      height="6"
+      rx="3"
+      fill="#dfe5ee"
+    />
+    <rect
+      x="84"
+      y="510"
+      width="130"
+      height="6"
+      rx="3"
+      fill="#dfe5ee"
+    />
+  </svg>
+);
+
+/* =====================================================
+   EVENT POSTER - blank A-series sheet.
+
+   400x566 viewBox (1/sqrt(2) - the ISO A-series ratio).
+   The sheet itself is plain paper; every visual lives as
+   an editable element inside the print zone.
+===================================================== */
+
+const PosterSvg = () => (
+  <svg
+    viewBox="0 0 400 566"
+    className="poster-svg"
+    aria-hidden="true"
+    preserveAspectRatio="none"
+  >
+    <ellipse
+      cx="200"
+      cy="556"
+      rx="150"
+      ry="9"
+      fill="rgba(15, 23, 42, 0.14)"
+    />
+    <rect
+      x="20"
+      y="14"
+      width="360"
+      height="538"
+      rx="2"
+      fill="#ffffff"
+      stroke="#e2e8f0"
+      strokeWidth="1"
+    />
+  </svg>
+);
+
 const PRINT_AREAS = {
   /* mug front print zone (body center) */
   mug: { left: 40, top: 42, width: 18, height: 26 },
-  /* pen barrel — clip aur tip se door */
-  pen: { left: 26, top: 44, width: 42, height: 12 },
+  /* premium pen barrel — engraving area must match the full body and
+     stay centered without clipping at the cap/tip */
+  pen: { left: 18, top: 41, width: 64, height: 18 },
   /* bottle label band — cap/neck/base se door */
   bottle: { left: 37, top: 46, width: 26, height: 20 },
   "water-bottle": {
@@ -1042,11 +1657,19 @@ const PRINT_AREAS = {
     width: 26,
     height: 20,
   },
-  letterhead: { left: 33, top: 14, width: 34, height: 62 },
-  flyer: { left: 32, top: 38, width: 36, height: 48 },
+  /* letterhead - the navy header band only
+     (x 76-324 of 400, y 26-100 of 560) */
+  letterhead: { left: 19, top: 4.7, width: 62, height: 13.3 },
+  /* flyer = whole sheet minus a small safe margin — every
+     part of the page is a customizable element */
+  flyer: { left: 3, top: 3, width: 94, height: 94 },
   brochure: { left: 24, top: 24, width: 52, height: 52 },
-  poster: { left: 30, top: 38, width: 40, height: 48 },
-  sticker: { left: 28, top: 24, width: 44, height: 52 },
+  /* poster - full bleed minus a paper edge margin;
+     every part of the sheet is editable */
+  poster: { left: 6, top: 4, width: 88, height: 92 },
+  /* die-cut circle — inner disc of StickerSvg (r=166/400 →
+     83% of the square preview, centered) */
+  sticker: { left: 8.5, top: 8.5, width: 83, height: 83 },
   /* envelope — front body (flap V seam ke neeche tak),
      back = flap surface */
   envelope: {
@@ -1054,10 +1677,98 @@ const PRINT_AREAS = {
     back: { left: 18, top: 14, width: 64, height: 55 },
   },
   "paper-bag": { left: 30, top: 38, width: 40, height: 46 },
-  box: { left: 26, top: 42, width: 32, height: 42 },
-  "tote-bag": { left: 30, top: 38, width: 40, height: 46 },
-  cap: { left: 34, top: 28, width: 32, height: 22 },
-  giftset: { left: 28, top: 38, width: 44, height: 46 },
+  /* shipping box - left face, clear of the tape strip
+     (tape occupies ~61-67%) and the top flap */
+  box: { left: 26, top: 46, width: 33, height: 30 },
+  /* tote face — inside the bag body, under the stitched
+     top edge and clear of the side seams */
+  "tote-bag": { left: 32, top: 46, width: 36, height: 30 },
+  /* cap — centre front panel between the panel seams,
+     above the brim (embroidery-safe zone) */
+  cap: { left: 37, top: 40, width: 26, height: 17 },
+  /* gift box face — right of the vertical ribbon (which
+     sits at ~23-30%), centred on the box body */
+  giftset: { left: 34, top: 48, width: 47, height: 34 },
+};
+
+const FLYER_SIZE_CONFIG = {
+  A4: {
+    aspect: 210 / 297,
+    scale: 1,
+    font: { company: 22, person: 14, designation: 11, custom: 13 },
+  },
+  A5: {
+    aspect: 148 / 210,
+    scale: 0.86,
+    font: { company: 19, person: 13, designation: 10, custom: 12 },
+  },
+  DL: {
+    aspect: 99 / 210,
+    scale: 0.72,
+    font: { company: 15, person: 11, designation: 9, custom: 10 },
+  },
+};
+
+const getFlyerSizeConfig = (flyerSize) =>
+  FLYER_SIZE_CONFIG[flyerSize] || FLYER_SIZE_CONFIG.A4;
+
+const textBoxForKind = (kind, isCompact = false) => {
+  const boxes = {
+    company: { width: isCompact ? 80 : 86, height: isCompact ? 12 : 10 },
+    person: { width: 76, height: 8 },
+    designation: { width: 72, height: 7 },
+    custom: { width: 76, height: 12 },
+    address: { width: 70, height: 20 },
+    return_addr: { width: 76, height: 16 },
+  };
+
+  return boxes[kind] || boxes.custom;
+};
+
+const normalizeTextElement = (el, flyerSize = "A4") => {
+  if (!el || el.type !== "text") return el;
+
+  const box = textBoxForKind(el.kind, flyerSize === "DL");
+  const cfg = getFlyerSizeConfig(flyerSize);
+  const fallbackFont =
+    cfg.font[el.kind] ||
+    cfg.font.custom;
+
+  return {
+    ...el,
+    width: el.width || box.width,
+    height: el.height || box.height,
+    fontSize: el.width
+      ? el.fontSize || fallbackFont
+      : Math.min(el.fontSize || fallbackFont, fallbackFont),
+    lineHeight: el.lineHeight || 1.12,
+  };
+};
+
+const constrainElementPatch = (el, patch = {}) => {
+  const next = { ...el, ...patch };
+  const halfW =
+    next.type === "text" || next.type === "shape" || next.type === "image" || next.type === "qr"
+      ? (Number(next.width) || (next.type === "text" ? 70 : 20)) / 2
+      : 0;
+  const halfH =
+    next.type === "text"
+      ? (Number(next.height) || 10) / 2
+      : next.type === "shape"
+      ? (Number(next.height || next.width) || 20) / 2
+      : (Number(next.width) || 20) / 2;
+
+  const safePatch = { ...patch };
+
+  if (patch.x != null) {
+    safePatch.x = clamp(next.x, halfW, 100 - halfW);
+  }
+
+  if (patch.y != null) {
+    safePatch.y = clamp(next.y, halfH, 100 - halfH);
+  }
+
+  return safePatch;
 };
 
 const NOTEBOOK_TEMPLATES = [
@@ -1577,6 +2288,320 @@ const makeEnvelopeDefaults = (paperColor) => {
   };
 };
 
+const makeFlyerDefaults = (paperColor, flyerSize = "A4") => {
+  const ink = printColorFor(paperColor);
+  const cfg = getFlyerSizeConfig(flyerSize);
+
+  const textEl = (kind, label, text, x, y, extra = {}) =>
+    normalizeTextElement(
+      {
+        id: uid(),
+        type: "text",
+        kind,
+        label,
+        text,
+        x,
+        y,
+        fontSize:
+          extra.fontSize ||
+          cfg.font[kind] ||
+          cfg.font.custom,
+        fontFamily: extra.fontFamily || "Poppins",
+        color: extra.color || ink,
+        bold: extra.bold ?? kind === "company",
+        italic: false,
+        underline: false,
+        align: extra.align || "center",
+        letterSpacing: extra.letterSpacing ?? (kind === "company" ? 0.4 : 0),
+        rotation: 0,
+        hidden: false,
+        ...textBoxForKind(kind, flyerSize === "DL"),
+        ...extra,
+      },
+      flyerSize
+    );
+
+  /* decorations are REAL shape elements — selectable,
+     draggable, recolorable, deletable (was static CSS) */
+  const ACCENT = "#e1523d";
+  const NAVY = "#1d3252";
+  const GRAY = "#c8d2de";
+
+  const shapeEl = (label, x, y, width, height, color, extra = {}) => ({
+    id: uid(),
+    type: "shape",
+    shape: extra.shape || "rect",
+    label,
+    x,
+    y,
+    width,
+    height,
+    color,
+    opacity: 1,
+    rotation: 0,
+    hidden: false,
+    ...extra,
+  });
+
+  return {
+    front: [
+      shapeEl("Header Block", 50, 16, 100, 32, ACCENT),
+      shapeEl("Logo Circle", 50, 16, 12, 8.4, NAVY, {
+        shape: "circle",
+      }),
+      shapeEl("Divider — Bold", 50, 40, 72, 4, NAVY),
+      shapeEl("Divider — Light 1", 50, 47, 78, 1.5, GRAY),
+      shapeEl("Divider — Light 2", 50, 53, 68, 1.5, GRAY),
+      shapeEl("Divider — Light 3", 50, 59, 58, 1.5, GRAY),
+      textEl("company", "Company Name", "COMPANY NAME", 50, 67),
+      textEl("person", "Person Name", "YOUR NAME", 50, 75, {
+        bold: false,
+      }),
+      textEl("designation", "Designation", "DESIGNATION", 50, 81, {
+        bold: false,
+        letterSpacing: 0.8,
+      }),
+      shapeEl("CTA Bar", 31, 89, 38, 8, ACCENT, {
+        shape: "pill",
+      }),
+    ],
+    back: [
+      shapeEl("Header Band", 50, 10, 100, 20, ACCENT),
+      shapeEl("Divider — Bold", 50, 32, 72, 4, NAVY),
+      shapeEl("Divider — Light 1", 50, 40, 78, 1.5, GRAY),
+      shapeEl("Divider — Light 2", 50, 47, 68, 1.5, GRAY),
+      shapeEl("Divider — Light 3", 50, 54, 58, 1.5, GRAY),
+      textEl("company", "Company Name", "COMPANY NAME", 50, 63),
+      textEl("custom", "Website", "www.yourcompany.com", 50, 73, {
+        fontSize: cfg.font.custom,
+        bold: false,
+      }),
+      textEl("custom", "Phone", "+91 XXXXX XXXXX", 50, 80, {
+        fontSize: cfg.font.custom,
+        bold: false,
+      }),
+    ],
+  };
+};
+
+const getBrochurePanelCount = (brochureSize) =>
+  /bi.fold/i.test(String(brochureSize)) ? 2 : 3;
+
+const normalizeBrochureElement = (element, brochureSize) => {
+  if (!element) return element;
+  const panelCount = getBrochurePanelCount(brochureSize);
+  const panelWidth = 100 / panelCount;
+  const layoutMatches = Number(element.panelCount) === panelCount;
+  const panel = clamp(
+    Number.isInteger(element.panel) && layoutMatches
+      ? element.panel
+      : Math.floor((Number(element.x) || 50) / panelWidth),
+    0,
+    panelCount - 1
+  );
+  const widthLimit = Math.max(8, panelWidth - 4);
+  const width = Math.min(Number(element.width) || widthLimit, widthLimit);
+  const halfWidth = width / 2;
+  const minX = panel * panelWidth + 2 + halfWidth;
+  const maxX = (panel + 1) * panelWidth - 2 - halfWidth;
+  const halfHeight = element.type === "text"
+    ? (Number(element.height) || 12) / 2
+    : element.type === "shape"
+    ? (Number(element.height || element.width) || 12) / 2
+    : width / 2;
+
+  return {
+    ...element,
+    panel,
+    panelCount,
+    width,
+    x: clamp(Number(element.x) || panel * panelWidth + panelWidth / 2, minX, maxX),
+    y: clamp(Number(element.y) || 50, halfHeight + 2, 98 - halfHeight),
+    ...(element.type === "text" ? {
+      fontSize: Math.min(Number(element.fontSize) || 10, panelCount === 3 ? 18 : 22),
+      lineHeight: element.lineHeight || 1.18,
+    } : {}),
+  };
+};
+
+const constrainBrochureElement = (element, patch, brochureSize) =>
+  normalizeBrochureElement(
+    {
+      ...element,
+      ...patch,
+      panel: patch.x == null ? element.panel : undefined,
+    },
+    brochureSize
+  );
+
+const findBrochurePlacement = (elements, kind, brochureSize) => {
+  const panelCount = getBrochurePanelCount(brochureSize);
+  const panelWidth = 100 / panelCount;
+  const height = kind === "company" ? 20 : kind === "custom" ? 16 : 14;
+  const width = panelWidth - 5;
+  const ySlots = [88, 70, 52, 34, 16, 10];
+
+  for (let panel = 0; panel < panelCount; panel += 1) {
+    const occupied = elements
+      .map((element) => normalizeBrochureElement(element, brochureSize))
+      .filter((element) =>
+        element.panel === panel &&
+        (element.type === "text" || element.type === "image" || element.type === "qr" ||
+          (element.type === "shape" && Number(element.height || 0) < 80))
+      )
+      .map((element) => ({
+        left: element.x - (Number(element.width) || width) / 2,
+        right: element.x + (Number(element.width) || width) / 2,
+        top: element.y - (Number(element.height) || (element.type === "text" ? 12 : 10)) / 2,
+        bottom: element.y + (Number(element.height) || (element.type === "text" ? 12 : 10)) / 2,
+      }));
+
+    for (const y of ySlots) {
+      const candidate = {
+        left: panel * panelWidth + (panelWidth - width) / 2,
+        right: panel * panelWidth + (panelWidth + width) / 2,
+        top: y - height / 2,
+        bottom: y + height / 2,
+      };
+      if (candidate.top < 2 || candidate.bottom > 98) continue;
+      if (!occupied.some((box) =>
+        candidate.left < box.right && candidate.right > box.left &&
+        candidate.top < box.bottom + 2 && candidate.bottom > box.top - 2
+      )) {
+        return { panel, y, height };
+      }
+    }
+  }
+
+  return { panel: panelCount - 1, y: 88, height };
+};
+
+const makeBrochureTemplate = (templateName, brochureSize = "A4 Tri-fold") => {
+  const panelCount = getBrochurePanelCount(brochureSize);
+  const panelWidth = 100 / panelCount;
+  const centers = Array.from(
+    { length: panelCount },
+    (_, panel) => panelWidth * (panel + 0.5)
+  );
+  const colors = {
+    Corporate: { ink: "#153553", accent: "#19857b", pale: "#eaf2f1" },
+    "Product Catalogue": { ink: "#24364b", accent: "#d68a32", pale: "#f7efe3" },
+    Marketing: { ink: "#173b3a", accent: "#d45f45", pale: "#f8eee8" },
+    Services: { ink: "#243a31", accent: "#477b5e", pale: "#edf3ee" },
+  }[templateName] || { ink: "#153553", accent: "#19857b", pale: "#eaf2f1" };
+  const elements = { front: [], back: [] };
+  const shape = (sideKey, panel, y, height, color, label) => {
+    elements[sideKey].push({
+      id: uid(), type: "shape", shape: "rect", label,
+      panel, panelCount, x: centers[panel], y, width: panelWidth - 3,
+      height, color, opacity: 1, rotation: 0, hidden: false,
+    });
+  };
+  const text = (sideKey, panel, y, value, options = {}) => {
+    elements[sideKey].push({
+      id: uid(), type: "text", kind: options.kind || "custom",
+      label: options.label || value.split("\n")[0], text: value,
+      panel, panelCount, x: centers[panel], y,
+      width: panelWidth - 5, height: options.height || 12,
+      fontSize: options.fontSize || 9, fontFamily: "Poppins",
+      color: options.color || colors.ink,
+      bold: options.bold ?? false, italic: false, underline: false,
+      align: options.align || "center", letterSpacing: options.letterSpacing || 0,
+      lineHeight: 1.18, rotation: 0, hidden: false,
+    });
+  };
+  const coverPanel = panelCount - 1;
+  const contactPanel = panelCount === 3 ? 1 : 0;
+  const introPanel = 0;
+
+  if (templateName === "Corporate") {
+    shape("front", coverPanel, 50, 96, colors.ink, "Cover Panel");
+    shape("front", coverPanel, 22, 10, colors.accent, "Brand Accent");
+    text("front", coverPanel, 22, "AT", { color: "#ffffff", fontSize: 14, bold: true, label: "Brand Mark" });
+    text("front", coverPanel, 42, "CORPORATE\nPROFILE", { color: "#ffffff", fontSize: 15, bold: true, height: 24, label: "Cover Title" });
+    text("front", coverPanel, 61, "Ideas made tangible", { color: "#dce8ed", fontSize: 8 });
+    text("front", introPanel, 24, "OUR COMPANY", { fontSize: 10, bold: true, label: "Company Introduction" });
+    text("front", introPanel, 46, "Thoughtful print and packaging solutions for ambitious businesses.", { fontSize: 8, height: 28, color: "#526477" });
+    if (panelCount === 3) {
+      text("front", contactPanel, 26, "GET IN TOUCH", { fontSize: 10, bold: true });
+      text("front", contactPanel, 48, "+91 98765 43210\nhello@ananyatrading.com", { fontSize: 7, height: 22, color: "#526477" });
+      text("front", contactPanel, 72, "ANANYA TRADING COMPANY", { fontSize: 7, bold: true });
+    } else {
+      text("front", introPanel, 82, "GET IN TOUCH  ·  +91 98765 43210", { fontSize: 7, bold: true, height: 14, color: colors.accent });
+    }
+    [0, 1, 2].slice(0, panelCount).forEach((panel) => {
+      const headings = ["ABOUT US", "WHAT WE DO", "OUR PROMISE"];
+      const copy = [
+        "A dependable partner for print, branding and business essentials.",
+        "From identity to packaging, we bring every detail together.",
+        "Clear communication, consistent quality and service you can trust.",
+      ];
+      text("back", panel, 25, headings[panel], { fontSize: 10, bold: true });
+      shape("back", panel, 35, 1, colors.accent, "Section Rule");
+      text("back", panel, 56, copy[panel], { fontSize: 8, height: 30, color: "#526477" });
+    });
+  } else if (templateName === "Product Catalogue") {
+    shape("front", coverPanel, 50, 96, colors.pale, "Catalogue Cover");
+    text("front", coverPanel, 25, "COLLECTION", { fontSize: 8, bold: true, color: colors.accent, letterSpacing: 1.5 });
+    text("front", coverPanel, 45, "PRODUCT\nCATALOGUE", { fontSize: 14, bold: true, height: 24, label: "Catalogue Title" });
+    text("front", coverPanel, 66, "Print. Pack. Present.", { fontSize: 8, color: "#526477" });
+    text("front", introPanel, 25, "MADE FOR\nYOUR BRAND", { fontSize: 11, bold: true, height: 19 });
+    text("front", introPanel, 53, "Explore practical products with a polished finish and dependable quality.", { fontSize: 8, height: 28, color: "#526477" });
+    if (panelCount === 3) {
+      text("front", contactPanel, 29, "2026 COLLECTION", { fontSize: 9, bold: true });
+      text("front", contactPanel, 52, "Business print\nPackaging\nPromotional goods", { fontSize: 8, height: 28, color: "#526477" });
+    } else {
+      text("front", introPanel, 84, "2026 COLLECTION  ·  3 PRODUCT FAMILIES", { fontSize: 7, bold: true, height: 12, color: colors.accent });
+    }
+    centers.forEach((_, panel) => {
+      text("back", panel, 23, ["PRINT", "PACKAGING", "PROMO"][panel] || "PRODUCTS", { fontSize: 9, bold: true });
+      shape("back", panel, 43, 22, colors.pale, "Product Image Placeholder");
+      text("back", panel, 43, "PRODUCT\nIMAGE", { fontSize: 7, color: "#718096", height: 12 });
+      text("back", panel, 67, ["Business essentials", "Made to protect", "Made to be remembered"][panel] || "Made for business", { fontSize: 8, height: 16, color: "#526477" });
+      text("back", panel, 84, "Explore the range  >", { fontSize: 7, bold: true, color: colors.accent });
+    });
+  } else if (templateName === "Marketing") {
+    shape("front", coverPanel, 50, 96, colors.accent, "Campaign Cover");
+    text("front", coverPanel, 28, "MAKE\nAN IMPACT", { fontSize: 16, bold: true, color: "#ffffff", height: 24, label: "Campaign Headline" });
+    text("front", coverPanel, 57, "A clearer story starts here.", { fontSize: 8, color: "#fff4ed", height: 15 });
+    text("front", introPanel, 25, "YOUR NEXT\nBIG IDEA", { fontSize: 12, bold: true, height: 22 });
+    text("front", introPanel, 55, "Bring your launch, offer or event to life with print that gets noticed.", { fontSize: 8, height: 28, color: "#526477" });
+    if (panelCount === 3) {
+      text("front", contactPanel, 28, "CAMPAIGN\nHIGHLIGHTS", { fontSize: 10, bold: true, height: 20 });
+      text("front", contactPanel, 56, "Strong message.\nBeautiful materials.\nMemorable response.", { fontSize: 8, height: 25, color: "#526477" });
+    } else {
+      text("front", introPanel, 84, "LAUNCH  ·  PROMOTE  ·  CONNECT", { fontSize: 7, bold: true, height: 12, color: colors.accent });
+    }
+    centers.forEach((_, panel) => {
+      text("back", panel, 25, ["THE OFFER", "THE STORY", "TAKE ACTION"][panel] || "DETAILS", { fontSize: 9, bold: true });
+      shape("back", panel, 43, 1, colors.accent, "Campaign Rule");
+      text("back", panel, 58, ["A focused message for the people who matter.", "Tell customers what makes this moment special.", "Visit us online or talk with our team today."][panel] || "Share your message with confidence.", { fontSize: 8, height: 28, color: "#526477" });
+    });
+  } else {
+    shape("front", coverPanel, 50, 96, colors.ink, "Services Cover");
+    text("front", coverPanel, 29, "SERVICE\nOVERVIEW", { fontSize: 14, bold: true, height: 23, color: "#ffffff", label: "Services Title" });
+    text("front", coverPanel, 59, "Expert support, from brief to delivery.", { fontSize: 8, height: 15, color: "#dce8ed" });
+    text("front", introPanel, 25, "HERE TO HELP", { fontSize: 10, bold: true });
+    text("front", introPanel, 49, "Practical expertise and responsive service for every stage of your business.", { fontSize: 8, height: 28, color: "#526477" });
+    if (panelCount === 3) {
+      text("front", contactPanel, 26, "LET'S TALK", { fontSize: 10, bold: true });
+      text("front", contactPanel, 48, "+91 98765 43210\nhello@ananyatrading.com", { fontSize: 7, height: 22, color: "#526477" });
+    } else {
+      text("front", introPanel, 82, "LET'S TALK  ·  +91 98765 43210", { fontSize: 7, bold: true, height: 14, color: colors.accent });
+    }
+    centers.forEach((_, panel) => {
+      text("back", panel, 25, ["CONSULTING", "PRODUCTION", "DELIVERY"][panel] || "SUPPORT", { fontSize: 9, bold: true });
+      shape("back", panel, 36, 1, colors.accent, "Service Rule");
+      text("back", panel, 57, ["Clear guidance to choose the right solution.", "Careful production with consistent quality.", "Reliable timelines and support when you need it."][panel] || "Dedicated support for your team.", { fontSize: 8, height: 28, color: "#526477" });
+    });
+  }
+
+  return elements;
+};
+
+const makeBrochureDefaults = (brochureSize) =>
+  makeBrochureTemplate("Corporate", brochureSize);
+
 const makePenDefaults = (penColor) => {
   const ink = printColorFor(penColor);
 
@@ -1612,6 +2637,617 @@ const makePenDefaults = (penColor) => {
         fontSize: 9,
         fontFamily: "Poppins",
         color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
+/* vinyl sticker — balanced die-cut layout:
+   logo slot top, name centre, divider, tagline below.
+   All inside the circular print area (clipped). */
+const makeStickerDefaults = (faceColor) => {
+  const ink = printColorFor(faceColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 50,
+        y: 26,
+        width: 24,
+        height: 24,
+        color: ink,
+        opacity: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 50,
+        y: 52,
+        fontSize: 19,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1.5,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Divider",
+        shape: "line",
+        x: 50,
+        y: 61,
+        width: 40,
+        height: 2,
+        color: ink,
+        opacity: 0.55,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "PREMIUM VINYL STICKER",
+        x: 50,
+        y: 70,
+        fontSize: 10,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 3,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Website",
+        text: "www.yourcompany.com",
+        x: 50,
+        y: 82,
+        fontSize: 9,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
+/* gift set — company mark + name on the box face, clear of
+   the ribbon band */
+const makeGiftSetDefaults = (boxColor) => {
+  const ink = "#f0e3b3"; /* gold print on navy box */
+  const safe = printColorFor(boxColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 50,
+        y: 42,
+        fontSize: 15,
+        fontFamily: "Poppins",
+        color: isDarkColor(boxColor) ? ink : safe,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1.5,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "PREMIUM GIFT SET",
+        x: 50,
+        y: 62,
+        fontSize: 9,
+        fontFamily: "Poppins",
+        color: isDarkColor(boxColor) ? ink : safe,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 3,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Divider",
+        shape: "line",
+        x: 50,
+        y: 53,
+        width: 44,
+        height: 1.5,
+        color: isDarkColor(boxColor) ? ink : safe,
+        opacity: 0.6,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
+/* tote bag — logo mark above, company name centred below;
+   both inside the bag-face print zone */
+const makeToteDefaults = (bagColor) => {
+  const ink = printColorFor(bagColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 50,
+        y: 28,
+        width: 26,
+        height: 26,
+        color: ink,
+        opacity: 0.85,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 50,
+        y: 55,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1.5,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "EST. 2024",
+        x: 50,
+        y: 70,
+        fontSize: 8,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 3,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Website",
+        text: "www.yourcompany.com",
+        x: 50,
+        y: 52,
+        fontSize: 11,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+  };
+};
+
+/* cap — small logo mark on the front panel + company name
+   under it; embroidery-safe zone is compact, so defaults
+   stay small and stacked */
+const makeCapDefaults = (capColor) => {
+  const ink = printColorFor(capColor);
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 50,
+        y: 34,
+        width: 30,
+        height: 30,
+        color: ink,
+        opacity: 0.85,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY",
+        x: 50,
+        y: 70,
+        fontSize: 11,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
+/* shipping box - brand mark + name on the left face,
+   clear of the tape strip */
+const makeBoxDefaults = (boxColor) => {
+  const ink = isDarkColor(boxColor)
+    ? "#f5f0e6"
+    : "#3d2b15";
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 50,
+        y: 30,
+        width: 30,
+        height: 30,
+        color: ink,
+        opacity: 0.85,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 50,
+        y: 58,
+        fontSize: 13,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1.5,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "HANDLE WITH CARE",
+        x: 50,
+        y: 74,
+        fontSize: 8,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 3,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
+/* letterhead - logo mark + company name inside the header
+   band, contact line small underneath */
+const makeLetterheadDefaults = (bandColor) => {
+  /* white product colour means the band renders as navy
+     (same fallback as LetterheadSvg) - ink must contrast
+     with the RENDERED colour, not the raw option */
+  const ink = printColorFor(
+    bandColor === "#ffffff" ? "#102a4c" : bandColor
+  );
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 14,
+        y: 50,
+        width: 9,
+        height: 9,
+        color: ink,
+        opacity: 0.9,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 56,
+        y: 40,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Contact Line",
+        text: "yourcompany.com  |  +91 00000 00000",
+        x: 56,
+        y: 70,
+        fontSize: 8,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
+/* event poster - real template: navy hero band + logo,
+   event title, date/venue, divider, CTA bar, footer.
+   Every piece is an editable element. */
+const makePosterDefaults = (brandColor) => {
+  const band =
+    brandColor === "#ffffff" ? "#102a4c" : brandColor;
+  const bandInk = printColorFor(band);
+  const gold = "#c9a227";
+
+  return {
+    front: [
+      /* navy hero band */
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Hero Band",
+        shape: "rect",
+        x: 50,
+        y: 13,
+        width: 110,
+        height: 26,
+        color: band,
+        opacity: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 50,
+        y: 9,
+        width: 13,
+        height: 13,
+        color: "#ffffff",
+        opacity: 0.95,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Event Title",
+        text: "ANNUAL BUSINESS SUMMIT",
+        x: 50,
+        y: 20,
+        fontSize: 15,
+        fontFamily: "Poppins",
+        color: bandInk,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1.5,
+        rotation: 0,
+        hidden: false,
+      },
+      /* event details */
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Date & Venue",
+        text: "JUNE 12-14  |  CONVENTION CENTRE",
+        x: 50,
+        y: 40,
+        fontSize: 10,
+        fontFamily: "Poppins",
+        color: "#102a4c",
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Subtitle",
+        text: "Keynotes, workshops & networking",
+        x: 50,
+        y: 49,
+        fontSize: 9,
+        fontFamily: "Poppins",
+        color: "#475569",
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 0,
+        rotation: 0,
+        hidden: false,
+      },
+      /* gold divider */
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Divider",
+        shape: "line",
+        x: 50,
+        y: 58,
+        width: 46,
+        height: 2,
+        color: gold,
+        opacity: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      /* CTA bar + text */
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "CTA Bar",
+        shape: "rect",
+        x: 50,
+        y: 72,
+        width: 56,
+        height: 9,
+        color: gold,
+        opacity: 1,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "CTA",
+        text: "REGISTER NOW",
+        x: 50,
+        y: 72,
+        fontSize: 11,
+        fontFamily: "Poppins",
+        color: "#102a4c",
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 2.5,
+        rotation: 0,
+        hidden: false,
+      },
+      /* footer */
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Organizer",
+        text: "Organized by YOUR COMPANY",
+        x: 50,
+        y: 88,
+        fontSize: 8,
+        fontFamily: "Poppins",
+        color: "#64748b",
         bold: false,
         italic: false,
         underline: false,
@@ -1714,6 +3350,26 @@ const makeDefaultDesigns = (shirtColor) => {
 
 function Customizer() {
   const navigate = useNavigate();
+  const { addToCart: contextAddToCart } = useCart();
+  const { user } = useAuth();
+
+  /* =====================================================
+     DRAFT AUTO-SAVE / RESUME
+  ===================================================== */
+
+  const EDITOR_KEY = "customizer";
+
+  /* draftReady = autosave allowed (false while the resume
+     prompt is open so defaults can't clobber the draft) */
+  const [draftReady, setDraftReady] = useState(false);
+  const [resumeDraft, setResumeDraft] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [favToast, setFavToast] = useState(false);
+
+  const revisionRef = useRef(0);      // monotonically increasing
+  const saveSeqRef = useRef(0);       // latest change generation
+  const pendingSaveRef = useRef(null);
+  const retryTimerRef = useRef(null);
 
   const fileInputRef = useRef(null);
   const qrFileInputRef = useRef(null);
@@ -1725,6 +3381,8 @@ function Customizer() {
 
   const [selectedProduct, setSelectedProduct] =
     useState(null);
+
+  const productId = selectedProduct?.id ?? "draft";
 
   /* =====================================================
      BASIC STATES
@@ -1741,6 +3399,15 @@ function Customizer() {
 
   const [size, setSize] =
     useState("M");
+
+  const [paperType, setPaperType] =
+    useState("");
+
+  /* custom sticker size (inches) — Custom Size option */
+  const [customW, setCustomW] =
+    useState("4");
+  const [customH, setCustomH] =
+    useState("4");
 
   const [zoom, setZoom] =
     useState(1);
@@ -1786,9 +3453,6 @@ function Customizer() {
   const [cartSuccess, setCartSuccess] =
     useState(false);
 
-  const [orderSuccess, setOrderSuccess] =
-    useState(false);
-
   const [isPlacingOrder, setIsPlacingOrder] =
     useState(false);
 
@@ -1806,10 +3470,15 @@ function Customizer() {
      LOAD PRODUCT + SAVED DESIGN
   ===================================================== */
 
+  const [noProduct, setNoProduct] = useState(false);
+
   useEffect(() => {
     const savedProduct = localStorage.getItem("selectedCustomizeProduct");
 
-    if (!savedProduct) return;
+    if (!savedProduct) {
+      setNoProduct(true);
+      return;
+    }
 
     try {
       const product = JSON.parse(savedProduct);
@@ -1874,60 +3543,58 @@ function Customizer() {
           product?.category || ""
         );
 
-      /* per-product saved design restore */
-      let restored = null;
+      const ctype = String(
+        product?.customizationType ||
+          product?.type ||
+          ""
+      ).toLowerCase();
 
-      try {
-        const raw = localStorage.getItem(
-          `savedDesign_${product.id}`
-        );
-
-        if (raw) {
-          restored = JSON.parse(raw);
-        }
-      } catch {
-        restored = null;
-      }
-
-      if (
-        restored &&
-        restored.designs &&
-        (restored.designs.front?.length ||
-          restored.designs.back?.length)
-      ) {
-        setDesigns(restored.designs);
-
-        if (restored.productColor) {
-          setProductColor(restored.productColor);
-        }
-
-        if (restored.size) {
-          setSize(restored.size);
-        }
-
-        if (restored.paperType) {
-          setPaperType(restored.paperType);
-        }
-
-        setCustomerDescription(
-          restored.customerDescription || ""
-        );
-
-        setCustomerNote(
-          restored.customerNote || ""
-        );
-      } else {
-        const ctype = String(
-          product?.customizationType ||
-            product?.type ||
-            ""
-        ).toLowerCase();
-
+      /* default designs for a fresh start (also rendered
+         behind the resume prompt) */
+      const loadDefaults = () =>
         setDesigns(
           isNb
             ? makeNotebookDefaults(shirtColor)
             : ctype === "envelope"
             ? makeEnvelopeDefaults("#f8f6f1")
+            : ctype === "sticker" ||
+              /sticker|vinyl/i.test(
+                product?.name || ""
+              )
+            ? makeStickerDefaults(shirtColor)
+            : ctype === "giftset" ||
+              /gift\s?set|corporate gift/i.test(
+                product?.name || ""
+              )
+            ? makeGiftSetDefaults(shirtColor)
+            : ctype === "tote-bag" ||
+              /tote\s?bag/i.test(product?.name || "")
+            ? makeToteDefaults(shirtColor)
+            : ctype === "cap" ||
+              /cap/i.test(product?.name || "")
+            ? makeCapDefaults(shirtColor)
+            : ctype === "box" ||
+              /\bbox(es)?\b/i.test(product?.name || "")
+            ? makeBoxDefaults(shirtColor)
+            : ctype === "letterhead" ||
+              /letterhead|letter\s?head/i.test(
+                product?.name || ""
+              )
+            ? makeLetterheadDefaults(shirtColor)
+            : ctype === "poster" ||
+              /poster/i.test(product?.name || "")
+            ? makePosterDefaults(shirtColor)
+            : ctype === "brochure" ||
+              /brochure/i.test(product?.name || "")
+            ? makeBrochureDefaults(
+                product?.size || product?.sizes?.[0] || "A4 Tri-fold"
+              )
+            : ctype === "flyer" ||
+              /flyer/i.test(product?.name || "")
+            ? makeFlyerDefaults(
+                shirtColor,
+                product?.size || product?.sizes?.[0] || "A4"
+              )
             : [
                 "pen",
                 "bottle",
@@ -1938,11 +3605,270 @@ function Customizer() {
             ? makePenDefaults(shirtColor)
             : makeDefaultDesigns(shirtColor)
         );
-      }
+
+      loadDefaultsRef.current = loadDefaults;
+
+      /* render defaults IMMEDIATELY — the draft check is
+         async (server round-trip); don't block the canvas
+         on it or reopening feels slow */
+      loadDefaults();
+
+      /* dead keys from the pre-draft system — freeing them
+         keeps localStorage under quota */
+      try {
+        localStorage.removeItem("savedCustomDesign");
+      } catch {}
+
+      /* ---------- draft restore ----------
+         server draft for logged-in, localStorage for guests;
+         legacy savedDesign_<id> folds in as a draft */
+      (async () => {
+        let found = await getDraft(
+          EDITOR_KEY,
+          product.id
+        ).catch(() => null);
+
+        if (!found?.draft) {
+          found = migrateLegacyDraft(
+            EDITOR_KEY,
+            product.id,
+            `savedDesign_${product.id}`
+          );
+        }
+
+        const d = found?.draft;
+        if (
+          d?.designs &&
+          (d.designs.front?.length ||
+            d.designs.back?.length)
+        ) {
+          setResumeDraft(found);
+        } else {
+          setDraftReady(true);
+        }
+      })();
     } catch (error) {
       console.error("Selected product load error:", error);
     }
   }, []);
+
+  /* =====================================================
+     DRAFT — apply / save / resume handlers
+  ===================================================== */
+
+  const loadDefaultsRef = useRef(null);
+
+  /* file-backed images: src "file:<id>" → blob → objectURL */
+  const restoreDraftImages = async (designsIn) => {
+    const fix = async (e) => {
+      const src = String(e?.src || "");
+      /* file:<id> → fetch the stored blob */
+      if (src.startsWith("file:")) {
+        const blob = await fetchFileBlob(src.slice(5));
+        return blob
+          ? { ...e, src: URL.createObjectURL(blob) }
+          : e;
+      }
+      /* stale blob: URLs are dead across sessions — keep
+         the element only if we have a fileId to refetch */
+      if (src.startsWith("blob:")) {
+        if (e.fileId) {
+          const blob = await fetchFileBlob(e.fileId);
+          return blob
+            ? { ...e, src: URL.createObjectURL(blob) }
+            : e;
+        }
+        return { ...e, hidden: true, src: "" };
+      }
+      return e;
+    };
+    return {
+      front: await Promise.all(
+        (designsIn.front || []).map(fix)
+      ),
+      back: await Promise.all(
+        (designsIn.back || []).map(fix)
+      ),
+    };
+  };
+
+  const applyDraftState = async (d) => {
+    setDesigns(d.designs);
+    if (d.productColor) setProductColor(d.productColor);
+    if (d.size) setSize(d.size);
+    if (d.paperType) setPaperType(d.paperType);
+    if (d.customW) setCustomW(String(d.customW));
+    if (d.customH) setCustomH(String(d.customH));
+    if (d.side) setSide(d.side);
+    setCustomerDescription(d.customerDescription || "");
+    setCustomerNote(d.customerNote || "");
+
+    const hasFileRefs = ["front", "back"].some((s) =>
+      (d.designs[s] || []).some(
+        (e) =>
+          typeof e?.src === "string" &&
+          e.src.startsWith("file:")
+      )
+    );
+    if (hasFileRefs) {
+      setDesigns(await restoreDraftImages(d.designs));
+    }
+  };
+
+  /* draft payload — file-backed images keep the stable
+     server fileId, not the bulky dataURL */
+  const stripImageSrc = (e) =>
+    e?.fileId &&
+    typeof e.src === "string" &&
+    (e.src.startsWith("data:") ||
+      e.src.startsWith("blob:"))
+      ? { ...e, src: `file:${e.fileId}` }
+      : e;
+
+  const buildDraftPayload = () => ({
+    designs: {
+      front: designs.front.map(stripImageSrc),
+      back: designs.back.map(stripImageSrc),
+    },
+    productColor,
+    size,
+    paperType,
+    customW,
+    customH,
+    side,
+    customerDescription,
+    customerNote,
+  });
+
+  const doDraftSave = async (pending) => {
+    if (!pending) return;
+    setSaveStatus("saving");
+    const revision = ++revisionRef.current;
+    const res = await saveDraft(
+      EDITOR_KEY,
+      productId,
+      pending.payload,
+      revision
+    );
+
+    /* newer edits already queued — don't claim "saved" for
+       a stale write */
+    if (pending.seq !== saveSeqRef.current) return;
+
+    if (res.ok || res.conflict) {
+      if (res.revision)
+        revisionRef.current = Math.max(
+          revisionRef.current,
+          res.revision
+        );
+      pendingSaveRef.current = null;
+      setSaveStatus("saved");
+    } else {
+      setSaveStatus("error");
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(
+        () => doDraftSave(pending),
+        3000
+      );
+    }
+  };
+
+  /* debounced autosave — every meaningful design change */
+  useEffect(() => {
+    if (!draftReady || !selectedProduct) return;
+
+    const seq = ++saveSeqRef.current;
+    pendingSaveRef.current = {
+      payload: buildDraftPayload(),
+      seq,
+    };
+    setSaveStatus((s) => (s === "saved" ? s : "saving"));
+
+    const t = setTimeout(
+      () => doDraftSave(pendingSaveRef.current),
+      700
+    );
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [
+    designs,
+    productColor,
+    size,
+    paperType,
+    customW,
+    customH,
+    side,
+    customerDescription,
+    customerNote,
+    draftReady,
+  ]);
+
+  /* warn before leaving with unsaved changes + flush draft
+     on unmount (guests: localStorage is synchronous) */
+  useEffect(() => {
+    const warn = (e) => {
+      if (
+        pendingSaveRef.current ||
+        saveStatus === "saving" ||
+        saveStatus === "error"
+      ) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      clearTimeout(retryTimerRef.current);
+
+      if (draftReady && pendingSaveRef.current) {
+        const rev = ++revisionRef.current;
+        /* local write is synchronous — survives unmount;
+           server save fires without awaiting */
+        writeLocalDraft(
+          EDITOR_KEY,
+          productId,
+          pendingSaveRef.current.payload,
+          rev
+        );
+        saveDraft(
+          EDITOR_KEY,
+          productId,
+          pendingSaveRef.current.payload,
+          rev
+        ).catch(() => {});
+        pendingSaveRef.current = null;
+      }
+    };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [saveStatus, draftReady, productId]);
+
+  const continueDraft = async () => {
+    const found = resumeDraft;
+    setResumeDraft(null);
+    revisionRef.current = found?.revision || 0;
+    await applyDraftState(found.draft);
+    setDraftReady(true);
+  };
+
+  const startNewDesign = async () => {
+    setResumeDraft(null);
+    await deleteDraft(EDITOR_KEY, productId);
+    revisionRef.current = 0;
+    loadDefaultsRef.current?.();
+    setDraftReady(true);
+  };
+
+  const discardDraft = async () => {
+    if (
+      !window.confirm(
+        "Discard the saved draft permanently?"
+      )
+    )
+      return;
+    await startNewDesign();
+  };
 
   /* =====================================================
      PRICE
@@ -2005,15 +3931,72 @@ function Customizer() {
 
   const isEnvelope = customizationType === "envelope";
 
+  const isBrochure =
+    customizationType === "brochure" ||
+    /brochure/i.test(productName);
+
+  const isFlyer =
+    customizationType === "flyer" ||
+    /flyer/i.test(productName) ||
+    isBrochure;
+
+  const isSticker =
+    customizationType === "sticker" ||
+    /sticker|vinyl/i.test(productName);
+
+  const isGiftSet =
+    customizationType === "giftset" ||
+    /gift\s?set|corporate gift/i.test(productName);
+
+  const isTote =
+    customizationType === "tote-bag" ||
+    /tote\s?bag/i.test(productName);
+
+  const isCap =
+    customizationType === "cap" ||
+    (/cap/i.test(productName) &&
+      !/capacit/i.test(productName));
+
+  const isBox =
+    customizationType === "box" ||
+    /\bbox(es)?\b/i.test(productName);
+
+  const isLetterhead =
+    customizationType === "letterhead" ||
+    /letterhead|letter\s?head/i.test(productName);
+
+  const isPoster =
+    customizationType === "poster" ||
+    /poster/i.test(productName);
+
   /* single printable surface — front/back switch nahi */
-  const singleSide = isPen || isBottle || isMug;
+  const singleSide =
+    isPen ||
+    isBottle ||
+    isMug ||
+    isSticker ||
+    isGiftSet ||
+    isCap ||
+    isBox ||
+    isLetterhead ||
+    isPoster;
 
   /* image/pen products ka type-specific print area;
      envelope ke front/back alag zones hain */
   const typeAreaDef =
     !isNotebook &&
     !isApparel &&
-    PRINT_AREAS[customizationType];
+    (isBrochure
+      ? { left: 0, top: 0, width: 100, height: 100 }
+      : isFlyer
+      ? { left: 7, top: 8, width: 86, height: 84 }
+      : isPen
+      ? PRINT_AREAS.pen
+      : isBottle
+      ? PRINT_AREAS.bottle
+      : isMug
+      ? PRINT_AREAS.mug
+      : PRINT_AREAS[customizationType] || PRINT_AREAS.pen);
 
   const typePrintArea =
     isEnvelope && typeAreaDef?.front
@@ -2029,6 +4012,11 @@ function Customizer() {
       }
     : undefined;
 
+  const flyerConfig = getFlyerSizeConfig(size);
+  const brochurePanelCount = isBrochure
+    ? getBrochurePanelCount(size)
+    : 0;
+
   /* product sizes — DB/product data se; fallback type-wise */
   const sizeOptions =
     selectedProduct?.sizes?.length
@@ -2040,9 +4028,6 @@ function Customizer() {
   /* paper options — sirf jab product support kare */
   const paperTypes =
     selectedProduct?.paperTypes || null;
-
-  const [paperType, setPaperType] =
-    useState("");
 
   /* envelope paper — White / Kraft drives mockup + ink */
   const envelopePaper = isEnvelope
@@ -2143,7 +4128,19 @@ function Customizer() {
     setDesigns((prev) => ({
       ...prev,
       [side]: prev[side].map((e) =>
-        e.id === id ? { ...e, ...patch } : e
+        e.id === id
+          ? {
+              ...e,
+              ...(isBrochure
+                ? constrainBrochureElement(e, patch, size)
+                : constrainElementPatch(
+                    isFlyer && e.type === "text"
+                      ? normalizeTextElement(e, size)
+                      : e,
+                    patch
+                  )),
+            }
+          : e
       ),
     }));
   };
@@ -2153,7 +4150,19 @@ function Customizer() {
     setDesigns((prev) => ({
       ...prev,
       [side]: prev[side].map((e) =>
-        e.id === id ? { ...e, ...patch } : e
+        e.id === id
+          ? {
+              ...e,
+              ...(isBrochure
+                ? constrainBrochureElement(e, patch, size)
+                : constrainElementPatch(
+                    isFlyer && e.type === "text"
+                      ? normalizeTextElement(e, size)
+                      : e,
+                    patch
+                  )),
+            }
+          : e
       ),
     }));
   };
@@ -2229,20 +4238,66 @@ function Customizer() {
       custom: 13,
     };
 
+    const flyerFont = getFlyerSizeConfig(size).font;
+    const flyerPos = {
+      company: { x: 50, y: 58 },
+      person: { x: 50, y: 69 },
+      designation: { x: 50, y: 77 },
+      custom: { x: 50, y: 86 },
+    };
+    const flyerBox = textBoxForKind(kind, size === "DL");
+    const brochurePlacement = isBrochure
+      ? findBrochurePlacement(elements, kind, size)
+      : null;
+    const brochurePanel = brochurePlacement?.panel;
+    const brochurePanelWidth = isBrochure
+      ? 100 / brochurePanelCount
+      : 0;
+    const brochurePanelBackground = isBrochure
+      ? elements.find((element) =>
+          element.type === "shape" &&
+          element.panel === brochurePanel &&
+          Number(element.height) >= 80
+        )?.color
+      : null;
+    const brochureBox = isBrochure
+      ? {
+          width: brochurePanelWidth - 5,
+          height: brochurePlacement.height,
+        }
+      : {};
+
     const newEl = {
       id: uid(),
       type: "text",
       kind,
       label: preset.label,
       text: preset.placeholder,
-      x: isEnvelope
+      panel: isBrochure ? brochurePanel : undefined,
+      panelCount: isBrochure ? brochurePanelCount : undefined,
+      x: isBrochure
+        ? brochurePanelWidth * (brochurePanel + 0.5)
+        : isEnvelope
         ? envPos[kind]?.x ?? 50
+        : isFlyer
+        ? flyerPos[kind]?.x ?? 50
         : 50,
-      y: isEnvelope
+      y: isBrochure
+        ? brochurePlacement.y
+        : isEnvelope
         ? (envPos[kind]?.y ?? 50) + sameKind * 10
+        : isFlyer
+        ? Math.min(
+            92 - flyerBox.height / 2,
+            (flyerPos[kind]?.y ?? 56) + sameKind * 8
+          )
         : Math.min(85, 42 + sameKind * 14),
-      fontSize: isEnvelope
+      fontSize: isBrochure
+        ? kind === "company" ? 13 : kind === "person" ? 11 : kind === "designation" ? 9 : 10
+        : isEnvelope
         ? envFont[kind] || 13
+        : isFlyer
+        ? flyerFont[kind] || flyerFont.custom
         : singleSide
         ? kind === "company"
           ? 15
@@ -2255,9 +4310,9 @@ function Customizer() {
         ? 14
         : 20,
       fontFamily: "Poppins",
-      color: printColorFor(
-        isEnvelope ? envelopePaper : productColor
-      ),
+      color: isBrochure
+        ? printColorFor(brochurePanelBackground || "#ffffff")
+        : printColorFor(isEnvelope ? envelopePaper : productColor),
       bold:
         kind === "company" || kind === "person",
       italic: false,
@@ -2270,6 +4325,8 @@ function Customizer() {
       letterSpacing: 1,
       rotation: 0,
       hidden: false,
+      ...(isBrochure ? brochureBox : isFlyer ? flyerBox : {}),
+      ...(isFlyer ? { lineHeight: 1.12 } : {}),
     };
 
     setDesigns((prev) => ({
@@ -2303,6 +4360,12 @@ function Customizer() {
 
     reader.onload = (e) => {
       saveHistory();
+      const brochurePlacement = isBrochure
+        ? findBrochurePlacement(elements, "custom", size)
+        : null;
+      const brochurePanelWidth = isBrochure
+        ? 100 / brochurePanelCount
+        : 0;
 
       const newEl = {
         id: uid(),
@@ -2310,9 +4373,13 @@ function Customizer() {
         kind: "logo",
         label: file.name || "Logo",
         src: e.target.result,
-        x: 50,
-        y: 32,
-        width: 38,
+        panel: brochurePlacement?.panel,
+        panelCount: isBrochure ? brochurePanelCount : undefined,
+        x: isBrochure
+          ? brochurePanelWidth * (brochurePlacement.panel + 0.5)
+          : 50,
+        y: isBrochure ? brochurePlacement.y : isFlyer ? 24 : 32,
+        width: isBrochure ? Math.min(20, brochurePanelWidth - 8) : isFlyer ? 20 : 38,
         rotation: 0,
         opacity: 1,
         hidden: false,
@@ -2324,6 +4391,29 @@ function Customizer() {
       }));
 
       setSelectedId(newEl.id);
+
+      /* logged-in: persist the image server-side so drafts
+         hold a stable file reference, not a giant dataURL */
+      if (user) {
+        uploadDesignFile({
+          name: file.name || "logo",
+          type: file.type || "image/png",
+          dataUrl: e.target.result,
+        })
+          .then((up) => {
+            if (up?.success && up.fileId) {
+              setDesigns((prev) => ({
+                ...prev,
+                [side]: prev[side].map((el) =>
+                  el.id === newEl.id
+                    ? { ...el, fileId: up.fileId }
+                    : el
+                ),
+              }));
+            }
+          })
+          .catch(() => {});
+      }
     };
 
     reader.readAsDataURL(file);
@@ -2502,6 +4592,22 @@ function Customizer() {
         ? makeNotebookDefaults(shirtColor)
         : isEnvelope
         ? makeEnvelopeDefaults(envelopePaper || "#f8f6f1")
+        : isBrochure
+        ? makeBrochureDefaults(selectedProduct?.sizes?.[0] || size)
+        : isFlyer
+        ? makeFlyerDefaults(shirtColor, size)
+        : isSticker
+        ? makeStickerDefaults(shirtColor)
+        : isGiftSet
+        ? makeGiftSetDefaults(shirtColor)
+        : isTote
+        ? makeToteDefaults(shirtColor)
+        : isCap
+        ? makeCapDefaults(shirtColor)
+        : isBox
+        ? makeBoxDefaults(shirtColor)
+        : isLetterhead
+        ? makeLetterheadDefaults(shirtColor)
         : singleSide
         ? makePenDefaults(shirtColor)
         : makeDefaultDesigns(shirtColor)
@@ -2524,7 +4630,6 @@ function Customizer() {
     setCustomerNote("");
 
     setCartSuccess(false);
-    setOrderSuccess(false);
   };
 
   /* =====================================================
@@ -2582,7 +4687,13 @@ function Customizer() {
 
       type:
         selectedProduct?.type ||
+        selectedProduct?.customizationType ||
         "tshirt",
+
+      customizationType:
+        selectedProduct?.customizationType ||
+        selectedProduct?.type ||
+        "",
 
       image:
         productImage,
@@ -2608,7 +4719,17 @@ function Customizer() {
 
       quantity: 1,
 
-      size,
+      size:
+        /custom/i.test(size) &&
+        customW &&
+        customH
+          ? `Custom ${customW}×${customH} in`
+          : size,
+
+      customWidth:
+        /custom/i.test(size) ? customW : null,
+      customHeight:
+        /custom/i.test(size) ? customH : null,
 
       paperType: paperType || null,
 
@@ -2674,438 +4795,164 @@ function Customizer() {
      ADD TO CART
   ===================================================== */
 
-  const addToCart = () => {
-    const customProduct =
-      createCustomProduct();
-
-    let existingCart = [];
+  const addToCart = async () => {
+    const customProduct = createCustomProduct();
 
     try {
-      const savedCart =
-        localStorage.getItem(
-          "ananyaCart"
-        );
+      const result = await contextAddToCart({
+        productId: customProduct.originalProductId || customProduct.id,
+        product_id: customProduct.originalProductId || customProduct.id,
+        originalProductId: customProduct.originalProductId,
+        name: customProduct.name,
+        image: customProduct.image,
+        price: customProduct.price,
+        quantity: customProduct.quantity || 1,
+        size: customProduct.size,
+        paperType: customProduct.paperType,
+        customizationType: customProduct.customizationType,
+        itemType: "custom",
+        customization: {
+          designs: customProduct.designs,
+          size: customProduct.size,
+          paperType: customProduct.paperType,
+          customizationType: customProduct.customizationType,
+          text: customProduct.text,
+          color: customProduct.color,
+          personName: customProduct.personName,
+          designation: customProduct.designation,
+          companyName: customProduct.companyName,
+          customerDescription: customProduct.customerDescription,
+          customerNote: customProduct.customerNote,
+        },
+        /* legacy fields preserved for cart/order compatibility */
+        designs: customProduct.designs,
+        text: customProduct.text,
+        color: customProduct.color,
+        personName: customProduct.personName,
+        designation: customProduct.designation,
+        companyName: customProduct.companyName,
+      });
 
-      existingCart = savedCart
-        ? JSON.parse(savedCart)
-        : [];
-
-      if (
-        !Array.isArray(existingCart)
-      ) {
-        existingCart = [];
+      if (result?.error) {
+        alert(result.error);
+        return;
       }
     } catch (error) {
-      console.error(
-        "Cart load error:",
-        error
-      );
-
-      existingCart = [];
-    }
-
-    const updatedCart = [
-      ...existingCart,
-      customProduct,
-    ];
-
-    try {
-      localStorage.setItem(
-        "ananyaCart",
-        JSON.stringify(
-          updatedCart
-        )
-      );
-    } catch (error) {
-      console.error(
-        "Cart save error:",
-        error
-      );
-
-      alert(
-        "Product cart me save nahi ho paya."
-      );
-
+      console.error("Cart save error:", error);
+      alert("Product cart me save nahi ho paya.");
       return;
     }
 
-    window.dispatchEvent(
-      new Event(
-        "ananyaCartUpdated"
-      )
-    );
-
-    window.dispatchEvent(
-      new Event(
-        "cartUpdated"
-      )
-    );
-
     setCartSuccess(true);
-
     setTimeout(() => {
       setCartSuccess(false);
     }, 4000);
   };
 
   /* =====================================================
-     GET CURRENT USER
-  ===================================================== */
-
-  const getCurrentUser = () => {
-    try {
-      const savedUser =
-        localStorage.getItem(
-          "currentUser"
-        );
-
-      if (!savedUser) {
-        return null;
-      }
-
-      const user =
-        JSON.parse(savedUser);
-
-      return user;
-    } catch (error) {
-      console.error(
-        "User load error:",
-        error
-      );
-
-      return null;
-    }
-  };
-
-  /* =====================================================
-     GET EXISTING ORDERS
-  ===================================================== */
-
-  const getExistingOrders = () => {
-    try {
-      const savedOrders =
-        localStorage.getItem(
-          "ananyaOrders"
-        );
-
-      if (!savedOrders) {
-        return [];
-      }
-
-      const parsedOrders =
-        JSON.parse(savedOrders);
-
-      return Array.isArray(
-        parsedOrders
-      )
-        ? parsedOrders
-        : [];
-    } catch (error) {
-      console.error(
-        "Orders load error:",
-        error
-      );
-
-      return [];
-    }
-  };
-
-  /* =====================================================
      PLACE ORDER
   ===================================================== */
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
     if (isPlacingOrder) {
-      return;
-    }
-
-    const currentUser =
-      getCurrentUser();
-
-    if (!currentUser) {
-      alert(
-        "Please login before placing your order."
-      );
-
-      navigate("/login", {
-        state: {
-          from: "/customizer",
-        },
-      });
-
       return;
     }
 
     setIsPlacingOrder(true);
 
+    /* Place Order = put the customized product in the
+       cart and go to Checkout — order is created ONLY
+       by Checkout's confirmed submission (stock, price,
+       auth all validated server-side there) */
     const customProduct =
       createCustomProduct();
 
-    const existingOrders =
-      getExistingOrders();
-
-    const timestamp =
-      Date.now();
-
-    const orderId =
-      `ORD${timestamp}`;
-
-    const orderNumber =
-      `#ORD${timestamp
-        .toString()
-        .slice(-6)}`;
-
-    const now =
-      new Date().toISOString();
-
-    const userId =
-      currentUser?.id ||
-      currentUser?.email ||
-      currentUser?.phone ||
-      null;
-
-    const orderItem = {
-      ...customProduct,
-
-      id:
-        customProduct.id ||
-        `item-${timestamp}`,
-
-      quantity: 1,
-
-      customerDescription:
-        customerDescription.trim(),
-
-      customerNote:
-        customerNote.trim(),
-
-      specialNote:
-        customerNote.trim(),
-
-      instructions:
-        customerNote.trim(),
-
-      totalPrice:
-        totalPrice,
-
-      price:
-        totalPrice,
-    };
-
-    const newOrder = {
-      id: orderId,
-
-      orderId,
-
-      orderNumber,
-
-      userId,
-
-      user: currentUser,
-
-      status: "Confirmed",
-
-      paymentStatus: "Pending",
-
-      paymentMethod:
-        "Cash on Delivery",
-
-      placedAt: now,
-
-      createdAt: now,
-
-      date: now,
-
-      items: [orderItem],
-
-      products: [orderItem],
-
-      cart: [orderItem],
-
-      customerDescription:
-        customerDescription.trim(),
-
-      userDescription:
-        customerDescription.trim(),
-
-      customDescription:
-        customerDescription.trim(),
-
-      customerNote:
-        customerNote.trim(),
-
-      specialNote:
-        customerNote.trim(),
-
-      instructions:
-        customerNote.trim(),
-
-      productDescription:
-        selectedProduct?.description ||
-        "",
-
-      totalQuantity: 1,
-
-      subtotal:
-        totalPrice,
-
-      customizationCharges:
-        customizationPrice,
-
-      customizationPrice:
-        customizationPrice,
-
-      totalPrice:
-        totalPrice,
-
-      total:
-        totalPrice,
-
-      shipping: 0,
-
-      currency: "INR",
-
-      source: "customizer",
-
-      isCustomized: true,
-    };
-
-    const updatedOrders = [
-      newOrder,
-      ...existingOrders,
-    ];
-
     try {
-      localStorage.setItem(
-        "ananyaOrders",
-        JSON.stringify(
-          updatedOrders
-        )
-      );
+      const result =
+        await contextAddToCart({
+          productId:
+            customProduct.originalProductId ||
+            customProduct.id,
+          product_id:
+            customProduct.originalProductId ||
+            customProduct.id,
+          originalProductId:
+            customProduct.originalProductId,
+          name: customProduct.name,
+          image: customProduct.image,
+          price: customProduct.price,
+          quantity:
+            customProduct.quantity || 1,
+          size: customProduct.size,
+          paperType: customProduct.paperType,
+          customizationType: customProduct.customizationType,
+          itemType: "custom",
+          customization: {
+            designs: customProduct.designs,
+            size: customProduct.size,
+            paperType: customProduct.paperType,
+            customizationType: customProduct.customizationType,
+            text: customProduct.text,
+            color: customProduct.color,
+            personName: customProduct.personName,
+            designation:
+              customProduct.designation,
+            companyName:
+              customProduct.companyName,
+            customerDescription:
+              customProduct.customerDescription,
+            customerNote:
+              customProduct.customerNote,
+          },
+          designs: customProduct.designs,
+          text: customProduct.text,
+          color: customProduct.color,
+          personName: customProduct.personName,
+          designation:
+            customProduct.designation,
+          companyName: customProduct.companyName,
+        });
 
-      saveOrderToServer(newOrder);
+      if (result?.error) {
+        alert(result.error);
+        setIsPlacingOrder(false);
+        return;
+      }
     } catch (error) {
       console.error(
-        "Order save error:",
+        "Cart save error:",
         error
       );
-
       alert(
-        "Order save nahi ho paya. Please try again."
+        "Checkout ke liye product add nahi ho paya."
       );
-
       setIsPlacingOrder(false);
-
       return;
     }
 
-    let verifyOrders = [];
-
-    try {
-      const saved =
-        localStorage.getItem(
-          "ananyaOrders"
-        );
-
-      verifyOrders =
-        saved
-          ? JSON.parse(saved)
-          : [];
-    } catch (error) {
-      console.error(
-        "Order verify error:",
-        error
-      );
-
-      verifyOrders = [];
-    }
-
-    const savedSuccessfully =
-      Array.isArray(
-        verifyOrders
-      ) &&
-      verifyOrders.some(
-        (order) =>
-          order.id === orderId
-      );
-
-    if (!savedSuccessfully) {
-      alert(
-        "Order save nahi hua. Please try again."
-      );
-
-      setIsPlacingOrder(false);
-
-      return;
-    }
-
-    window.dispatchEvent(
-      new Event(
-        "ananyaOrdersUpdated"
-      )
-    );
-
-    window.dispatchEvent(
-      new Event(
-        "ordersUpdated"
-      )
-    );
-
-    setOrderSuccess(true);
-
-    setIsPlacingOrder(false);
-
-    /* Order book hua — My Orders pe le jao */
-    setTimeout(() => {
-      navigate("/orders");
-    }, 1500);
+    navigate("/checkout");
   };
-
-  /* =====================================================
-     GO TO MY ORDERS
-  ===================================================== */
-
-  const goToMyOrders = () => {
-    navigate("/orders");
-  };
-
-  /* =====================================================
-     SAVE DESIGN (per product)
-  ===================================================== */
 
   const saveDesign = () => {
-    try {
-      const payload = {
-        product: selectedProduct,
-        designs,
-        productColor,
-        size,
-        paperType,
-        side,
-        customerDescription,
-        customerNote,
-        savedAt: new Date().toISOString(),
-      };
+    if (!selectedProduct) return;
 
-      localStorage.setItem(
-        `savedDesign_${selectedProduct?.id}`,
-        JSON.stringify(payload)
-      );
+    const seq = ++saveSeqRef.current;
+    pendingSaveRef.current = {
+      payload: buildDraftPayload(),
+      seq,
+    };
+    doDraftSave(pendingSaveRef.current);
 
-      localStorage.setItem(
-        "savedCustomDesign",
-        JSON.stringify(payload)
-      );
+    /* favourites — server for logged-in, localStorage for
+       guests (full snapshot goes to the server; the local
+       mirror keeps a lean copy to stay under quota) */
+    addFavorite({
+      ...selectedProduct,
+      badge: selectedProduct.badge || "Custom Design",
+    }).catch(() => {});
 
-      alert("Design saved successfully!");
-    } catch (error) {
-      console.error(
-        "Design save error:",
-        error
-      );
-
-      alert("Design save nahi ho paya.");
-    }
+    setFavToast(true);
+    setTimeout(() => setFavToast(false), 2500);
   };
 
   /* =====================================================
@@ -3160,15 +5007,17 @@ function Customizer() {
   ===================================================== */
 
   const renderCanvas = () => (
-    <div
-      className="product-canvas"
+      <div
+        className={`product-canvas${isPen ? " pen-product-canvas" : ""}${isBrochure ? " brochure-product-canvas" : ""}`}
       style={{
         transform: `scale(${zoom})`,
       }}
     >
       <div
         className={
-          isNotebook
+          isBrochure
+            ? "real-product-preview brochure-preview"
+            : isNotebook
             ? "real-product-preview notebook-preview"
             : isPen
             ? "real-product-preview pen-preview"
@@ -3176,15 +5025,39 @@ function Customizer() {
             ? "real-product-preview has-image"
             : isMug
             ? "real-product-preview has-image"
+            : isFlyer
+            ? "real-product-preview flyer-preview"
             : isEnvelope
             ? "real-product-preview envelope-preview"
+            : isSticker
+            ? "real-product-preview sticker-preview"
+            : isGiftSet
+            ? "real-product-preview giftset-preview"
+            : isTote
+            ? "real-product-preview totebag-preview"
+            : isCap
+            ? "real-product-preview cap-preview"
+            : isBox
+            ? "real-product-preview box-preview"
+            : isLetterhead
+            ? "real-product-preview letterhead-preview"
             : !isApparel && productImage
             ? "real-product-preview has-image"
             : "real-product-preview"
         }
         style={
-          isEnvelope
+          isBrochure
+            ? { aspectRatio: "297 / 210" }
+            : isEnvelope
             ? { aspectRatio: `${envelopeAspect}` }
+            : isFlyer
+            ? { aspectRatio: `${flyerConfig.aspect}` }
+            : isLetterhead
+            ? {
+                aspectRatio: /letter/i.test(size)
+                  ? "400 / 518" /* US Letter 215.9x279.4 */
+                  : "400 / 560", /* A4 210x297 */
+              }
             : undefined
         }
       >
@@ -3204,6 +5077,53 @@ function Customizer() {
             color={envelopePaper}
             back={side === "back"}
             size={size}
+          />
+        ) : isBrochure ? (
+          <div
+            className={`brochure-sheet brochure-sheet-${brochurePanelCount === 2 ? "bifold" : "trifold"}`}
+          />
+        ) : isFlyer ? (
+          /* plain paper — every visible piece is an editable
+             shape/text element inside the print area */
+          <div
+            className={`flyer-sheet flyer-sheet-${String(
+              size
+            ).toLowerCase()}`}
+          />
+        ) : isSticker ? (
+          <StickerSvg color={productColor} />
+        ) : isGiftSet ? (
+          <GiftSetSvg color={productColor} />
+        ) : isTote ? (
+          <ToteBagSvg
+            color={
+              /* plain white colour option → canvas beige,
+                 the material look of a real tote */
+              productColor === "#ffffff"
+                ? "#e8e0d0"
+                : productColor
+            }
+            back={side === "back"}
+          />
+        ) : isCap ? (
+          <CapSvg color={productColor} />
+        ) : isBox ? (
+          <BoxSvg
+            color={
+              /* no colour set → kraft brown */
+              productColor === "#ffffff"
+                ? "#d9b382"
+                : productColor
+            }
+          />
+        ) : isLetterhead ? (
+          <LetterheadSvg
+            color={
+              /* white -> brand navy header band */
+              productColor === "#ffffff"
+                ? "#102a4c"
+                : productColor
+            }
           />
         ) : isApparel ? (
           <GarmentSvg
@@ -3232,6 +5152,38 @@ function Customizer() {
             isNotebook
               ? " print-area-notebook"
               : ""
+          }${
+            isBrochure
+              ? " print-area-brochure"
+              : ""
+          }${
+            isFlyer
+              ? " print-area-flyer"
+              : ""
+          }${
+            isSticker
+              ? " print-area-sticker"
+              : ""
+          }${
+            isGiftSet
+              ? " print-area-giftset"
+              : ""
+          }${
+            isTote
+              ? " print-area-tote"
+              : ""
+          }${
+            isCap
+              ? " print-area-cap"
+              : ""
+          }${
+            isBox
+              ? " print-area-box"
+              : ""
+          }${
+            isLetterhead
+              ? " print-area-letterhead"
+              : ""
           } ${
             preview ? "preview-clean" : "editing"
           }`}
@@ -3241,7 +5193,15 @@ function Customizer() {
         >
           {elements
             .filter((el) => !el.hidden)
-            .map((el) =>
+            .map((rawEl) => {
+              const el =
+                isBrochure
+                  ? normalizeBrochureElement(rawEl, size)
+                  : isFlyer && rawEl.type === "text"
+                  ? normalizeTextElement(rawEl, size)
+                  : rawEl;
+
+              return (
               el.type === "shape" ? (
                 <div
                   key={el.id}
@@ -3262,8 +5222,8 @@ function Customizer() {
                     background: el.color,
                     opacity: el.opacity ?? 1,
                     borderRadius:
-                      el.shape === "circle"
-                        ? "50%"
+                      el.shape === "circle" || el.shape === "pill"
+                        ? "999px"
                         : el.shape === "line"
                         ? "2px"
                         : "6px",
@@ -3419,6 +5379,8 @@ function Customizer() {
                   style={{
                     left: `${el.x}%`,
                     top: `${el.y}%`,
+                    width: `${el.width || textBoxForKind(el.kind).width}%`,
+                    minHeight: `${el.height || textBoxForKind(el.kind).height}%`,
                     fontSize: `${el.fontSize}px`,
                     fontFamily: el.fontFamily,
                     color: el.color,
@@ -3432,6 +5394,7 @@ function Customizer() {
                     letterSpacing: `${el.letterSpacing || 0}px`,
                     textAlign: el.align || "center",
                     transform: `translate(-50%,-50%) rotate(${el.rotation || 0}deg)`,
+                    lineHeight: el.lineHeight || 1.12,
                   }}
                   onPointerDown={
                     preview
@@ -3466,8 +5429,17 @@ function Customizer() {
                     )}
                 </div>
               )
-            )}
+            );
+            })}
         </div>
+
+        {isBrochure && !preview && (
+          <div className={`brochure-fold-guides brochure-fold-guides-${brochurePanelCount}`} aria-hidden="true">
+            {Array.from({ length: brochurePanelCount - 1 }, (_, index) => (
+              <span key={index} style={{ left: `${((index + 1) / brochurePanelCount) * 100}%` }} />
+            ))}
+          </div>
+        )}
 
         {/* SPIRAL — design ke UPAR (notebook only) */}
         {isNotebook && <SpiralOverlay />}
@@ -3590,6 +5562,30 @@ function Customizer() {
   }
 
   /* =====================================================
+     NO PRODUCT — opened /customize directly
+  ===================================================== */
+
+  if (noProduct) {
+    return (
+      <div className="customizer-page">
+        <div className="no-product-state">
+          <h2>Pick a product to customize</h2>
+          <p>
+            Choose any customizable product first — your
+            design will open in this editor.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/products")}
+          >
+            Browse Products
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* =====================================================
      RETURN (EDITOR)
   ===================================================== */
 
@@ -3614,6 +5610,14 @@ function Customizer() {
             Back to Product
           </span>
         </button>
+
+        {/* draft auto-save status */}
+        <div className={`draft-status ds-${saveStatus}`}>
+          {saveStatus === "saving" && "Saving…"}
+          {saveStatus === "saved" && "Saved"}
+          {saveStatus === "error" &&
+            "Save failed — retrying"}
+        </div>
 
         <div className="title-center">
 
@@ -3711,7 +5715,7 @@ function Customizer() {
             </span>
           </button>
 
-          {(isNotebook || dbTemplates.length > 0) && (
+          {(isNotebook || isBrochure || dbTemplates.length > 0) && (
             <button
               className={
                 activeTool === "templates"
@@ -4683,7 +6687,7 @@ function Customizer() {
             </div>
           )}
 
-          {/* TEMPLATES — notebook only */}
+          {/* TEMPLATES */}
 
           {activeTool === "templates" && (
             <div className="settings-content">
@@ -4700,6 +6704,28 @@ function Customizer() {
               </p>
 
               <div className="template-list">
+                {isBrochure && [
+                  "Corporate",
+                  "Product Catalogue",
+                  "Marketing",
+                  "Services",
+                ].map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="template-btn"
+                    onClick={() => {
+                      saveHistory();
+                      setDesigns(makeBrochureTemplate(name, size));
+                      setSide("front");
+                      setSelectedId(null);
+                    }}
+                  >
+                    <span className="template-name">{name}</span>
+                    <span className="template-desc">{brochurePanelCount}-panel, front and inside</span>
+                  </button>
+                ))}
+
                 {dbTemplates.length > 0 &&
                   dbTemplates.map((tpl) => (
                     <button
@@ -5096,27 +7122,112 @@ function Customizer() {
             Choose Size
           </h3>
 
-          <div className="size-options">
+          <div
+            className={`size-options${
+              isSticker ? " size-options-cards" : ""
+            }`}
+          >
 
             {sizeOptions.map(
               (item) => (
                 <button
                   key={item}
                   className={
-                    size === item
+                    (size === item
                       ? "size-selected"
-                      : ""
+                      : "") +
+                    (isSticker
+                      ? " size-option-card"
+                      : "")
                   }
                   onClick={() =>
-                    setSize(item)
+                    {
+                      saveHistory();
+                      setSize(item);
+
+                      if (isFlyer) {
+                        const cfg = getFlyerSizeConfig(item);
+
+                        setDesigns((prev) => ({
+                          ...prev,
+                          front: prev.front.map((el) =>
+                            el.type === "text"
+                              ? normalizeTextElement(
+                                  {
+                                    ...el,
+                                    fontSize:
+                                      cfg.font[el.kind] ||
+                                      cfg.font.custom,
+                                  },
+                                  item
+                                )
+                              : el
+                          ),
+                          back: prev.back.map((el) =>
+                            el.type === "text"
+                              ? normalizeTextElement(
+                                  {
+                                    ...el,
+                                    fontSize:
+                                      cfg.font[el.kind] ||
+                                      cfg.font.custom,
+                                  },
+                                  item
+                                )
+                              : el
+                          ),
+                        }));
+                      }
+                    }
                   }
                 >
-                  {item}
+                  <span>{item}</span>
+                  {isSticker && (
+                    <small>
+                      {/custom/i.test(item)
+                        ? "Set your own width × height"
+                        : /a4|sheet/i.test(item)
+                        ? "Many stickers on one A4 sheet"
+                        : "Pre-cut sticker size"}
+                    </small>
+                  )}
                 </button>
               )
             )}
 
           </div>
+
+          {/* custom sticker size — only when Custom Size */}
+          {isSticker && /custom/i.test(size) && (
+            <div className="custom-size-fields">
+              <label>
+                <span>Width (in)</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
+                  value={customW}
+                  onChange={(e) =>
+                    setCustomW(e.target.value)
+                  }
+                />
+              </label>
+              <label>
+                <span>Height (in)</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
+                  value={customH}
+                  onChange={(e) =>
+                    setCustomH(e.target.value)
+                  }
+                />
+              </label>
+            </div>
+          )}
 
           {/* PAPER TYPE — sirf supported products pe */}
           {paperTypes?.length > 0 && (
@@ -5124,21 +7235,39 @@ function Customizer() {
               <div className="setting-divider" />
 
               <h3>
-                Paper Type
+                {isSticker ? "Material" : "Paper Type"}
               </h3>
 
-              <div className="size-options">
+              <div
+                className={`size-options${
+                  isSticker ? " size-options-cards" : ""
+                }`}
+              >
                 {paperTypes.map((p) => (
                   <button
                     key={p}
                     className={
-                      paperType === p
+                      (paperType === p
                         ? "size-selected"
-                        : ""
+                        : "") +
+                      (isSticker
+                        ? " size-option-card"
+                        : "")
                     }
                     onClick={() => setPaperType(p)}
                   >
-                    {p}
+                    <span>{p}</span>
+                    {isSticker && (
+                      <small>
+                        {/matt|matte/i.test(p)
+                          ? "Flat, no glare finish"
+                          : /gloss/i.test(p)
+                          ? "Shiny, vivid finish"
+                          : /transparent/i.test(p)
+                          ? "See-through film"
+                          : "Standard finish"}
+                      </small>
+                    )}
                   </button>
                 ))}
               </div>
@@ -5359,39 +7488,6 @@ function Customizer() {
             </div>
           )}
 
-          {/* ORDER SUCCESS */}
-
-          {orderSuccess && (
-            <div className="cart-success-message">
-
-              <CheckCircle size={19} />
-
-              <div>
-
-                <strong>
-                  Order Placed Successfully
-                </strong>
-
-                <span>
-                  Your product description and
-                  instructions are saved with
-                  your order.
-                </span>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setOrderSuccess(false)
-                }
-              >
-                <X size={16} />
-              </button>
-
-            </div>
-          )}
-
           {/* ADD TO CART */}
 
           <button
@@ -5419,20 +7515,6 @@ function Customizer() {
               : "Place Order"}
 
           </button>
-
-          {/* GO TO MY ORDERS */}
-
-          {orderSuccess && (
-            <button
-              type="button"
-              className="save-design-btn"
-              onClick={goToMyOrders}
-            >
-              <ClipboardList size={20} />
-
-              View My Orders
-            </button>
-          )}
 
           {/* SAVE DESIGN */}
 
@@ -5557,6 +7639,62 @@ function Customizer() {
         </div>
 
       </footer>
+
+      {/* =================================================
+          RESUME DRAFT PROMPT
+      ================================================= */}
+
+      {/* =================================================
+          FAVOURITES TOAST
+      ================================================= */}
+
+      {favToast && (
+        <div className="fav-toast">
+          <Heart size={16} />
+          <span>Added to Favourites</span>
+        </div>
+      )}
+
+      {resumeDraft && (
+        <div className="draft-overlay">
+          <div className="draft-modal">
+            <h3>Continue previous design?</h3>
+            <p>
+              You have an unfinished design for this product
+              {resumeDraft.updatedAt
+                ? ` (saved ${new Date(
+                    resumeDraft.updatedAt
+                  ).toLocaleString()})`
+                : ""}
+              . Continue where you left off or start fresh.
+            </p>
+
+            <button
+              type="button"
+              className="draft-btn draft-primary"
+              onClick={continueDraft}
+            >
+              Continue Previous Design
+            </button>
+
+            <button
+              type="button"
+              className="draft-btn"
+              onClick={startNewDesign}
+            >
+              Start New Design
+            </button>
+
+            <button
+              type="button"
+              className="draft-btn draft-danger"
+              onClick={discardDraft}
+            >
+              Discard Draft
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

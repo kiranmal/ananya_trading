@@ -66,6 +66,103 @@ function Login() {
   const [loading, setLoading] =
     useState(false);
 
+  /*
+  |--------------------------------------------------------------------------
+  | FORGOT PASSWORD (email OTP)
+  |--------------------------------------------------------------------------
+  */
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotOtp, setForgotOtp] = useState("");
+  const [forgotPass, setForgotPass] = useState("");
+  const [forgotPass2, setForgotPass2] = useState("");
+  const [forgotMsg, setForgotMsg] = useState("");
+  const [forgotBusy, setForgotBusy] = useState(false);
+
+  const openForgot = () => {
+    setForgotEmail(formData.email || "");
+    setForgotOtp("");
+    setForgotPass("");
+    setForgotPass2("");
+    setForgotMsg("");
+    setForgotStep(1);
+    setForgotOpen(true);
+  };
+
+  const sendResetOtp = async () => {
+    const email = forgotEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setForgotMsg("Enter a valid email address.");
+      return;
+    }
+    setForgotBusy(true);
+    setForgotMsg("");
+    try {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setForgotStep(2);
+        setForgotMsg("Reset code sent to your email.");
+      } else {
+        setForgotMsg(
+          data.message || "Could not send the code. Try again."
+        );
+      }
+    } catch {
+      setForgotMsg("Server unreachable. Please try again.");
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  const submitNewPassword = async () => {
+    const email = forgotEmail.trim().toLowerCase();
+    const otp = forgotOtp.trim();
+
+    if (!/^\d{6}$/.test(otp)) {
+      setForgotMsg("Enter the 6-digit code from your email.");
+      return;
+    }
+    if (forgotPass.length < 6) {
+      setForgotMsg("Password must be at least 6 characters.");
+      return;
+    }
+    if (forgotPass !== forgotPass2) {
+      setForgotMsg("Passwords do not match.");
+      return;
+    }
+
+    setForgotBusy(true);
+    setForgotMsg("");
+    try {
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp, newPassword: forgotPass }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setForgotOpen(false);
+        setFormData((p) => ({ ...p, email }));
+        alert("Password updated. Please sign in with your new password.");
+      } else {
+        setForgotMsg(
+          data.message || "Reset failed. Check the code and try again."
+        );
+      }
+    } catch {
+      setForgotMsg("Server unreachable. Please try again.");
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
 
   /*
   |--------------------------------------------------------------------------
@@ -76,7 +173,7 @@ function Login() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    remember: false,
+    remember: true,
   });
 
 
@@ -707,11 +804,7 @@ function Login() {
                 <button
                   type="button"
                   className="forgot-password"
-                  onClick={() =>
-                    alert(
-                      "Forgot password feature will be available soon."
-                    )
-                  }
+                  onClick={openForgot}
                 >
 
                   Forgot Password?
@@ -789,6 +882,121 @@ function Login() {
         </div>
 
       </div>
+
+      {/* =================================================
+          FORGOT PASSWORD MODAL (email OTP)
+      ================================================= */}
+
+      {forgotOpen && (
+        <div
+          className="fp-overlay"
+          onClick={(e) =>
+            e.target === e.currentTarget &&
+            !forgotBusy &&
+            setForgotOpen(false)
+          }
+        >
+          <div className="fp-modal">
+            <h3>Reset Password</h3>
+
+            {forgotStep === 1 ? (
+              <>
+                <p>
+                  Enter your account email — we'll send a
+                  6-digit reset code.
+                </p>
+
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={forgotEmail}
+                  onChange={(e) =>
+                    setForgotEmail(e.target.value)
+                  }
+                  autoFocus
+                />
+              </>
+            ) : (
+              <>
+                <p>
+                  Enter the code sent to{" "}
+                  <strong>{forgotEmail}</strong> and choose
+                  a new password.
+                </p>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="6-digit code"
+                  value={forgotOtp}
+                  onChange={(e) =>
+                    setForgotOtp(
+                      e.target.value.replace(/\D/g, "")
+                    )
+                  }
+                  autoFocus
+                />
+
+                <input
+                  type="password"
+                  placeholder="New password (min 6 chars)"
+                  value={forgotPass}
+                  onChange={(e) =>
+                    setForgotPass(e.target.value)
+                  }
+                  autoComplete="new-password"
+                />
+
+                <input
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={forgotPass2}
+                  onChange={(e) =>
+                    setForgotPass2(e.target.value)
+                  }
+                  autoComplete="new-password"
+                />
+              </>
+            )}
+
+            {forgotMsg && (
+              <p className="fp-message">{forgotMsg}</p>
+            )}
+
+            <div className="fp-actions">
+              <button
+                type="button"
+                className="fp-cancel"
+                onClick={() => setForgotOpen(false)}
+                disabled={forgotBusy}
+              >
+                Cancel
+              </button>
+
+              {forgotStep === 1 ? (
+                <button
+                  type="button"
+                  className="fp-submit"
+                  onClick={sendResetOtp}
+                  disabled={forgotBusy}
+                >
+                  {forgotBusy ? "Sending..." : "Send Code"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="fp-submit"
+                  onClick={submitNewPassword}
+                  disabled={forgotBusy}
+                >
+                  {forgotBusy ? "Updating..." : "Reset Password"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   );

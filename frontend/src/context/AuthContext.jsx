@@ -6,9 +6,30 @@ import React, {
   useState,
 } from "react";
 
+import { mergeLocalDraftsToServer } from "../services/draftApi";
+import { mergeLocalFavoritesToServer } from "../services/favoritesApi";
+
 const AuthContext = createContext();
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+/* every key that belongs to an auth session — cleared
+   together on logout / revoked / expired sessions */
+const AUTH_STORAGE_KEYS = [
+  "currentUser",
+  "authToken",
+  "ananyaUser",
+  "rememberMe",
+  "adminLoggedIn",
+  "ananyaOrderSuccess",
+];
+
+const clearAuthStorage = () => {
+  AUTH_STORAGE_KEYS.forEach((k) =>
+    localStorage.removeItem(k)
+  );
+  sessionStorage.removeItem("ananyaSessionAlive");
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -37,8 +58,40 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      /* "Remember me" UNCHECKED → session ends with the
+         browser. sessionStorage dies when the browser/tab
+         closes; if a fresh session has no alive-marker, the
+         stored token belongs to a previous session → drop it.
+         Refreshes keep the marker, so tab reloads stay in. */
+      const remembered =
+        localStorage.getItem("rememberMe") === "true";
+      if (
+        !remembered &&
+        !sessionStorage.getItem("ananyaSessionAlive")
+      ) {
+        clearAuthStorage();
+        setLoading(false);
+        return;
+      }
+
+      /* mark this browser session as alive */
+      sessionStorage.setItem("ananyaSessionAlive", "1");
+
+      /* corrupt localStorage data — clear and stop */
+      let parsedUser = null;
       try {
-        const parsedUser = JSON.parse(savedUser);
+        parsedUser = JSON.parse(savedUser);
+      } catch {
+        parsedUser = null;
+      }
+
+      if (!parsedUser) {
+        clearAuthStorage();
+        setLoading(false);
+        return;
+      }
+
+      try {
 
         /*
         |--------------------------------------------------------------------------
@@ -77,33 +130,39 @@ export const AuthProvider = ({ children }) => {
             "ananyaUser",
             JSON.stringify(data.user)
           );
-        } else {
+        } else if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
           /*
           |--------------------------------------------------------------------------
-          | Token invalid / expired
+          | Token genuinely invalid / expired — logout
           |--------------------------------------------------------------------------
           */
 
-          localStorage.removeItem("currentUser");
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("ananyaUser");
+          clearAuthStorage();
 
           setUser(null);
         }
-      } catch (error) {
-        console.error("Auth restore error:", error);
-
         /*
         |--------------------------------------------------------------------------
-        | Invalid localStorage data
+        | Any other response (server down, 5xx) — keep the
+        | cached user logged in. Session clears only when
+        | the token itself is rejected.
         |--------------------------------------------------------------------------
         */
-
-        localStorage.removeItem("currentUser");
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("ananyaUser");
-
-        setUser(null);
+      } catch (error) {
+        /*
+        |--------------------------------------------------------------------------
+        | Network error — backend unreachable. Keep the
+        | cached session so users stay logged in during
+        | server restarts / temporary outages.
+        |--------------------------------------------------------------------------
+        */
+        console.error(
+          "Auth restore error (session kept):",
+          error
+        );
       } finally {
         setLoading(false);
       }
@@ -171,14 +230,24 @@ export const AuthProvider = ({ children }) => {
 
       /*
       |--------------------------------------------------------------------------
-      | Remember Me
+      | Remember Me — always record the choice, and set the
+      | per-browser-session marker. With rememberMe=false the
+      | marker alone keeps the session alive; a new browser
+      | session (no marker) is rejected on load.
       |--------------------------------------------------------------------------
       */
 
-      if (rememberMe) {
-        localStorage.setItem("rememberMe", "true");
-      } else {
-        localStorage.removeItem("rememberMe");
+      localStorage.setItem(
+        "rememberMe",
+        rememberMe ? "true" : "false"
+      );
+      sessionStorage.setItem("ananyaSessionAlive", "1");
+
+      /* guest customization drafts + favourites → merge
+         into the account (newer revision wins) */
+      if (token) {
+        mergeLocalDraftsToServer().catch(() => {});
+        mergeLocalFavoritesToServer().catch(() => {});
       }
     } catch (error) {
       console.error("Login save error:", error);
@@ -195,22 +264,21 @@ export const AuthProvider = ({ children }) => {
     try {
       /*
       |--------------------------------------------------------------------------
-      | Auth data remove
+      | Revoke the token on the server so it cannot be
+      | replayed. Fire-and-forget — the client clears its
+      | session regardless of the server response.
       |--------------------------------------------------------------------------
       */
 
-      localStorage.removeItem("currentUser");
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("ananyaUser");
-      localStorage.removeItem("rememberMe");
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        fetch(`${API_URL}/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
 
-      /*
-      |--------------------------------------------------------------------------
-      | Admin login data
-      |--------------------------------------------------------------------------
-      */
-
-      localStorage.removeItem("adminLoggedIn");
+      clearAuthStorage();
 
       /*
       |--------------------------------------------------------------------------

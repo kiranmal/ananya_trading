@@ -21,7 +21,10 @@ import {
 } from "lucide-react";
 
 import { fetchProductById, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
+import { loadFavorites, toggleFavoriteServer } from "../services/favoritesApi";
 import { saveInquiryContext } from "../services/inquiryApi";
+import { useCart } from "../context/CartContext";
+import { uploadDesignFile } from "../services/fileApi";
 
 import "../styles/ProductDetails.css";
 
@@ -30,6 +33,7 @@ function ProductDetails() {
 
   const { id } = useParams();
   const navigate = useNavigate();
+  const { addToCart: contextAddToCart } = useCart();
   const designInputRef = useRef(null);
 
   /* =====================================================
@@ -312,34 +316,27 @@ function ProductDetails() {
 
     if (!product) return;
 
-    try {
+    let cancelled = false;
 
-      const savedFavorites =
-        JSON.parse(
-          localStorage.getItem(
-            "ananyaFavorites"
-          ) || "[]"
+    /* server list for logged-in, localStorage for guests */
+    loadFavorites()
+      .then((list) => {
+        if (cancelled) return;
+        setIsFavorite(
+          list.some(
+            (item) =>
+              String(item?.id) ===
+              String(product.id)
+          )
         );
+      })
+      .catch(() => {
+        if (!cancelled) setIsFavorite(false);
+      });
 
-      const exists =
-        savedFavorites.some(
-          (item) =>
-            String(item.id) ===
-            String(product.id)
-        );
-
-      setIsFavorite(exists);
-
-    } catch (error) {
-
-      console.error(
-        "Favorite loading error:",
-        error
-      );
-
-      setIsFavorite(false);
-
-    }
+    return () => {
+      cancelled = true;
+    };
 
   }, [product?.id]);
 
@@ -484,134 +481,27 @@ function ProductDetails() {
      TOGGLE FAVORITE
   ===================================================== */
 
-  const toggleFavorite = () => {
+  const toggleFavorite = async () => {
 
-    try {
+    /* optimistic heart — guest: localStorage; logged-in:
+       server + mirror. Server failure rolls the heart
+       back to its true state */
+    const previous = isFavorite;
 
-      const savedFavorites =
-        JSON.parse(
-          localStorage.getItem(
-            "ananyaFavorites"
-          ) || "[]"
-        );
+    setIsFavorite(!previous);
 
+    const res = await toggleFavoriteServer(
+      product
+    );
 
-      const alreadyFavorite =
-        savedFavorites.some(
-          (item) =>
-            String(item.id) ===
-            String(product.id)
-        );
+    setIsFavorite(res.added);
 
+    if (!res.ok) {
 
-      let updatedFavorites;
+      setIsFavorite(previous);
 
-
-      /* ================= REMOVE ================= */
-
-      if (alreadyFavorite) {
-
-        updatedFavorites =
-          savedFavorites.filter(
-            (item) =>
-              String(item.id) !==
-              String(product.id)
-          );
-
-        setIsFavorite(false);
-
-        alert(
-          `${product.name} removed from favorites.`
-        );
-
-      }
-
-
-      /* ================= ADD ================= */
-
-      else {
-
-        const favoriteProduct = {
-
-          ...product,
-
-          id: product.id,
-
-          name:
-            product.name ||
-            "Untitled Product",
-
-          category:
-            product.category ||
-            "General",
-
-          images:
-            images,
-
-          price:
-            price,
-
-          oldPrice:
-            oldPrice,
-
-          rating:
-            Number(product.rating) || 4.8,
-
-          reviews:
-            Number(product.reviews) || 0,
-
-          badge:
-            product.badge || "NEW",
-
-          description:
-            product.description ||
-            "Premium quality customized product made for your brand and business.",
-
-        };
-
-
-        updatedFavorites = [
-
-          ...savedFavorites,
-
-          favoriteProduct,
-
-        ];
-
-
-        setIsFavorite(true);
-
-        alert(
-          `${product.name} added to favorites!`
-        );
-
-      }
-
-
-      /* ================= SAVE ================= */
-
-      localStorage.setItem(
-        "ananyaFavorites",
-        JSON.stringify(
-          updatedFavorites
-        )
-      );
-
-
-      /* ================= EVENT ================= */
-
-      window.dispatchEvent(
-        new Event(
-          "ananyaFavoritesUpdated"
-        )
-      );
-
-
-    } catch (error) {
-
-      console.error(
-        "Favorite error:",
-        error
+      alert(
+        "Favorites save nahi ho paya. Please try again."
       );
 
     }
@@ -707,69 +597,54 @@ function ProductDetails() {
      ADD TO CART
   ===================================================== */
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
 
     try {
 
-      const cartItem = {
+      /* uploaded design files → durable fileId refs.
+         Logged-in: upload bytes to /api/files now so the
+         cart row survives refresh + other devices.
+         Guest: metadata only, bytes stay in localStorage
+         until checkout uploads them. */
+      let designsForCart = uploadedDesigns.map((d) => ({
+        name: d.name,
+        type: d.type,
+        size: d.size,
+      }));
 
-        productId:
-          product.id,
+      const isAuthed = Boolean(
+        localStorage.getItem("authToken")
+      );
 
-        name:
-          product.name,
+      if (uploadedDesigns.length > 0 && isAuthed) {
+        designsForCart = await Promise.all(
+          uploadedDesigns.map(async (d) => {
+            const up = await uploadDesignFile({
+              name: d.name,
+              type: d.type,
+              dataUrl: d.dataUrl,
+            });
+            return up.success
+              ? {
+                  name: d.name,
+                  type: d.type,
+                  size: d.size,
+                  fileId: up.fileId,
+                  url: up.url,
+                }
+              : {
+                  name: d.name,
+                  type: d.type,
+                  size: d.size,
+                  uploadFailed: true,
+                };
+          })
+        );
+      }
 
-        price:
-          price,
-
-        quantity:
-          quantity,
-
-        quantityStep:
-          quantityStep,
-
-        paperType:
-          paper,
-
-        size:
-          size,
-
-        attributes:
-          { ...attrSelections },
-
-        unit:
-          unitLabel,
-
-        image:
-          images[0],
-
-        category:
-          product.category ||
-          "General",
-
-        description:
-          product.description ||
-          "",
-
-        uploadedDesigns:
-          uploadedDesigns.map((d) => ({
-            name: d.name,
-            type: d.type,
-            size: d.size,
-          })),
-
-        hasUploadedDesign:
-          uploadedDesigns.length > 0,
-
-        isCustomized:
-          uploadedDesigns.length > 0,
-
-      };
-
-      /* store full design data (base64) separately —
-         localStorage quota ke andar rehne ke liye cart
-         mein sirf metadata jaata hai */
-      if (uploadedDesigns.length > 0) {
+      if (uploadedDesigns.length > 0 && !isAuthed) {
+        /* guest — store full bytes separately so checkout
+           can recover + upload them after login */
         try {
           const designKey = `ananyaDesigns_${product.id}`;
           localStorage.setItem(
@@ -782,103 +657,33 @@ function ProductDetails() {
         }
       }
 
+      const result = await contextAddToCart({
+        productId: product.id,
+        product_id: product.id,
+        name: product.name,
+        price,
+        quantity,
+        quantityStep,
+        paperType: paper,
+        size,
+        attributes: { ...attrSelections },
+        unit: unitLabel,
+        image: images[0],
+        category: product.category || "General",
+        description: product.description || "",
+        uploadedDesigns: designsForCart,
+        hasUploadedDesign: uploadedDesigns.length > 0,
+        isCustomized: uploadedDesigns.length > 0,
+        itemType: "standard",
+      });
 
-      const existingCart =
-        JSON.parse(
-          localStorage.getItem(
-            "ananyaCart"
-          ) || "[]"
+      if (result?.error) {
+        alert(result.error);
+      } else {
+        alert(
+          `${product.name} added to cart!`
         );
-
-
-      /* =================================================
-         CHECK SAME PRODUCT
-      ================================================= */
-
-      const existingIndex =
-        existingCart.findIndex(
-          (item) =>
-            String(item.productId) ===
-              String(product.id) &&
-            item.paperType ===
-              paper &&
-            item.size ===
-              size
-        );
-
-
-      /* =================================================
-         PRODUCT ALREADY IN CART
-      ================================================= */
-
-      if (existingIndex !== -1) {
-
-        existingCart[
-          existingIndex
-        ] = {
-
-          ...existingCart[
-            existingIndex
-          ],
-
-          quantity:
-            Number(
-              existingCart[
-                existingIndex
-              ].quantity
-            ) + quantity,
-
-        };
-
       }
-
-
-      /* =================================================
-         NEW PRODUCT
-      ================================================= */
-
-      else {
-
-        existingCart.push(
-          cartItem
-        );
-
-      }
-
-
-      /* =================================================
-         SAVE CART
-      ================================================= */
-
-      localStorage.setItem(
-        "ananyaCart",
-        JSON.stringify(
-          existingCart
-        )
-      );
-
-
-      /* =================================================
-         CART UPDATE EVENTS
-      ================================================= */
-
-      window.dispatchEvent(
-        new Event(
-          "ananyaCartUpdated"
-        )
-      );
-
-      window.dispatchEvent(
-        new Event(
-          "cartUpdated"
-        )
-      );
-
-
-      alert(
-        `${product.name} added to cart!`
-      );
-
 
     } catch (error) {
 

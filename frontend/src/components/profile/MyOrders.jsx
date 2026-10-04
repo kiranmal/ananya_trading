@@ -22,7 +22,16 @@ import "./MyOrders.css";
 import {
   fetchMyOrders,
   mergeOrders,
+  cancelOrder,
 } from "../../services/orderApi";
+
+const CANCELLABLE_STATUSES = new Set([
+  "new",
+  "pending",
+  "processing",
+  "confirmed",
+  "order placed",
+]);
 
 const MyOrders = ({
   orders: ordersFromProps = [],
@@ -30,6 +39,11 @@ const MyOrders = ({
 }) => {
   const [orders, setOrders] = useState([]);
   const [expandedOrders, setExpandedOrders] = useState({});
+
+  /* customer order cancellation */
+  const [cancelFor, setCancelFor] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   /* ============================================================
      LOAD ORDERS — localStorage + server DB merge
@@ -70,6 +84,63 @@ const MyOrders = ({
   /* ============================================================
      LISTEN FOR NEW ORDERS
   ============================================================ */
+
+  const handleCancelOrder = async (orderNumber) => {
+    if (cancelling) return;
+    setCancelling(true);
+
+    const result = await cancelOrder(orderNumber, cancelReason);
+
+    setCancelling(false);
+
+    if (result.success) {
+      setCancelFor(null);
+      setCancelReason("");
+
+      /* mirror new status into localStorage — server is
+         already updated; this keeps the list consistent
+         even if a refetch is delayed */
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem("ananyaOrders") || "[]"
+        );
+        if (Array.isArray(saved)) {
+          localStorage.setItem(
+            "ananyaOrders",
+            JSON.stringify(
+              saved.map((o) =>
+                String(
+                  o?.orderNumber || o?.orderId || o?.id
+                ) === String(orderNumber)
+                  ? {
+                      ...o,
+                      status: "Cancelled",
+                      cancelledAt:
+                        result.cancelledAt ||
+                        new Date().toISOString(),
+                      cancelledBy: "customer",
+                      cancelReason:
+                        result.cancelReason ||
+                        cancelReason ||
+                        null,
+                      refundStatus:
+                        result.refundStatus || null,
+                    }
+                  : o
+              )
+            )
+          );
+        }
+      } catch {
+        /* non-fatal — server already has it */
+      }
+
+      window.dispatchEvent(new Event("ananyaOrdersUpdated"));
+      await loadOrders();
+    } else {
+      alert(result.message || "Unable to cancel order.");
+    }
+  };
 
   useEffect(() => {
     const handleOrdersUpdated = () => {
@@ -880,6 +951,16 @@ const MyOrders = ({
             getStatusStep(
               order?.status
             );
+
+          const isOrderCancellable =
+            CANCELLABLE_STATUSES.has(
+              String(order?.status || "")
+                .toLowerCase()
+            );
+
+          const isOrderCancelled =
+            String(order?.status || "")
+              .toLowerCase() === "cancelled";
 
           const description =
             getCustomerDescription(
@@ -1992,6 +2073,115 @@ const MyOrders = ({
                         Download Invoice
 
                       </button>
+
+                      {/* =================================================
+                          CANCEL ORDER — eligible statuses only;
+                          ownership enforced server-side
+                      ================================================= */}
+
+                      {isOrderCancellable && (
+                        <div className="cancel-order-box">
+                          {cancelFor === orderKey ? (
+                            <>
+                              <div className="cancel-order-warning">
+                                <strong>
+                                  Cancel order{" "}
+                                  {orderNumber}?
+                                </strong>
+                                <span>
+                                  This action cannot be
+                                  undone.
+                                </span>
+                              </div>
+
+                              <textarea
+                                placeholder="Reason for cancellation (optional)"
+                                value={cancelReason}
+                                onChange={(e) =>
+                                  setCancelReason(
+                                    e.target.value
+                                  )
+                                }
+                                rows={2}
+                                maxLength={500}
+                                disabled={cancelling}
+                              />
+
+                              <button
+                                type="button"
+                                className="cancel-order-button confirm"
+                                disabled={cancelling}
+                                onClick={() =>
+                                  handleCancelOrder(
+                                    orderNumber
+                                  )
+                                }
+                              >
+                                {cancelling
+                                  ? "Cancelling..."
+                                  : "Confirm Cancellation"}
+                              </button>
+
+                              <button
+                                type="button"
+                                className="cancel-order-back"
+                                disabled={cancelling}
+                                onClick={() => {
+                                  setCancelFor(null);
+                                  setCancelReason("");
+                                }}
+                              >
+                                Keep Order
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="cancel-order-button"
+                              onClick={() =>
+                                setCancelFor(orderKey)
+                              }
+                            >
+                              Cancel Order
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {isOrderCancelled && (
+                        <div className="order-cancelled-note">
+                          <strong>Cancelled</strong>
+                          <span>
+                            Cancelled On:{" "}
+                            {order?.cancelledAt
+                              ? formatDate(
+                                  order.cancelledAt
+                                )
+                              : "Not available"}
+                          </span>
+                          {order?.cancelledBy && (
+                            <span>
+                              Cancelled By:{" "}
+                              {order.cancelledBy ===
+                              "admin"
+                                ? "Admin"
+                                : "Customer"}
+                            </span>
+                          )}
+                          <span>
+                            Reason:{" "}
+                            {order?.cancelReason ||
+                              "No reason provided"}
+                          </span>
+                          {order?.refundStatus && (
+                            <span>
+                              Refund:{" "}
+                              {order.refundStatus} —
+                              under review
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                     </aside>
 

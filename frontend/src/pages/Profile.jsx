@@ -26,6 +26,7 @@ const Profile = () => {
     user,
     logout,
     updateUser,
+    loading: authLoading,
   } = useAuth();
 
   const [activeTab, setActiveTab] =
@@ -89,6 +90,18 @@ const Profile = () => {
 
     setActiveTab("tracking");
   };
+
+  /* session restore in progress — don't flash the
+     login-required screen while we check the token */
+  if (authLoading) {
+    return (
+      <div className="profile-login-required">
+        <div className="profile-login-box">
+          <h2>Checking your session...</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
 

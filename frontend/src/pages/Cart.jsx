@@ -17,6 +17,8 @@ import {
 import "./Cart.css";
 import { saveOrderToServer } from "../services/orderApi";
 import { fetchProducts, isActiveProduct, saveCustomizeSelection } from "../services/productApi";
+import { fetchFileBlob, openStoredFile } from "../services/fileApi";
+import { useCart } from "../context/CartContext";
 
 // ============================================================
 // HELPERS
@@ -69,9 +71,172 @@ const isItemCustomized = (item) =>
   Boolean(
     item?.isCustomized ||
     item?.customized ||
+    item?.hasUploadedDesign ||
+    (Array.isArray(item?.uploadedDesigns) &&
+      item.uploadedDesigns.length > 0) ||
+    item?.uploadedDesign ||
     item?.logo ||
     item?.text
   );
+
+/* ============================================================
+   UPLOADED FILES — resolve a real viewable URL per file:
+   1. server fileId (uploaded_files table → owner bytes)
+   2. localStorage dataUrl (guest / pre-checkout path)
+   ============================================================ */
+
+const useDesignFileUrl = (design, productId) => {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    let objUrl = null;
+
+    (async () => {
+      if (design?.fileId) {
+        const blob = await fetchFileBlob(design.fileId);
+        if (!alive) return;
+        if (blob) {
+          objUrl = URL.createObjectURL(blob);
+          setUrl(objUrl);
+          return;
+        }
+      }
+
+      /* guest path — bytes live in ananyaDesigns_<pid> */
+      try {
+        const stored = JSON.parse(
+          localStorage.getItem(`ananyaDesigns_${productId}`) ||
+            "[]"
+        );
+        const match = (Array.isArray(stored) ? stored : []).find(
+          (s) => s && s.name === design?.name && s.dataUrl
+        );
+        if (alive && match) {
+          setUrl(match.dataUrl);
+          return;
+        }
+      } catch {
+        /* fallthrough → unavailable */
+      }
+
+      if (alive) setUrl("none");
+    })();
+
+    return () => {
+      alive = false;
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [design?.fileId, design?.name, productId]);
+
+  return url;
+};
+
+const fmtFileSize = (n) => {
+  const bytes = Number(n);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+};
+
+const CartFileRow = ({ design, productId }) => {
+  const url = useDesignFileUrl(design, productId);
+  const isImage =
+    /^image\//i.test(design?.type || "") ||
+    (typeof url === "string" && url.startsWith("data:image"));
+
+  const handleOpen = () => {
+    if (design?.fileId) {
+      openStoredFile(design.fileId, design.name || "file");
+    } else if (url && url !== "none") {
+      window.open(url, "_blank");
+    }
+  };
+
+  return (
+    <div className="cart-uploaded-file">
+      {typeof url === "string" && url !== "none" && isImage ? (
+        <img
+          src={url}
+          alt={design?.name || "uploaded file"}
+          className="cart-uploaded-thumb"
+        />
+      ) : (
+        <span className="cart-uploaded-icon">
+          <ImageIcon size={16} />
+        </span>
+      )}
+
+      <div className="cart-uploaded-meta">
+        <strong>{design?.name || "Uploaded file"}</strong>
+        <small>
+          {[design?.type, fmtFileSize(design?.size)]
+            .filter(Boolean)
+            .join(" · ")}
+        </small>
+      </div>
+
+      {design?.fileId || (url && url !== "none") ? (
+        <button
+          type="button"
+          className="cart-uploaded-open"
+          onClick={handleOpen}
+        >
+          Open
+        </button>
+      ) : url === "none" ? (
+        <span className="cart-uploaded-missing">
+          File data not stored
+        </span>
+      ) : (
+        <span className="cart-uploaded-missing">…</span>
+      )}
+    </div>
+  );
+};
+
+const CartUploadedFiles = ({ item }) => {
+  const productId = getProductId(item);
+
+  const designs = Array.isArray(item?.uploadedDesigns)
+    ? item.uploadedDesigns
+    : [];
+
+  const rows = [...designs];
+
+  if (item?.uploadedDesign) {
+    const d = item.uploadedDesign;
+    rows.push(
+      typeof d === "string"
+        ? { name: "Uploaded design", type: "", size: null }
+        : {
+            name: d.name || "Uploaded design",
+            type: d.type || "",
+            size: d.size,
+            fileId: d.fileId || null,
+          }
+    );
+  }
+
+  if (!rows.length) return null;
+
+  return (
+    <div className="cart-uploaded-files">
+      <div className="cart-uploaded-title">
+        <Palette size={13} />
+        Uploaded Design Files ({rows.length})
+      </div>
+      {rows.map((d, i) => (
+        <CartFileRow
+          key={`${d.fileId || d.name || i}`}
+          design={d}
+          productId={productId}
+        />
+      ))}
+    </div>
+  );
+};
 
 /* extract labeled text fields from the business-card
    design — for the cart summary (Name/Designation/Company) */
@@ -259,6 +424,11 @@ const createProductSnapshot = (item) => {
       item?.customization ||
       null,
 
+    designs:
+      item?.designs ||
+      item?.customization?.designs ||
+      null,
+
     customizationType:
       item?.customizationType ||
       "",
@@ -289,11 +459,74 @@ const createProductSnapshot = (item) => {
 // PRODUCT PREVIEW
 // ============================================================
 
+function BrochureArtwork({ item, large = false }) {
+  const designs = item?.designs || item?.customization?.designs || {};
+  const size = item?.size || item?.customization?.size || "A4 Tri-fold";
+  const panelCount = /bi.fold/i.test(size) ? 2 : 3;
+  const sides = large ? ["front", "back"] : ["front"];
+  const scale = large ? 0.46 : 0.23;
+
+  return (
+    <div className={`cart-brochure-artwork${large ? " cart-brochure-artwork-large" : ""}`}>
+      {sides.map((side) => (
+        <div className="cart-brochure-side" key={side}>
+          {large && <span className="cart-brochure-side-label">{side === "front" ? "OUTSIDE" : "INSIDE"}</span>}
+          <div className={`cart-brochure-sheet cart-brochure-sheet-${panelCount}`}>
+            {(designs?.[side] || []).filter((element) => !element.hidden).map((element) => {
+              const common = {
+                position: "absolute",
+                left: `${element.x}%`,
+                top: `${element.y}%`,
+                width: `${element.width || 10}%`,
+                opacity: element.opacity ?? 1,
+                transform: `translate(-50%, -50%) rotate(${element.rotation || 0}deg)`,
+                zIndex: element.type === "shape" ? 1 : 2,
+              };
+              if (element.type === "shape") {
+                return <div key={element.id} style={{
+                  ...common,
+                  height: element.shape === "line" ? `${Math.max(1, (element.height || 2) * scale)}px` : `${element.height || element.width}%`,
+                  background: element.color,
+                  borderRadius: element.shape === "circle" ? "50%" : element.shape === "line" ? 2 : 3,
+                }} />;
+              }
+              if (element.type === "image" || element.type === "qr") {
+                return element.src ? <img key={element.id} src={element.src} alt={element.label || "Brochure artwork"} style={{ ...common, height: "auto", objectFit: "contain" }} /> : null;
+              }
+              return <div key={element.id} style={{
+                ...common,
+                minHeight: `${element.height || 10}%`,
+                color: element.color || "#153553",
+                fontFamily: element.fontFamily || "Poppins",
+                fontSize: `${Math.max(2, (Number(element.fontSize) || 9) * scale)}px`,
+                fontWeight: element.bold ? 700 : 400,
+                fontStyle: element.italic ? "italic" : "normal",
+                textDecoration: element.underline ? "underline" : "none",
+                letterSpacing: `${(element.letterSpacing || 0) * scale}px`,
+                lineHeight: element.lineHeight || 1.18,
+                textAlign: element.align || "center",
+                whiteSpace: "pre-wrap",
+                overflowWrap: "anywhere",
+              }}>{element.text}</div>;
+            })}
+            <div className="cart-brochure-folds" aria-hidden="true">
+              {Array.from({ length: panelCount - 1 }, (_, index) => <span key={index} style={{ left: `${((index + 1) / panelCount) * 100}%` }} />)}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CartProductPreview({
   item,
   onPreview,
 }) {
   const image = getImage(item);
+  const isBrochure = /brochure/i.test(
+    `${item?.customizationType || ""} ${item?.name || item?.productName || ""}`
+  );
 
   const isCustomized =
     isItemCustomized(item);
@@ -318,12 +551,14 @@ function CartProductPreview({
 
   return (
     <div
-      className="cart-design-preview"
+      className={`cart-design-preview${isBrochure ? " cart-design-preview-brochure" : ""}`}
       onClick={() => onPreview(item)}
     >
       {/* PRODUCT IMAGE */}
 
-      {image ? (
+      {isBrochure ? (
+        <BrochureArtwork item={item} />
+      ) : image ? (
         <img
           src={image}
           alt={
@@ -346,7 +581,7 @@ function CartProductPreview({
 
       {/* CUSTOMIZATION */}
 
-      {isCustomized && (
+      {isCustomized && !isBrochure && (
         <div className="cart-customization-layer">
 
           {/* LOGO */}
@@ -437,6 +672,9 @@ function ProductPreviewModal({
   }
 
   const image = getImage(item);
+  const isBrochure = /brochure/i.test(
+    `${item?.customizationType || ""} ${item?.name || item?.productName || ""}`
+  );
 
   const logoX =
     Number(item?.logoPosition?.x) || 50;
@@ -501,7 +739,9 @@ function ProductPreviewModal({
 
         <div className="large-product-preview">
 
-          {image ? (
+          {isBrochure ? (
+            <BrochureArtwork item={item} large />
+          ) : image ? (
             <img
               src={image}
               alt={
@@ -525,7 +765,7 @@ function ProductPreviewModal({
 
           <div className="large-customization-layer">
 
-            {item?.logo &&
+            {!isBrochure && item?.logo &&
               item?.side !== "back" && (
                 <div
                   className="large-logo-overlay"
@@ -542,7 +782,7 @@ function ProductPreviewModal({
                 </div>
               )}
 
-            {item?.text &&
+            {!isBrochure && item?.text &&
               item?.side !== "back" && (
                 <div
                   className="large-text-overlay"
@@ -669,8 +909,21 @@ function ProductPreviewModal({
 function Cart() {
   const navigate = useNavigate();
 
-  const [cart, setCart] =
-    useState([]);
+  const {
+    cartItems: cart,
+    cartCount: totalProducts,
+    cartSubtotal,
+    loading: cartLoading,
+    error: cartError,
+    busy: cartBusy,
+    fetchCart,
+    updateCartItem: contextUpdateItem,
+    removeCartItem: contextRemoveItem,
+    clearCart: contextClearCart,
+  } = useCart();
+
+  /* local-only state for quantity text-input (allows empty while typing) */
+  const [editingQty, setEditingQty] = useState({});
 
   const [
     previewProduct,
@@ -686,177 +939,6 @@ function Cart() {
     orderMessage,
     setOrderMessage,
   ] = useState("");
-
-  // ==========================================================
-  // LOAD CART
-  // ==========================================================
-
-  const loadCart = () => {
-    try {
-      const savedCart =
-        localStorage.getItem(
-          "ananyaCart"
-        );
-
-      const parsedCart =
-        savedCart
-          ? JSON.parse(savedCart)
-          : [];
-
-      setCart(
-        Array.isArray(parsedCart)
-          ? parsedCart
-          : []
-      );
-    } catch (error) {
-      console.error(
-        "Cart loading error:",
-        error
-      );
-
-      setCart([]);
-    }
-  };
-
-  // ==========================================================
-  // REFRESH CART PRICES FROM DATABASE
-  // Avoid stale prices in the cart; latest DB price is used
-  // ==========================================================
-
-  const refreshCartPrices = async () => {
-    try {
-      const products = await fetchProducts();
-
-      if (!Array.isArray(products) || products.length === 0) {
-        return;
-      }
-
-      const productMap = new Map(
-        products.map((p) => [String(p.id), p])
-      );
-
-      const savedCart = localStorage.getItem("ananyaCart");
-      const currentCart = savedCart ? JSON.parse(savedCart) : [];
-
-      if (!Array.isArray(currentCart)) {
-        return;
-      }
-
-      let changed = false;
-
-      const updatedCart = currentCart.reduce(
-        (acc, item) => {
-          const pid = String(
-            item.productId ||
-              item.originalProductId ||
-              item.id ||
-              ""
-          );
-
-          const current = productMap.get(pid);
-
-          if (!current || !isActiveProduct(current)) {
-            changed = true;
-            return acc;
-          }
-
-          const currentPrice = Number(
-            current.price || 0
-          );
-
-          if (
-            Number(item.price) !== currentPrice ||
-            item.status === "Inactive"
-          ) {
-            changed = true;
-          }
-
-          acc.push({
-            ...item,
-            price: currentPrice,
-            name: current.name || item.name,
-            image:
-              getImage(current) ||
-              item.image,
-            category:
-              current.category ||
-              item.category,
-            status: current.status,
-          });
-
-          return acc;
-        },
-        []
-      );
-
-      if (changed) {
-        setCart(updatedCart);
-
-        localStorage.setItem(
-          "ananyaCart",
-          JSON.stringify(updatedCart)
-        );
-
-        window.dispatchEvent(
-          new Event("ananyaCartUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("cartUpdated")
-        );
-      }
-    } catch (error) {
-      console.error(
-        "Cart price refresh error:",
-        error
-      );
-    }
-  };
-
-  // ==========================================================
-  // INITIAL LOAD
-  // ==========================================================
-
-  useEffect(() => {
-    loadCart();
-    refreshCartPrices();
-
-    const handleCartUpdate = () => {
-      loadCart();
-    };
-
-    window.addEventListener(
-      "ananyaCartUpdated",
-      handleCartUpdate
-    );
-
-    window.addEventListener(
-      "cartUpdated",
-      handleCartUpdate
-    );
-
-    window.addEventListener(
-      "storage",
-      handleCartUpdate
-    );
-
-    return () => {
-      window.removeEventListener(
-        "ananyaCartUpdated",
-        handleCartUpdate
-      );
-
-      window.removeEventListener(
-        "cartUpdated",
-        handleCartUpdate
-      );
-
-      window.removeEventListener(
-        "storage",
-        handleCartUpdate
-      );
-    };
-  }, []);
 
   // ==========================================================
   // ESC CLOSE PREVIEW
@@ -883,89 +965,27 @@ function Cart() {
   }, []);
 
   // ==========================================================
-  // SAVE CART
-  // ==========================================================
-
-  const saveCart = (updatedCart) => {
-    setCart(updatedCart);
-
-    localStorage.setItem(
-      "ananyaCart",
-      JSON.stringify(
-        updatedCart
-      )
-    );
-
-    window.dispatchEvent(
-      new Event(
-        "ananyaCartUpdated"
-      )
-    );
-
-    window.dispatchEvent(
-      new Event(
-        "cartUpdated"
-      )
-    );
-  };
-
-  // ==========================================================
-  // INCREASE
+  // INCREASE — via CartContext
   // ==========================================================
 
   const increaseQuantity = (index) => {
-    const updatedCart = [
-      ...cart,
-    ];
-
-    const item =
-      updatedCart[index];
-
-    const currentQuantity =
-      getQuantity(item);
-
-    const step =
-      getQuantityStep(item);
-
-    updatedCart[index] = {
-      ...item,
-
-      quantity:
-        currentQuantity + step,
-    };
-
-    saveCart(updatedCart);
+    const item = cart[index];
+    if (!item) return;
+    const currentQuantity = getQuantity(item);
+    const step = getQuantityStep(item);
+    contextUpdateItem(item.id, currentQuantity + step);
   };
 
   // ==========================================================
-  // DECREASE
+  // DECREASE — via CartContext
   // ==========================================================
 
   const decreaseQuantity = (index) => {
-    const updatedCart = [
-      ...cart,
-    ];
-
-    const item =
-      updatedCart[index];
-
-    const currentQuantity =
-      getQuantity(item);
-
-    const step =
-      getQuantityStep(item);
-
-    updatedCart[index] = {
-      ...item,
-
-      quantity:
-        Math.max(
-          step,
-          currentQuantity - step
-        ),
-    };
-
-    saveCart(updatedCart);
+    const item = cart[index];
+    if (!item) return;
+    const currentQuantity = getQuantity(item);
+    const step = getQuantityStep(item);
+    contextUpdateItem(item.id, Math.max(step, currentQuantity - step));
   };
 
   // ==========================================================
@@ -980,11 +1000,8 @@ function Cart() {
       return;
     }
 
-    const updatedCart = [
-      ...cart,
-    ];
-
-    const item = updatedCart[index];
+    const item = cart[index];
+    if (!item) return;
     const step = getQuantityStep(item);
 
     const parsed = Math.floor(
@@ -997,58 +1014,31 @@ function Cart() {
       parsed <= 0
     ) {
       /* invalid/empty -> min step pe reset */
-      updatedCart[index] = {
-        ...item,
-        quantity: step,
-      };
-      saveCart(updatedCart);
+      setEditingQty((prev) => ({ ...prev, [item.id]: undefined }));
+      contextUpdateItem(item.id, step);
       return;
     }
 
-    updatedCart[index] = {
-      ...item,
-      quantity: Math.max(step, parsed),
-    };
-
-    saveCart(updatedCart);
+    setEditingQty((prev) => ({ ...prev, [item.id]: undefined }));
+    contextUpdateItem(item.id, Math.max(step, parsed));
   };
 
   // ==========================================================
-  // REMOVE
+  // REMOVE — via CartContext
   // ==========================================================
 
   const removeItem = (index) => {
-    const updatedCart =
-      cart.filter(
-        (_, itemIndex) =>
-          itemIndex !== index
-      );
-
-    saveCart(updatedCart);
+    const item = cart[index];
+    if (!item) return;
+    contextRemoveItem(item.id);
   };
 
   // ==========================================================
-  // CLEAR CART
+  // CLEAR CART — via CartContext
   // ==========================================================
 
   const clearCart = () => {
-    localStorage.removeItem(
-      "ananyaCart"
-    );
-
-    setCart([]);
-
-    window.dispatchEvent(
-      new Event(
-        "ananyaCartUpdated"
-      )
-    );
-
-    window.dispatchEvent(
-      new Event(
-        "cartUpdated"
-      )
-    );
+    contextClearCart();
   };
 
   // ==========================================================
@@ -1560,11 +1550,8 @@ function Cart() {
   };
 
   // ==========================================================
-  // TOTALS
+  // TOTALS (totalProducts from context; quantity/price derived)
   // ==========================================================
-
-  const totalProducts =
-    cart.length;
 
   const totalQuantity =
     cart.reduce(
@@ -2020,6 +2007,10 @@ function Cart() {
                         </div>
                       )}
 
+                      {/* CUSTOMER-UPLOADED DESIGN FILES */}
+
+                      <CartUploadedFiles item={item} />
+
                       {/* CARD FIELD SUMMARY + EDIT DESIGN */}
 
                       {customized &&
@@ -2089,13 +2080,14 @@ function Cart() {
                       <input
                         type="number"
                         min={getQuantityStep(item)}
-                        value={quantity}
+                        value={editingQty[item.id] !== undefined ? editingQty[item.id] : quantity}
                         onChange={(e) => {
                           /* digits only; commit on valid */
                           if (
                             e.target.value !== "" &&
                             /^\d+$/.test(e.target.value)
                           ) {
+                            setEditingQty((prev) => ({ ...prev, [item.id]: undefined }));
                             setItemQuantity(
                               index,
                               e.target.value
@@ -2103,21 +2095,17 @@ function Cart() {
                           } else if (
                             e.target.value === ""
                           ) {
-                            /* allow clearing for typing */
-                            const updatedCart = [...cart];
-                            updatedCart[index] = {
-                              ...item,
-                              quantity: "",
-                            };
-                            setCart(updatedCart);
+                            /* allow clearing for typing — local state only */
+                            setEditingQty((prev) => ({ ...prev, [item.id]: "" }));
                           }
                         }}
-                        onBlur={(e) =>
+                        onBlur={(e) => {
+                          setEditingQty((prev) => ({ ...prev, [item.id]: undefined }));
                           setItemQuantity(
                             index,
                             e.target.value
-                          )
-                        }
+                          );
+                        }}
                         aria-label="Quantity"
                         style={{
                           width: "60px",

@@ -1280,7 +1280,10 @@ export default function OrderDetails() {
                 "string"
                   ? shipping
                   : shipping.address ||
-                    order.address ||
+                    (typeof order.address ===
+                    "string"
+                      ? order.address
+                      : order.address?.address) ||
                     "Address not provided"}
 
 

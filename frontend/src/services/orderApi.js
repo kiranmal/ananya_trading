@@ -7,10 +7,15 @@ const authHeaders = () => {
     : null;
 };
 
-/* Checkout — save order to DB (alongside localStorage) */
+/* Checkout — save order to DB (alongside localStorage)
+   Returns the server response on success, or a
+   { success:false, message } object on failure so the
+   caller can distinguish errors from a plain null. */
 export const saveOrderToServer = async (order) => {
   const headers = authHeaders();
-  if (!headers) return null;
+  if (!headers) {
+    return { success: false, message: "Please login to place an order." };
+  }
 
   try {
     const res = await fetch(`${API_URL}/orders`, {
@@ -23,9 +28,21 @@ export const saveOrderToServer = async (order) => {
     });
 
     const data = await res.json().catch(() => ({}));
-    return res.ok && data.success ? data : null;
+    return res.ok && data.success
+      ? data
+      : {
+          success: false,
+          message:
+            data.message ||
+            (res.status === 413
+              ? "Your design files are too large to send. Please try again or reduce uploaded artwork."
+              : `Order could not be saved (HTTP ${res.status}).`),
+        };
   } catch {
-    return null;
+    return {
+      success: false,
+      message: "Order service unreachable. Please try again.",
+    };
   }
 };
 
@@ -88,6 +105,43 @@ export const updateOrderStatusRemote = async (
     return res.ok;
   } catch {
     return false;
+  }
+};
+
+/* Cancel order — customer (own) ya admin (any).
+   Server enforces ownership + eligibility + stock restore. */
+export const cancelOrder = async (orderNumber, reason = "") => {
+  const headers = authHeaders();
+  if (!headers) {
+    return { success: false, message: "Please login first." };
+  }
+
+  try {
+    const res = await fetch(
+      `${API_URL}/orders/${encodeURIComponent(orderNumber)}/cancel`,
+      {
+        method: "PUT",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason }),
+      }
+    );
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.success
+      ? data
+      : {
+          success: false,
+          message:
+            data.message ||
+            `Order could not be cancelled (HTTP ${res.status}).`,
+        };
+  } catch {
+    return {
+      success: false,
+      message: "Server unreachable. Please try again.",
+    };
   }
 };
 

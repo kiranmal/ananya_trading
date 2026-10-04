@@ -1817,3 +1817,105 @@
   }
 }
 
+
+/* ============ customer cancel order ============ */
+
+.cancel-order-box {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cancel-order-box textarea {
+  width: 100%;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  background: #fff7f7;
+  box-sizing: border-box;
+}
+
+.cancel-order-button {
+  border: 1px solid #fca5a5;
+  background: #fff5f5;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cancel-order-button:hover {
+  background: #fee2e2;
+}
+
+.cancel-order-button.confirm {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.cancel-order-button.confirm:hover {
+  background: #991b1b;
+}
+
+.cancel-order-button:disabled,
+.cancel-order-back:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-order-back {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.order-cancelled-note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #7f1d1d;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-cancelled-note strong {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.order-cancelled-note span {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.cancel-order-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cancel-order-warning strong {
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.cancel-order-warning span {
+  font-size: 12px;
+  color: #7f1d1d;
+}
