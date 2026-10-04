@@ -112,7 +112,10 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     const currentUserId = user?.id || null;
 
-    if (currentUserId === loadedUserRef.current) return;
+    if (currentUserId === loadedUserRef.current) {
+      if (!isLoggedIn) setCartItems(readGuestCart());
+      return;
+    }
 
     if (!isLoggedIn) {
       /* logged out → clear displayed cart immediately.

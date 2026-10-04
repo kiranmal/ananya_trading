@@ -69,14 +69,24 @@ function assert(cond, label, detail) {
 
   /* pick a real product; snapshot its state for restore */
   const [[prod]] = await db.execute(
-    "SELECT id, name, price, status, stock, quantity_step FROM products WHERE status='Active' AND stock>0 LIMIT 1"
+    "SELECT id, name, price, status, stock, quantity_step, weight_grams FROM products WHERE status='Active' AND stock>0 LIMIT 1"
   );
   if (!prod) { console.error("No active in-stock product"); process.exit(1); }
   const PID = prod.id;
-  const ORIG = { status: prod.status, stock: prod.stock };
+  const ORIG = { status: prod.status, stock: prod.stock, weight: prod.weight_grams };
   const STEP = Math.max(1, Number(prod.quantity_step) || 1);
   const restore = () =>
-    db.execute("UPDATE products SET status=?, stock=? WHERE id=?", [ORIG.status, ORIG.stock, PID]);
+    db.execute("UPDATE products SET status=?, stock=?, weight_grams=? WHERE id=?", [ORIG.status, ORIG.stock, ORIG.weight, PID]);
+
+  /* weight fixture for shipping quotes — restore() undoes it */
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [PID]);
+
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 40]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
 
   try {
     /* ═══ 1. Active + in-stock: visible & purchasable ═══ */
@@ -109,6 +119,7 @@ function assert(cond, label, detail) {
 
     r = await request("POST", "/api/orders", {
       orderNumber: `${orderNum}-OOS`, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: STEP }],
     }, token);
     assert(r.status === 400, "Order rejected when OOS", `status=${r.status}`);
@@ -143,6 +154,7 @@ function assert(cond, label, detail) {
 
     r = await request("POST", "/api/orders", {
       orderNumber: `${orderNum}-PARTIAL`, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: 100 }],
     }, token);
     /* server clamps to maxQty (none set) then stock-check rejects since 100>5 */
@@ -153,6 +165,7 @@ function assert(cond, label, detail) {
     const before = 5;
     r = await request("POST", "/api/orders", {
       orderNumber: orderNum, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: 2 }],
     }, token);
     assert(r.status === 201, "Order placed", `status=${r.status} msg=${r.body.message}`);
@@ -162,6 +175,7 @@ function assert(cond, label, detail) {
     /* retry same orderNumber → no double decrement */
     await request("POST", "/api/orders", {
       orderNumber: orderNum, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: 2 }],
     }, token);
     [[after]] = await db.execute("SELECT stock FROM products WHERE id=?", [PID]);
@@ -171,6 +185,7 @@ function assert(cond, label, detail) {
     console.log("--- exhaustion ---");
     r = await request("POST", "/api/orders", {
       orderNumber: `${orderNum}-LAST`, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: 3 }],
     }, token);
     assert(r.status === 201, "Final 3 units orderable", `status=${r.status} msg=${r.body.message}`);
@@ -185,6 +200,7 @@ function assert(cond, label, detail) {
 
     r = await request("POST", "/api/orders", {
       orderNumber: `${orderNum}-OVER`, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: 1 }],
     }, token);
     assert(r.status === 400, "Cannot order after exhaustion");
@@ -200,6 +216,7 @@ function assert(cond, label, detail) {
     assert(r.status === 400, "Inactive rejected from cart");
     r = await request("POST", "/api/orders", {
       orderNumber: `${orderNum}-INACT`, customerName: "T", email, phone: "9000000030",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
       items: [{ productId: PID, quantity: 1 }],
     }, token);
     assert(r.status === 400, "Inactive rejected from order");
@@ -209,6 +226,7 @@ function assert(cond, label, detail) {
     await db.execute("DELETE FROM cart_items WHERE user_id=?", [u.id]);
     await db.execute("DELETE FROM orders WHERE order_id LIKE ?", [`${orderNum}%`]);
     await db.execute("DELETE FROM users WHERE email=?", [email]);
+    if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]);
     console.log(`\n  RESULTS: ${passed} passed, ${failed} failed`);
     if (fails.length) console.log("  Failed:", fails.join(" | "));
     console.log("");

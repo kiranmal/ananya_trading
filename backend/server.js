@@ -1462,6 +1462,44 @@ app.put(
 );
 
 /* =========================================================
+   SHIPPING QUOTE — Step 3A
+
+   POST /api/shipping/quote
+   Body: { pincode, paymentMode, items?: [{quantity, weightGrams?}] }
+
+   Returns serviceable + calculated charge from the backend
+   shipping service. DELHIVERY_MODE=mock returns deterministic
+   rates (provider:"mock"); live mode returns 501 until the
+   real Delhivery contract is wired. The client-supplied
+   shippingCharge/total fields are never read here or at
+   order time.
+========================================================= */
+
+const shippingService = require("./services/shippingService");
+
+app.post("/api/shipping/quote", async (req, res) => {
+  try {
+    const { pincode, paymentMode, items } = req.body || {};
+    const r = await shippingService.quoteShipping({
+      pincode,
+      paymentMode,
+      items,
+    });
+    return res.status(r.status).json(r.body);
+  } catch (error) {
+    /* DB/provider failures must never collapse into a
+       missing-pincode or ₹0 response */
+    console.error("Shipping quote error:", error);
+    return res.status(502).json({
+      success: false,
+      code: "SHIPPING_QUOTE_FAILED",
+      message:
+        "Unable to calculate shipping right now. Please try again.",
+    });
+  }
+});
+
+/* =========================================================
    CHECK DELIVERY
    POST /api/check-delivery
 ========================================================= */
@@ -1680,6 +1718,37 @@ app.post(
       }
 
       /* -----------------------------------------------------
+         SERVICEABILITY — single source is the shipping
+         service (Step 4). The shipping CHARGE itself is
+         items-dependent and comes from /api/shipping/quote —
+         this endpoint no longer returns a charge.
+      ----------------------------------------------------- */
+
+      const svc = shippingService.checkServiceable(pin);
+
+      if (svc.code === "LIVE_NOT_CONFIGURED") {
+        return res.status(502).json({
+          success: false,
+          code: "SHIPPING_QUOTE_FAILED",
+          message:
+            "Unable to check delivery right now. Please try again.",
+        });
+      }
+
+      if (!svc.serviceable) {
+        return res.status(200).json({
+          success: true,
+          validAddress: true,
+          serviceable: false,
+          code: svc.code || "UNSERVICEABLE_PINCODE",
+          message:
+            svc.message ||
+            "Delivery is not available for this pincode. Please try another pincode or contact support.",
+          pincode: pin,
+        });
+      }
+
+      /* -----------------------------------------------------
          DELIVERY AVAILABLE
       ----------------------------------------------------- */
 
@@ -1857,6 +1926,7 @@ async function ensureProductsTable() {
       quantity_step INT NOT NULL DEFAULT 1,
       customizable TINYINT(1) NOT NULL DEFAULT 0,
       customization_type VARCHAR(50) DEFAULT NULL,
+      weight_grams INT DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id)
@@ -1883,6 +1953,16 @@ async function ensureProductsTable() {
   try {
     await db.execute(
       "ALTER TABLE products ADD COLUMN customization_type VARCHAR(50) DEFAULT NULL"
+    );
+  } catch {
+    /* column already exists */
+  }
+
+  /* shipping weight in grams — NULL means the product has
+     no configured weight (Delhivery Step 3B) */
+  try {
+    await db.execute(
+      "ALTER TABLE products ADD COLUMN weight_grams INT DEFAULT NULL"
     );
   } catch {
     /* column already exists */
@@ -2141,6 +2221,11 @@ function mapProduct(row) {
     customizationType:
       row.customization_type || "",
     unit: row.unit || "Pieces",
+    weightGrams:
+      row.weight_grams !== null &&
+      row.weight_grams !== undefined
+        ? Number(row.weight_grams)
+        : null,
     maxQuantity:
       row.max_qty !== null && row.max_qty !== undefined
         ? Number(row.max_qty)
@@ -2187,6 +2272,27 @@ function getProductPayload(body) {
     }
   }
 
+  /* weightGrams: supplied → must be a positive number;
+     absent/empty → null (create) / preserve (update) —
+     no weight is ever invented for existing products */
+  let weightGrams = null;
+  let weightError = null;
+  let weightProvided = false;
+  if (
+    body.weightGrams !== undefined &&
+    body.weightGrams !== null &&
+    String(body.weightGrams).trim() !== ""
+  ) {
+    weightProvided = true;
+    const w = Number(body.weightGrams);
+    if (!Number.isFinite(w) || w <= 0) {
+      weightError =
+        "Weight must be a positive number (grams).";
+    } else {
+      weightGrams = Math.round(w);
+    }
+  }
+
   return {
     name: String(body.name || "").trim(),
     category: String(body.category || "General").trim(),
@@ -2195,6 +2301,9 @@ function getProductPayload(body) {
     oldPrice: Number(body.oldPrice ?? body.price ?? 0),
     stock,
     stockError,
+    weightGrams,
+    weightError,
+    weightProvided,
     /* canonical product status is Active/Inactive — display labels
        like "In Stock" must never be stored in this column */
     status:
@@ -3125,6 +3234,13 @@ app.post(
         });
       }
 
+      if (product.weightError) {
+        return res.status(400).json({
+          success: false,
+          message: product.weightError,
+        });
+      }
+
       /* categoryId/subcategoryId diya ho to naam wahi se resolve;
          otherwise resolve the id by name */
       const categoryRow = await resolveCategoryId(req.body);
@@ -3146,8 +3262,8 @@ app.post(
            price, old_price, stock, status,
            badge, rating, reviews, discount, description, images,
            paper_types, sizes, features, quantity_step,
-           customizable, customization_type, unit, max_qty)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           customizable, customization_type, unit, max_qty, weight_grams)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           product.name,
           product.category,
@@ -3172,6 +3288,7 @@ app.post(
           product.customizationType,
           product.unit || "Pieces",
           product.maxQuantity,
+          product.weightGrams,
         ]
       );
 
@@ -3244,6 +3361,13 @@ app.put(
         });
       }
 
+      if (product.weightError) {
+        return res.status(400).json({
+          success: false,
+          message: product.weightError,
+        });
+      }
+
       const categoryRow = await resolveCategoryId(req.body);
       const subcategoryRow = await resolveSubcategoryId(
         req.body,
@@ -3265,7 +3389,8 @@ app.put(
           stock = COALESCE(?, stock), status = ?, badge = ?, rating = ?, reviews = ?,
           discount = ?, description = ?, images = ?, paper_types = ?,
           sizes = ?, features = ?, quantity_step = ?,
-          customizable = ?, customization_type = ?, unit = COALESCE(?, unit), max_qty = ?
+          customizable = ?, customization_type = ?, unit = COALESCE(?, unit), max_qty = ?,
+          weight_grams = COALESCE(?, weight_grams)
          WHERE id = ?`,
         [
           product.name,
@@ -3291,6 +3416,9 @@ app.put(
           product.customizationType,
           product.unit,
           product.maxQuantity,
+          /* supplied → validated value; absent → NULL so
+             COALESCE preserves the saved weight */
+          product.weightProvided ? product.weightGrams : null,
           req.params.id,
         ]
       );
@@ -7709,7 +7837,60 @@ app.post(
         discount = Math.min(discount, subtotal);
       }
 
-      const shippingCharge = 0;
+      /* -------------------------------------------------
+         SHIPPING CHARGE — authoritative quote service.
+         The client's shipping/total fields are ignored;
+         unserviceable pins, missing weights and provider
+         failures BLOCK the order — never defaulted to ₹0.
+      ------------------------------------------------- */
+
+      const deliveryPincode = String(
+        order.shippingAddress?.pincode ||
+          order.address?.pincode ||
+          order.pincode ||
+          ""
+      ).trim();
+
+      if (!/^[1-9][0-9]{5}$/.test(deliveryPincode)) {
+        return res.status(400).json({
+          success: false,
+          code: "INVALID_PINCODE",
+          message:
+            "A valid delivery pincode is required to place the order.",
+        });
+      }
+
+      /* authoritative quote — serviceability + rate from the
+         shipping service using current DB product weights.
+         WEIGHT_MISSING / UNSERVICEABLE_PINCODE / provider
+         failures reject the order; never falls back to ₹0 */
+      const quote = await shippingService.quoteShipping({
+        pincode: deliveryPincode,
+        /* orders that never reach Razorpay (missing/other
+           method) are priced at the COD rate */
+        paymentMode: order.paymentMethod || "cod",
+        items: validatedItems.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+        })),
+      });
+
+      if (!quote.ok) {
+        return res.status(quote.status).json(quote.body);
+      }
+
+      if (!quote.body.serviceable) {
+        return res.status(400).json({
+          success: false,
+          code: quote.body.code || "UNSERVICEABLE_PINCODE",
+          message:
+            quote.body.message ||
+            "Delivery is not available for this pincode.",
+        });
+      }
+
+      const shippingCharge = Number(quote.body.shippingCharge);
+
       const finalTotal = Math.max(
         0,
         subtotal + shippingCharge - discount
@@ -8673,6 +8854,350 @@ app.post("/api/coupons/validate", async (req, res) => {
     });
   }
 });
+
+/* =========================================================
+   DELIVERY CHARGES — admin-managed per-pincode shipping
+
+   NOTE: an explicitly configured charge of 0 is allowed and
+   means free delivery for that pincode. There is NO default
+   free-shipping rule — a missing or inactive row must block
+   the pincode at delivery-check (Step 2 integration).
+========================================================= */
+
+let deliveryChargesEnsured = false;
+async function ensureDeliveryChargesTable() {
+  if (deliveryChargesEnsured) return;
+  deliveryChargesEnsured = true;
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS delivery_charges (
+      id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+      pincode    CHAR(6)       NOT NULL,
+      city       VARCHAR(100)  NOT NULL,
+      state      VARCHAR(100)  NOT NULL,
+      charge     DECIMAL(10,2) NOT NULL,
+      is_active  TINYINT(1)    NOT NULL DEFAULT 1,
+      created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                 ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_delivery_pincode (pincode)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  `);
+}
+
+const formatDeliveryCharge = (row) => ({
+  id: row.id,
+  pincode: row.pincode,
+  city: row.city,
+  state: row.state,
+  charge: Number(row.charge),
+  isActive: Boolean(row.is_active),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+/* shared payload validation — returns a clean payload or
+   { error } for a 400 response. An explicitly configured
+   charge of 0 is allowed (means free delivery); missing or
+   non-numeric values are rejected */
+function validateDeliveryCharge(body = {}) {
+  const pincode = String(body.pincode || "").trim();
+  const city = String(body.city || "").trim();
+  const state = String(body.state || "").trim();
+  const charge = Number(body.charge);
+
+  if (!/^[1-9][0-9]{5}$/.test(pincode)) {
+    return {
+      error:
+        "Please enter a valid 6 digit Indian pincode.",
+    };
+  }
+  if (city.length < 2) {
+    return { error: "Please enter a valid city." };
+  }
+  if (state.length < 2) {
+    return { error: "Please enter a valid state." };
+  }
+  if (
+    body.charge === undefined ||
+    body.charge === null ||
+    String(body.charge).trim() === "" ||
+    !Number.isFinite(charge) ||
+    charge < 0
+  ) {
+    return {
+      error:
+        "Delivery charge must be a number, 0 or greater.",
+    };
+  }
+
+  return { pincode, city, state, charge };
+}
+
+const validDeliveryId = (v) =>
+  /^[0-9]+$/.test(String(v || ""));
+
+/* ADMIN — list */
+app.get(
+  "/api/admin/delivery-charges",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureDeliveryChargesTable();
+      const [rows] = await db.execute(
+        "SELECT * FROM delivery_charges ORDER BY pincode ASC"
+      );
+      return res.status(200).json({
+        success: true,
+        charges: rows.map(formatDeliveryCharge),
+      });
+    } catch (error) {
+      console.error("Delivery charges fetch error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load delivery charges.",
+      });
+    }
+  }
+);
+
+/* ADMIN — create */
+app.post(
+  "/api/admin/delivery-charges",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureDeliveryChargesTable();
+      const v = validateDeliveryCharge(req.body);
+      if (v.error) {
+        return res
+          .status(400)
+          .json({ success: false, message: v.error });
+      }
+
+      const [dupe] = await db.execute(
+        "SELECT id FROM delivery_charges WHERE pincode = ? LIMIT 1",
+        [v.pincode]
+      );
+      if (dupe.length) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "A delivery charge already exists for this pincode.",
+        });
+      }
+
+      const [result] = await db.execute(
+        `INSERT INTO delivery_charges
+           (pincode, city, state, charge, is_active)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          v.pincode,
+          v.city,
+          v.state,
+          v.charge,
+          req.body.isActive === false ? 0 : 1,
+        ]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Delivery charge added.",
+        charge: formatDeliveryCharge({
+          id: result.insertId,
+          pincode: v.pincode,
+          city: v.city,
+          state: v.state,
+          charge: v.charge,
+          is_active: req.body.isActive === false ? 0 : 1,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      });
+    } catch (error) {
+      if (
+        error?.code === "ER_DUP_ENTRY" ||
+        String(error?.message || "").includes("Duplicate")
+      ) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "A delivery charge already exists for this pincode.",
+        });
+      }
+      console.error("Delivery charge create error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save delivery charge.",
+      });
+    }
+  }
+);
+
+/* ADMIN — update */
+app.put(
+  "/api/admin/delivery-charges/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureDeliveryChargesTable();
+      if (!validDeliveryId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid delivery charge id.",
+        });
+      }
+      const id = Number(req.params.id);
+
+      const v = validateDeliveryCharge(req.body);
+      if (v.error) {
+        return res
+          .status(400)
+          .json({ success: false, message: v.error });
+      }
+
+      /* pincode uniqueness — excluding this row */
+      const [dupe] = await db.execute(
+        `SELECT id FROM delivery_charges
+         WHERE pincode = ? AND id <> ? LIMIT 1`,
+        [v.pincode, id]
+      );
+      if (dupe.length) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Another pincode entry already uses this pincode.",
+        });
+      }
+
+      const [result] = await db.execute(
+        `UPDATE delivery_charges
+         SET pincode = ?, city = ?, state = ?, charge = ?
+         WHERE id = ?`,
+        [v.pincode, v.city, v.state, v.charge, id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Delivery charge not found.",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Delivery charge updated.",
+      });
+    } catch (error) {
+      console.error("Delivery charge update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update delivery charge.",
+      });
+    }
+  }
+);
+
+/* ADMIN — toggle active flag. Body { isActive } optional;
+   omitted means flip the current value */
+app.patch(
+  "/api/admin/delivery-charges/:id/toggle",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureDeliveryChargesTable();
+      if (!validDeliveryId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid delivery charge id.",
+        });
+      }
+      const id = Number(req.params.id);
+
+      const [rows] = await db.execute(
+        "SELECT is_active FROM delivery_charges WHERE id = ?",
+        [id]
+      );
+      if (!rows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Delivery charge not found.",
+        });
+      }
+
+      const next =
+        req.body.isActive === undefined
+          ? !rows[0].is_active
+          : Boolean(req.body.isActive);
+
+      await db.execute(
+        "UPDATE delivery_charges SET is_active = ? WHERE id = ?",
+        [next ? 1 : 0, id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: next
+          ? "Delivery location activated."
+          : "Delivery location deactivated.",
+        isActive: next,
+      });
+    } catch (error) {
+      console.error("Delivery toggle error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update delivery location.",
+      });
+    }
+  }
+);
+
+/* ADMIN — delete. delivery_charges has no dependent rows,
+   so a plain delete is safe; the row is gone permanently */
+app.delete(
+  "/api/admin/delivery-charges/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await ensureDeliveryChargesTable();
+      if (!validDeliveryId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid delivery charge id.",
+        });
+      }
+      const id = Number(req.params.id);
+
+      const [result] = await db.execute(
+        "DELETE FROM delivery_charges WHERE id = ?",
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Delivery charge not found.",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Delivery charge deleted.",
+      });
+    } catch (error) {
+      console.error("Delivery charge delete error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to delete delivery charge.",
+      });
+    }
+  }
+);
 
 /* =========================================================
    CONTACT INQUIRIES � customer "Get a Quote" form

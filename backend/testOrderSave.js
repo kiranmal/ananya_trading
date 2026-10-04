@@ -64,6 +64,10 @@ const assert = (c, l, d) => {
     "SELECT id,name,price,status,stock,images FROM products WHERE id=31"
   );
   const origStock = Number(prod.stock);
+  /* weight fixture for shipping quotes — snapshot + restore */
+  const [[wrow]] = await db.execute("SELECT weight_grams FROM products WHERE id=?", [prod.id]);
+  const origWeight = wrow?.weight_grams ?? null;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [prod.id]);
   const images = JSON.parse(prod.images || "[]");
   const imgMB = (JSON.stringify(images).length / 1048576).toFixed(1);
   console.log(`  product "${prod.name}" images column ≈ ${imgMB} MB`);
@@ -105,6 +109,13 @@ const assert = (c, l, d) => {
   const bodyMB = (JSON.stringify(orderBody).length / 1048576).toFixed(1);
   console.log(`  request body ≈ ${bodyMB} MB (before fix: INSERT failed, packet>16MB)\n`);
 
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 0]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
+
   try {
     let r = await request("POST", "/api/orders", orderBody, token);
     assert(r.status === 201 && r.body.success,
@@ -143,9 +154,10 @@ const assert = (c, l, d) => {
     assert(Number(p1.stock) === origStock - 2, "Stock total -2", `stock=${p1.stock}`);
 
   } finally {
-    await db.execute("UPDATE products SET stock=? WHERE id=?", [origStock, prod.id]);
+    await db.execute("UPDATE products SET stock=?, weight_grams=? WHERE id=?", [origStock, origWeight, prod.id]);
     await db.execute("DELETE FROM orders WHERE order_id IN (?, ?)", [orderNum, orderNum2]);
     await db.execute("DELETE FROM users WHERE email=?", [email]);
+if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]);
     console.log(`\n  RESULTS: ${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);
   }

@@ -1086,7 +1086,6 @@
 /* =========================================================
    THUMBNAIL
 ========================================================= */
-
 .product-thumbnails {
   height: 100px;
   background: white;
@@ -1698,7 +1697,10 @@
     bottom: 10px;
     transform: translateX(50%);
     width: auto;
+    max-width: calc(100vw - 24px);
     display: flex;
+    gap: 4px;
+    padding: 6px;
     border-radius: 24px;
   }
 
@@ -1708,8 +1710,8 @@
   }
 
   .canvas-tools button {
-    min-height: 48px;
-    min-width: 56px;
+    min-height: 44px;
+    min-width: 48px;
     border-bottom: 0;
     border-right: 1px solid #edf0f3;
   }

@@ -325,9 +325,9 @@ export function ShippingInfo() {
       <div className="support-card">
         <h2>Shipping Charges</h2>
         <ul>
-          <li>Orders above <strong>₹999</strong> qualify for free shipping</li>
-          <li>Orders below ₹999 have a flat ₹79 shipping fee</li>
-          <li>Cash on Delivery orders have an additional ₹49 fee</li>
+          <li>Delivery charges are calculated at checkout based on your pincode and the total shipment weight</li>
+          <li>Cash on Delivery orders may carry an additional COD charge, shown before you place the order</li>
+          <li>The final payable amount — including shipping — is always confirmed on the checkout and payment screens</li>
         </ul>
       </div>
 

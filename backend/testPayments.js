@@ -120,11 +120,22 @@ const assert = (c, l, d) => {
   const token2 = jwt.sign({ id: u2.id, email: em2, role: "user" }, JWT_SECRET, { expiresIn: "1h" });
 
   const orderNo = `#PAY${Date.now().toString().slice(-8)}`;
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 40]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
+  /* weight fixture for shipping quotes — snapshot + restore */
+  const [[wrow]] = await db.execute("SELECT weight_grams FROM products WHERE id=?", [35]);
+  const origWeight = wrow?.weight_grams ?? null;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [35]);
   const mk = await req("POST", "/api/orders", {
     orderNumber: orderNo,
     customerName: "P",
     items: [{ productId: 35, quantity: 1 }],
     paymentMethod: "online",
+    shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
   }, token);
 
   try {
@@ -228,6 +239,7 @@ const assert = (c, l, d) => {
       customerName: "P",
       items: [{ productId: 35, quantity: 1 }],
       paymentMethod: "online",
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
     }, token);
     const RZP_OID2 = `order_t2_${Date.now()}`;
     await db.execute(
@@ -299,6 +311,8 @@ const assert = (c, l, d) => {
       "DELETE FROM orders WHERE order_id LIKE '#PAY%' OR order_id LIKE '#PAYF%'"
     ).catch(() => {});
     await db.execute("DELETE FROM users WHERE email IN (?,?)", [em, em2]);
+    if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]).catch(() => {});
+    await db.execute("UPDATE products SET weight_grams=? WHERE id=?", [origWeight, 35]).catch(() => {});
     child.kill();
     console.log(`\n  RESULTS: ${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);

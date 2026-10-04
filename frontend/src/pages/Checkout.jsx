@@ -6,6 +6,7 @@ import { saveOrderToServer } from "../services/orderApi";
 import { uploadDesignFile } from "../services/fileApi";
 import { validateCoupon } from "../services/couponApi";
 import { useCart } from "../context/CartContext";
+import BrochureArtwork from "../components/BrochureArtwork";
 import {
   createRazorpayOrder,
   verifyRazorpayPayment,
@@ -151,11 +152,6 @@ function Checkout() {
   const couponDiscount = Math.min(
     Number(appliedCoupon?.discount) || 0,
     totalPrice
-  );
-
-  const payableTotal = Math.max(
-    0,
-    totalPrice - couponDiscount
   );
 
   const handleApplyCoupon = async () => {
@@ -379,6 +375,28 @@ function Checkout() {
   const [deliveryMessage, setDeliveryMessage] = useState("");
   const [checkingDelivery, setCheckingDelivery] = useState(false);
 
+  /* shipping quote — server-calculated charge.
+     status: idle | loading | ok | error */
+  const [shippingQuote, setShippingQuote] = useState({
+    status: "idle",
+    charge: null,
+    code: null,
+    message: "",
+    missing: [],
+  });
+
+  /* derived totals — must sit BELOW the shippingQuote
+     declaration (const TDZ) */
+  const quotedCharge =
+    shippingQuote.status === "ok"
+      ? Number(shippingQuote.charge) || 0
+      : 0;
+
+  const payableTotal = Math.max(
+    0,
+    totalPrice - couponDiscount + quotedCharge
+  );
+
   /*
   =====================================================
   AUTH GUARD — bina login ke order nahi
@@ -586,6 +604,9 @@ function Checkout() {
           "Delivery is available at this address."
       );
 
+      /* address verified — price the shipment now */
+      fetchShippingQuote();
+
       return true;
     } catch (error) {
       console.error(
@@ -604,6 +625,123 @@ function Checkout() {
       setCheckingDelivery(false);
     }
   };
+
+  /*
+  =====================================================
+  SHIPPING QUOTE
+
+  Server-calculated charge from /api/shipping/quote —
+  cart productIds + quantities, pincode + payment mode.
+  Refreshed whenever any of those inputs change. The
+  displayed amount is informational only; the server
+  re-derives the charge when the order is placed.
+  =====================================================
+  */
+
+  const fetchShippingQuote = async () => {
+    const pincode = form.pincode.trim();
+
+    if (
+      !/^[1-9][0-9]{5}$/.test(pincode) ||
+      !cart.length
+    ) {
+      setShippingQuote({
+        status: "idle",
+        charge: null,
+        code: null,
+        message: "",
+        missing: [],
+      });
+      return;
+    }
+
+    setShippingQuote((prev) => ({
+      ...prev,
+      status: "loading",
+      message: "Calculating delivery charge...",
+    }));
+
+    try {
+      const response = await fetch(
+        `${API_URL}/shipping/quote`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pincode,
+            paymentMode: paymentMethod,
+            items: cart.map((item) => ({
+              productId:
+                item.originalProductId ||
+                item.productId ||
+                item.id,
+              quantity: Number(item.quantity) || 1,
+            })),
+          }),
+        }
+      );
+
+      let result = {};
+      try {
+        result = await response.json();
+      } catch {
+        result = {};
+      }
+
+      if (!response.ok) {
+        setShippingQuote({
+          status: "error",
+          charge: null,
+          code: result.code || null,
+          message:
+            result.message ||
+            "Unable to calculate the delivery charge.",
+          missing: result.missing || [],
+        });
+        return;
+      }
+
+      if (result.serviceable !== true) {
+        setShippingQuote({
+          status: "error",
+          charge: null,
+          code: result.code || "UNSERVICEABLE_PINCODE",
+          message:
+            result.message ||
+            "Delivery is not available for this pincode.",
+          missing: [],
+        });
+        return;
+      }
+
+      setShippingQuote({
+        status: "ok",
+        charge: Number(result.shippingCharge) || 0,
+        code: null,
+        message: "",
+        missing: [],
+      });
+    } catch (error) {
+      console.error("Shipping quote error:", error);
+      setShippingQuote({
+        status: "error",
+        charge: null,
+        code: "SHIPPING_QUOTE_FAILED",
+        message:
+          "Unable to calculate the delivery charge. Please check your connection and try again.",
+        missing: [],
+      });
+    }
+  };
+
+  /* re-quote when payment mode or cart quantities change
+     on an already-verified address */
+  useEffect(() => {
+    if (deliveryStatus === "available") {
+      fetchShippingQuote();
+    }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [paymentMethod, cart]);
 
   /*
   =====================================================
@@ -763,6 +901,14 @@ function Checkout() {
     ) {
       setDeliveryStatus("idle");
       setDeliveryMessage("");
+      /* address changed — old quote no longer applies */
+      setShippingQuote({
+        status: "idle",
+        charge: null,
+        code: null,
+        message: "",
+        missing: [],
+      });
     }
   };
 
@@ -861,6 +1007,20 @@ function Checkout() {
     2. ALWAYS VERIFY DELIVERY AGAIN
     -----------------------------------------------
     */
+
+    /* shipping quote must be serviceable — the button is
+       disabled until it is, but guard anyway. Server still
+       re-derives the charge; this prevents submitting with
+       a known-bad quote. (checked before the re-verify,
+       which sets the quote back to loading) */
+    if (shippingQuote.status !== "ok") {
+      setPlacing(false);
+      alert(
+        shippingQuote.message ||
+          "The delivery charge could not be calculated. Please check your address and try again."
+      );
+      return;
+    }
 
     const deliveryAvailable =
       await checkDeliveryAvailability();
@@ -1209,7 +1369,12 @@ function Checkout() {
         0
       );
 
-    const shippingCharge = 0;
+    /* quote is display-only — the server re-derives the
+       authoritative charge from DB weights at order time */
+    const shippingCharge =
+      shippingQuote.status === "ok"
+        ? Number(shippingQuote.charge) || 0
+        : 0;
     const discount = Math.min(
       Number(appliedCoupon?.discount) || 0,
       calculatedSubtotal
@@ -1496,6 +1661,9 @@ function Checkout() {
       name: p.name,
       quantity: p.quantity || 1,
       price: Number(p.price) || 0,
+      size: p.size || "",
+      customizationType: p.customizationType || "",
+      designs: p.designs || p.customization?.designs || null,
     }));
     try {
       localStorage.setItem(
@@ -1655,9 +1823,14 @@ function Checkout() {
                 <ul className="success-items">
                   {orderItems.map((p, i) => (
                     <li key={i}>
-                      <span>
-                        {p.name} × {p.quantity || 1}
-                      </span>
+                      <div className="success-order-item">
+                        <span>{p.name} × {p.quantity || 1}</span>
+                        {p.customizationType === "brochure" && (
+                          <div className="success-brochure-preview">
+                            <BrochureArtwork item={p} />
+                          </div>
+                        )}
+                      </div>
                       <span>
                         ₹
                         {(
@@ -2020,11 +2193,11 @@ function Checkout() {
                         color:
                           deliveryStatus ===
                           "available"
-                            ? "#f4f5f5"
+                            ? "#15803d"
                             : deliveryStatus ===
                               "checking"
                             ? "#1d4ed8"
-                            : "#060606",
+                            : "#991b1b",
                       }}
                     >
                       {deliveryStatus ===
@@ -2142,6 +2315,60 @@ function Checkout() {
                 </label>
 
               </div>
+
+              {/* SHIPPING QUOTE STATUS — mirrors the
+                  delivery-charge calculation; order cannot
+                  be placed until it resolves to a charge */}
+
+              {deliveryStatus === "available" &&
+                shippingQuote.status !== "ok" && (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      background:
+                        shippingQuote.status === "loading"
+                          ? "#eff6ff"
+                          : "#fef2f2",
+                      color:
+                        shippingQuote.status === "loading"
+                          ? "#1d4ed8"
+                          : "#b91c1c",
+                    }}
+                  >
+                    {shippingQuote.status === "loading" ? (
+                      <>Calculating delivery charge...</>
+                    ) : (
+                      <>
+                        {shippingQuote.message ||
+                          "Delivery charge is not available yet."}
+                        {shippingQuote.code ===
+                          "WEIGHT_MISSING" &&
+                          shippingQuote.missing?.length >
+                            0 && (
+                            <div
+                              style={{
+                                marginTop: "4px",
+                                fontWeight: 500,
+                                fontSize: "12px",
+                              }}
+                            >
+                              {shippingQuote.missing
+                                .map(
+                                  (m) =>
+                                    m.name ||
+                                    `Product #${m.productId}`
+                                )
+                                .join(", ")}
+                            </div>
+                          )}
+                      </>
+                    )}
+                  </div>
+                )}
             </section>
 
             {/* PLACE ORDER */}
@@ -2149,15 +2376,23 @@ function Checkout() {
             <button
               type="submit"
               className="place-order-btn"
-              disabled={checkingDelivery || placing}
+              disabled={
+                checkingDelivery ||
+                placing ||
+                shippingQuote.status !== "ok"
+              }
               style={{
                 opacity:
-                  checkingDelivery || placing
+                  checkingDelivery ||
+                  placing ||
+                  shippingQuote.status !== "ok"
                     ? 0.6
                     : 1,
 
                 cursor:
-                  checkingDelivery || placing
+                  checkingDelivery ||
+                  placing ||
+                  shippingQuote.status !== "ok"
                     ? "not-allowed"
                     : "pointer",
               }}
@@ -2166,6 +2401,12 @@ function Checkout() {
                 ? "Placing Order..."
                 : checkingDelivery
                 ? "Checking Address..."
+                : deliveryStatus !== "available"
+                ? "Check Delivery Availability First"
+                : shippingQuote.status === "loading"
+                ? "Calculating Delivery..."
+                : shippingQuote.status !== "ok"
+                ? "Delivery Unavailable"
                 : paymentMethod === "online"
                 ? "Continue to Payment"
                 : "Place Order"}
@@ -2200,6 +2441,9 @@ function Checkout() {
                     item.image ||
                     item.images?.[0] ||
                     "";
+                  const isBrochure = /brochure/i.test(
+                    `${item.customizationType || ""} ${item.name || ""}`
+                  );
 
                   return (
                     <div
@@ -2211,9 +2455,11 @@ function Checkout() {
                       }-${index}`}
                     >
 
-                      <div className="checkout-product-image">
+                      <div className={`checkout-product-image${isBrochure ? " checkout-product-image-brochure" : ""}`}>
 
-                        {image ? (
+                        {isBrochure ? (
+                          <BrochureArtwork item={item} />
+                        ) : image ? (
                           <img
                             src={image}
                             alt={
@@ -2309,8 +2555,18 @@ function Checkout() {
                 Delivery
               </span>
 
-              <strong className="free">
-                FREE
+              <strong>
+                {shippingQuote.status === "loading" ? (
+                  "…"
+                ) : shippingQuote.status === "ok" ? (
+                  quotedCharge === 0 ? (
+                    "FREE"
+                  ) : (
+                    `₹${quotedCharge.toLocaleString("en-IN")}`
+                  )
+                ) : (
+                  "—"
+                )}
               </strong>
             </div>
 

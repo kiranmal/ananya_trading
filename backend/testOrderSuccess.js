@@ -45,9 +45,20 @@ const assert = (c, l, d) => {
   );
   const [[u]] = await db.execute("SELECT id FROM users WHERE email=?", [em]);
   const t = jwt.sign({ id: u.id, email: em, role: "user" }, JWT_SECRET, { expiresIn: "1h" });
-  const [[p]] = await db.execute("SELECT id,price,stock FROM products WHERE status='Active' AND stock>2 LIMIT 1");
-  const expected = Number(p.price) * 2;
+  const [[p]] = await db.execute("SELECT id,price,stock,weight_grams FROM products WHERE status='Active' AND stock>2 LIMIT 1");
+  /* weight fixture for shipping quote — snapshot + restore.
+     mock rate: 30 + zone(4)*10 + slab(1000g→2)*15 + cod 30 = 130 */
+  const origWeight = p.weight_grams;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [p.id]);
+  const expected = Number(p.price) * 2 + 130;
   const ON = `OS-${ts}`;
+
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 0]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
 
   try {
     /* client lies about the price — server must still
@@ -56,6 +67,7 @@ const assert = (c, l, d) => {
       orderNumber: ON, customerName: "T", email: em,
       phone: "9000000080", paymentMethod: "cod",
       items: [{ productId: p.id, quantity: 2, price: 9999 }],
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
     }, t);
 
     assert(r.s === 201, "Order saved", `status=${r.s}`);
@@ -103,6 +115,8 @@ const assert = (c, l, d) => {
   } finally {
     await db.execute("DELETE FROM orders WHERE order_id=?", [ON]);
     await db.execute("DELETE FROM users WHERE email=?", [em]);
+if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]);
+await db.execute("UPDATE products SET weight_grams=? WHERE id=?", [origWeight, p.id]);
     console.log(`\n  RESULTS: ${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);
   }

@@ -1018,11 +1018,11 @@ function Category() {
           <div>
 
             <strong>
-              Free Delivery
+              Fast Delivery
             </strong>
 
             <span>
-              On orders above ₹999
+              Shipping calculated at checkout
             </span>
 
           </div>

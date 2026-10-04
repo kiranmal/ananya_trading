@@ -119,6 +119,8 @@ export default function AddProduct() {
 
   const [price, setPrice] = useState("");
   const [oldPrice, setOldPrice] = useState("");
+  const [weightGrams, setWeightGrams] = useState("");
+  const [weightError, setWeightError] = useState("");
   const [quantityStep, setQuantityStep] =
     useState("1");
 
@@ -348,6 +350,19 @@ export default function AddProduct() {
       return;
     }
 
+    /* optional — when filled must be a positive number */
+    const weightNumber = Number(weightGrams);
+    if (
+      weightGrams !== "" &&
+      (!Number.isFinite(weightNumber) || weightNumber <= 0)
+    ) {
+      setWeightError(
+        "Weight must be a positive number (grams)."
+      );
+      alert("Please enter a valid weight in grams.");
+      return;
+    }
+
     /* zero stock → warn + confirm before saving */
     if (stockNumber === 0) {
       const ok = window.confirm(
@@ -412,6 +427,9 @@ export default function AddProduct() {
         1,
         Math.floor(Number(quantityStep)) || 1
       ),
+
+      weightGrams:
+        weightGrams === "" ? null : Math.round(weightNumber),
 
       unit,
 
@@ -802,6 +820,55 @@ export default function AddProduct() {
                 Min order + step. e.g. 100 for
                 business cards, 1 for normal
                 products.
+              </small>
+            </div>
+
+            {/* WEIGHT — used for shipping rates (Delhivery) */}
+
+            <div className="form-group">
+              <label>
+                Weight (g)
+              </label>
+
+              <div className="input-wrapper">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 250"
+                  value={weightGrams}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setWeightGrams(v);
+                    if (
+                      v !== "" &&
+                      (!Number.isFinite(Number(v)) ||
+                        Number(v) <= 0)
+                    ) {
+                      setWeightError(
+                        "Weight must be a positive number (grams)."
+                      );
+                    } else {
+                      setWeightError("");
+                    }
+                  }}
+                />
+              </div>
+
+              {weightError && (
+                <small style={{ color: "#dc2626", fontSize: "12px" }}>
+                  {weightError}
+                </small>
+              )}
+
+              <small
+                style={{
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                Optional. Single-unit weight in grams —
+                used to calculate the shipping charge.
               </small>
             </div>
 

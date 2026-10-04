@@ -57,7 +57,10 @@ const PNG_B64 = `data:image/png;base64,${PNG.toString("base64")}`;
   const [[admin]] = await db.execute("SELECT id,email FROM users WHERE role='admin' LIMIT 1");
   const adminToken = jwt.sign({ id: admin.id, email: admin.email, role: "admin" }, JWT_SECRET, { expiresIn: "1h" });
 
-  const [[p]] = await db.execute("SELECT id,price,stock FROM products WHERE status='Active' AND stock>5 LIMIT 1");
+  const [[p]] = await db.execute("SELECT id,price,stock,weight_grams FROM products WHERE status='Active' AND stock>5 LIMIT 1");
+  /* weight fixture for shipping quote — snapshot + restore */
+  const origWeight = p.weight_grams;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [p.id]);
   const origStock = Number(p.stock);
   const on = `FU-${ts}`;
   let fileId = null;
@@ -96,6 +99,7 @@ const PNG_B64 = `data:image/png;base64,${PNG.toString("base64")}`;
     r = await req("POST", "/api/orders", {
       orderNumber: on, customerName: "T", email: `fu_${ts}@t.com`, phone: "9000000050",
       paymentMethod: "cod", status: "New", items: [item],
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
     }, token);
     assert(r.s === 201, "Order with fileId ref saved", JSON.stringify(r.b));
 
@@ -110,7 +114,7 @@ const PNG_B64 = `data:image/png;base64,${PNG.toString("base64")}`;
     r = await req("GET", "/api/files/f_nonexistent", null, adminToken);
     assert(r.s === 404, "Unknown fileId → 404");
   } finally {
-    await db.execute("UPDATE products SET stock=? WHERE id=?", [origStock, p.id]);
+    await db.execute("UPDATE products SET stock=?, weight_grams=? WHERE id=?", [origStock, origWeight, p.id]);
     await db.execute("DELETE FROM orders WHERE order_id=?", [on]);
     if (fileId) await db.execute("DELETE FROM uploaded_files WHERE id=?", [fileId]);
     await db.execute("DELETE FROM users WHERE email=?", [`fu_${ts}@t.com`]);

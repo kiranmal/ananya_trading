@@ -43,8 +43,11 @@ const assert = (c, l, d) => {
   const adminToken = jwt.sign({ id: admin.id, email: admin.email, role: "admin" }, JWT_SECRET, { expiresIn: "1h" });
   const userToken = jwt.sign({ id: 2, email: "rajarun8078@gmail.com", role: "user" }, JWT_SECRET, { expiresIn: "1h" });
 
-  const [[p]] = await db.execute("SELECT id,price,stock FROM products WHERE status='Active' AND stock>10 LIMIT 1");
+  const [[p]] = await db.execute("SELECT id,price,stock,weight_grams FROM products WHERE status='Active' AND stock>10 LIMIT 1");
   const origStock = Number(p.stock);
+  /* weight fixture for shipping quote — snapshot + restore */
+  const origWeight = p.weight_grams;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [p.id]);
   const on = `ORDD-${Date.now()}`;
   const qty = Math.min(3, origStock - 1); /* stay under stock */
 
@@ -65,10 +68,18 @@ const assert = (c, l, d) => {
     uploadedDesigns: [{ name: "design.pdf", type: "application/pdf", size: 12345 }],
   };
 
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 0]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
+
   try {
     let r = await req("POST", "/api/orders", {
       orderNumber: on, customerName: "Arun", email: "a@b.c", phone: "9000000000",
       paymentMethod: "cod", status: "New", items: [bc, std], couponCode: null,
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
     }, userToken);
     assert(r.s === 201, "Multi-item order created", `status=${r.s ?? r.s} msg=${r.b?.message}`);
 
@@ -97,8 +108,9 @@ const assert = (c, l, d) => {
     r = await req("GET", "/api/admin/orders", null, null);
     assert(r.s === 401, "No token blocked (401)");
   } finally {
-    await db.execute("UPDATE products SET stock=? WHERE id=?", [origStock, p.id]);
+    await db.execute("UPDATE products SET stock=?, weight_grams=? WHERE id=?", [origStock, origWeight, p.id]);
     await db.execute("DELETE FROM orders WHERE order_id=?", [on]);
+if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]);
     console.log(`\n  RESULTS: ${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);
   }

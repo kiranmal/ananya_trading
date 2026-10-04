@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS `products` (
   `paper_types` text DEFAULT NULL,
   `sizes` text DEFAULT NULL,
   `features` text DEFAULT NULL,
+  `weight_grams` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
@@ -111,4 +112,25 @@ CREATE TABLE IF NOT EXISTS `feedback` (
   `admin_reply` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- =====================================================
+-- DELIVERY CHARGES TABLE
+-- Admin-configured per-pincode shipping charge.
+-- charge = 0 is an explicit free-delivery config;
+-- a missing/inactive row means the pincode is NOT
+-- serviceable (enforced at order time � Step 2).
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS `delivery_charges` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `pincode` char(6) NOT NULL,
+  `city` varchar(100) NOT NULL,
+  `state` varchar(100) NOT NULL,
+  `charge` decimal(10,2) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_delivery_pincode` (`pincode`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

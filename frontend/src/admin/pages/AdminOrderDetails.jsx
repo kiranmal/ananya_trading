@@ -8,6 +8,7 @@ import {
   CreditCard,
   FileText,
   Truck,
+  X,
 } from "lucide-react";
 import { API_URL } from "../../services/apiConfig";
 import { fetchFileBlob } from "../../services/fileApi";
@@ -215,14 +216,28 @@ export default function AdminOrderDetails() {
     }));
   };
 
-  const openFile = async (fileId, name) => {
+  /* Open → in-page lightbox overlay for images (PDFs and
+     other types open in a new tab — lightbox renders <img>
+     only); Download → forces a save dialog with filename */
+  const previewFile = async (fileId) => {
+    const blob = await fetchFileBlob(fileId);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    if ((blob.type || "").startsWith("image/")) {
+      setLightbox(url);
+      /* object URL revoked when the lightbox closes */
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  const downloadFile = async (fileId, name) => {
     const blob = await fetchFileBlob(fileId);
     if (!blob) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.target = "_blank";
-    a.rel = "noreferrer";
     a.download = name || "file";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -787,25 +802,52 @@ export default function AdminOrderDetails() {
                           </div>
 
                           {a.fileId ? (
-                            <button
-                              type="button"
-                              className="od-file-open"
-                              onClick={() =>
-                                openFile(a.fileId, a.name)
-                              }
-                            >
-                              Open / Download
-                            </button>
+                            <div className="od-file-actions">
+                              <button
+                                type="button"
+                                className="od-file-open"
+                                onClick={() => previewFile(a.fileId)}
+                              >
+                                Open
+                              </button>
+                              <button
+                                type="button"
+                                className="od-file-open od-file-download"
+                                onClick={() =>
+                                  downloadFile(a.fileId, a.name)
+                                }
+                              >
+                                Download
+                              </button>
+                            </div>
                           ) : a.src && isFileRef(a.src) ? (
-                            <a
-                              className="od-file-open"
-                              href={a.src}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={a.name || undefined}
-                            >
-                              Open
-                            </a>
+                            <div className="od-file-actions">
+                              {isImageRef(a.src) ? (
+                                <button
+                                  type="button"
+                                  className="od-file-open"
+                                  onClick={() => setLightbox(a.src)}
+                                >
+                                  Open
+                                </button>
+                              ) : (
+                                <a
+                                  className="od-file-open"
+                                  href={a.src}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Open
+                                </a>
+                              )}
+                              <a
+                                className="od-file-open od-file-download"
+                                href={a.src}
+                                download={a.name || undefined}
+                              >
+                                Download
+                              </a>
+                            </div>
                           ) : (
                             <span className="od-file-missing">
                               File data not stored
@@ -1162,8 +1204,23 @@ export default function AdminOrderDetails() {
       {lightbox && (
         <div
           className="od-lightbox"
-          onClick={() => setLightbox(null)}
+          onClick={() => {
+            /* blob URLs created for file previews are
+               revoked on close — dataURLs/thumbnails
+               are left alone */
+            if (String(lightbox).startsWith("blob:"))
+              URL.revokeObjectURL(lightbox);
+            setLightbox(null);
+          }}
         >
+          <button
+            type="button"
+            className="od-lightbox-close"
+            title="Close"
+            aria-label="Close preview"
+          >
+            <X size={20} />
+          </button>
           <img src={lightbox} alt="" />
           <span className="od-lightbox-hint">
             Click anywhere to close

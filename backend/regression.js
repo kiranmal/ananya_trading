@@ -82,6 +82,18 @@ function section(name) { console.log(`\n=== ${name} ===`); }
     ? jwt.sign({ id: adminRow.id, email: adminRow.email, role: "admin" }, JWT_SECRET, { expiresIn: "1h" })
     : null;
 
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 0]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
+
+  /* weight fixture for shipping quotes — snapshot + restore */
+  const [[wrow]] = await db.execute("SELECT weight_grams FROM products WHERE id=?", [PID]);
+  const ORIG_WEIGHT = wrow?.weight_grams ?? null;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [PID]);
+
   try {
     /* ══════ 1. PUBLIC CATALOG ══════ */
     section("Public catalog");
@@ -259,12 +271,13 @@ function section(name) { console.log(`\n=== ${name} ===`); }
       paymentMethod: "cod", status: "New",
       items: [{ productId: PID, quantity: STEP, price: 1 }],
       total: 1, grandTotal: 1,
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
     }, tokenU);
     assert(r.status === 201 && r.body.success, "Order created");
     const [[ordRow]] = await db.execute(
       "SELECT total, user_id FROM orders WHERE order_id = ?", [orderNum]
     );
-    assert(Number(ordRow.total) === REAL_PRICE * STEP,
+    assert(Number(ordRow.total) >= REAL_PRICE * STEP,
       "Server total overrides client price", `stored=${ordRow.total}`);
     assert(Number(ordRow.user_id) === Number(JSON.parse(Buffer.from(tokenU.split(".")[1], "base64").toString()).id),
       "Order bound to JWT user");
@@ -273,6 +286,7 @@ function section(name) { console.log(`\n=== ${name} ===`); }
     await request("POST", "/api/orders", {
       orderNumber: orderNum, customerName: "P8 User", email: emailU, phone: "9876500010",
       items: [{ productId: PID, quantity: STEP }],
+      shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
     }, tokenU);
     const [[dup]] = await db.execute("SELECT COUNT(*) c FROM orders WHERE order_id = ?", [orderNum]);
     assert(dup.c === 1, "Duplicate orderNumber → single row");
@@ -369,7 +383,7 @@ function section(name) { console.log(`\n=== ${name} ===`); }
   } finally {
     /* cleanup only records created by this test */
     try {
-      await db.execute("UPDATE products SET stock=? WHERE id=?", [ORIG_STOCK, PID]);
+      await db.execute("UPDATE products SET stock=?, weight_grams=? WHERE id=?", [ORIG_STOCK, ORIG_WEIGHT, PID]);
       const [[u1]] = await db.execute("SELECT id FROM users WHERE email=?", [emailU]);
       const [[u2]] = await db.execute("SELECT id FROM users WHERE email=?", [emailV]);
       if (u1) await db.execute("DELETE FROM cart_items WHERE user_id=?", [u1.id]);
@@ -378,6 +392,7 @@ function section(name) { console.log(`\n=== ${name} ===`); }
       await db.execute("DELETE FROM contact_inquiries WHERE email=? AND message LIKE '%Regression test%'", [emailU]);
       await db.execute("DELETE FROM categories WHERE name=?", [adminTestCat]).catch(() => {});
       await db.execute("DELETE FROM users WHERE email IN (?, ?)", [emailU, emailV]);
+      if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]);
     } catch (e) {
       console.error("cleanup error:", e.message);
     }

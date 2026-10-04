@@ -885,6 +885,27 @@
   font-size: 12px;
 }
 
+.od-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.od-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
 /* ============ order drawer additions ============ */
 
 .od-copy {
@@ -963,6 +984,12 @@
   font-size: 11px;
 }
 
+.od-file-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .od-file-open {
   font-size: 11px;
   font-weight: 700;
@@ -973,10 +1000,21 @@
   border-radius: 7px;
   background: #eff6ff;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .od-file-open:hover {
   background: #dbeafe;
+}
+
+.od-file-download {
+  color: #047857;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.od-file-download:hover {
+  background: #d1fae5;
 }
 
 .od-file-missing {

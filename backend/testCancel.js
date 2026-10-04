@@ -55,14 +55,26 @@ const assert = (c, l, d) => {
   const [[admin]] = await db.execute("SELECT id,email FROM users WHERE role='admin' LIMIT 1");
   const tA = jwt.sign({ id: admin.id, email: admin.email, role: "admin" }, JWT_SECRET, { expiresIn: "1h" });
 
-  const [[p1]] = await db.execute("SELECT id,price,stock FROM products WHERE status='Active' AND stock>20 LIMIT 1");
-  const [[p2]] = await db.execute("SELECT id,price,stock FROM products WHERE status='Active' AND stock>20 AND id != ? LIMIT 1", [p1.id]);
+  const [[p1]] = await db.execute("SELECT id,price,stock,weight_grams FROM products WHERE status='Active' AND stock>20 LIMIT 1");
+  const [[p2]] = await db.execute("SELECT id,price,stock,weight_grams FROM products WHERE status='Active' AND stock>20 AND id != ? LIMIT 1", [p1.id]);
   const s1 = Number(p1.stock), s2 = Number(p2 ? p2.stock : 0);
+  /* weight fixtures for shipping quotes — snapshot + restore */
+  const w1 = p1.weight_grams, w2 = p2?.weight_grams ?? null;
+  await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [p1.id]);
+  if (p2) await db.execute("UPDATE products SET weight_grams=500 WHERE id=?", [p2.id]);
 
   const orderFor = (num, items) => ({
     orderNumber: num, customerName: "T", email: `c1_${ts}@t.com`,
     phone: "9000000070", paymentMethod: "cod", status: "New", items,
+    shippingAddress: { address: "T", city: "Pune", state: "Maharashtra", pincode: "411001" },
   });
+
+  /* shipping-charge fixture — only delete it if we created it */
+  const [chargeIns] = await db.execute(
+    "INSERT IGNORE INTO delivery_charges (pincode, city, state, charge, is_active) VALUES (?,?,?,?,1)",
+    ["411001", "Pune", "Maharashtra", 40]
+  );
+  const createdCharge = chargeIns.affectedRows === 1;
 
   const O1 = `CN-${ts}-1`, O2 = `CN-${ts}-2`, O3 = `CN-${ts}-3`, O4 = `CN-${ts}-4`, O5 = `CN-${ts}-5`;
 
@@ -160,10 +172,11 @@ const assert = (c, l, d) => {
     [[p]] = await db.execute("SELECT stock FROM products WHERE id=?", [p1.id]);
     assert(Number(p.stock) === s1 - 2, "Final stock = original -2 (O3+O4 still active)", `stock=${p.stock} exp=${s1 - 2}`);
   } finally {
-    await db.execute("UPDATE products SET stock=? WHERE id=?", [s1, p1.id]);
-    if (p2) await db.execute("UPDATE products SET stock=? WHERE id=?", [s2, p2.id]);
+    await db.execute("UPDATE products SET stock=?, weight_grams=? WHERE id=?", [s1, w1, p1.id]);
+    if (p2) await db.execute("UPDATE products SET stock=?, weight_grams=? WHERE id=?", [s2, w2, p2.id]);
     await db.execute("DELETE FROM orders WHERE order_id IN (?,?,?,?,?)", [O1, O2, O3, O4, O5]);
     await db.execute("DELETE FROM users WHERE email IN (?,?)", [`c1_${ts}@t.com`, `c2_${ts}@t.com`]);
+if (createdCharge) await db.execute("DELETE FROM delivery_charges WHERE pincode=?", ["411001"]);
     console.log(`\n  RESULTS: ${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);
   }
