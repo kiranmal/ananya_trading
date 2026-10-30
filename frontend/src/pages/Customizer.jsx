@@ -1643,6 +1643,80 @@ const PosterSvg = () => (
   </svg>
 );
 
+/* =====================================================
+   PAPER BAG MOCKUP - kraft shopping bag, front view.
+
+   400x400 viewBox. Folded top edge + twisted-paper
+   handles; print zone = the bag face.
+===================================================== */
+
+const PaperBagSvg = ({ color = "#d9b382" }) => {
+  const shade = shadeHex(color, -0.16);
+  const dark = shadeHex(color, -0.32);
+
+  return (
+    <svg
+      viewBox="0 0 400 400"
+      className="paperbag-svg"
+      aria-hidden="true"
+    >
+      {/* ground shadow */}
+      <ellipse
+        cx="200"
+        cy="352"
+        rx="130"
+        ry="12"
+        fill="rgba(15, 23, 42, 0.15)"
+      />
+
+      {/* twisted-paper handles */}
+      <path
+        d="M148 124 C148 70 252 70 252 124"
+        fill="none"
+        stroke={shade}
+        strokeWidth="10"
+        strokeLinecap="round"
+      />
+      <path
+        d="M162 124 C162 84 238 84 238 124"
+        fill="none"
+        stroke={dark}
+        strokeWidth="7"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+
+      {/* folded top band */}
+      <rect
+        x="108"
+        y="124"
+        width="184"
+        height="22"
+        rx="3"
+        fill={shade}
+        stroke={dark}
+        strokeWidth="1"
+      />
+
+      {/* bag body - slightly tapered trapezoid */}
+      <path
+        d="M108 146 L292 146 L304 340 Q200 352 96 340 Z"
+        fill={color}
+        stroke={dark}
+        strokeWidth="1.5"
+      />
+
+      {/* bottom fold hint */}
+      <path
+        d="M104 322 L296 322"
+        stroke={dark}
+        strokeWidth="1"
+        opacity="0.5"
+      />
+    </svg>
+  );
+};
+
 const PRINT_AREAS = {
   /* mug front print zone (body center) */
   mug: { left: 40, top: 42, width: 18, height: 26 },
@@ -1676,7 +1750,9 @@ const PRINT_AREAS = {
     front: { left: 9, top: 16, width: 82, height: 72 },
     back: { left: 18, top: 14, width: 64, height: 55 },
   },
-  "paper-bag": { left: 30, top: 38, width: 40, height: 46 },
+  /* paper bag face - below the folded band, inside the
+     trapezoid body */
+  "paper-bag": { left: 30, top: 42, width: 40, height: 36 },
   /* shipping box - left face, clear of the tape strip
      (tape occupies ~61-67%) and the top flap */
   box: { left: 26, top: 46, width: 33, height: 30 },
@@ -2384,224 +2460,6 @@ const makeFlyerDefaults = (paperColor, flyerSize = "A4") => {
   };
 };
 
-const getBrochurePanelCount = (brochureSize) =>
-  /bi.fold/i.test(String(brochureSize)) ? 2 : 3;
-
-const normalizeBrochureElement = (element, brochureSize) => {
-  if (!element) return element;
-  const panelCount = getBrochurePanelCount(brochureSize);
-  const panelWidth = 100 / panelCount;
-  const layoutMatches = Number(element.panelCount) === panelCount;
-  const panel = clamp(
-    Number.isInteger(element.panel) && layoutMatches
-      ? element.panel
-      : Math.floor((Number(element.x) || 50) / panelWidth),
-    0,
-    panelCount - 1
-  );
-  const widthLimit = Math.max(8, panelWidth - 4);
-  const width = Math.min(Number(element.width) || widthLimit, widthLimit);
-  const halfWidth = width / 2;
-  const minX = panel * panelWidth + 2 + halfWidth;
-  const maxX = (panel + 1) * panelWidth - 2 - halfWidth;
-  const halfHeight = element.type === "text"
-    ? (Number(element.height) || 12) / 2
-    : element.type === "shape"
-    ? (Number(element.height || element.width) || 12) / 2
-    : width / 2;
-
-  return {
-    ...element,
-    panel,
-    panelCount,
-    width,
-    x: clamp(Number(element.x) || panel * panelWidth + panelWidth / 2, minX, maxX),
-    y: clamp(Number(element.y) || 50, halfHeight + 2, 98 - halfHeight),
-    ...(element.type === "text" ? {
-      fontSize: Math.min(Number(element.fontSize) || 10, panelCount === 3 ? 18 : 22),
-      lineHeight: element.lineHeight || 1.18,
-    } : {}),
-  };
-};
-
-const constrainBrochureElement = (element, patch, brochureSize) =>
-  normalizeBrochureElement(
-    {
-      ...element,
-      ...patch,
-      panel: patch.x == null ? element.panel : undefined,
-    },
-    brochureSize
-  );
-
-const findBrochurePlacement = (elements, kind, brochureSize) => {
-  const panelCount = getBrochurePanelCount(brochureSize);
-  const panelWidth = 100 / panelCount;
-  const height = kind === "company" ? 20 : kind === "custom" ? 16 : 14;
-  const width = panelWidth - 5;
-  const ySlots = [88, 70, 52, 34, 16, 10];
-
-  for (let panel = 0; panel < panelCount; panel += 1) {
-    const occupied = elements
-      .map((element) => normalizeBrochureElement(element, brochureSize))
-      .filter((element) =>
-        element.panel === panel &&
-        (element.type === "text" || element.type === "image" || element.type === "qr" ||
-          (element.type === "shape" && Number(element.height || 0) < 80))
-      )
-      .map((element) => ({
-        left: element.x - (Number(element.width) || width) / 2,
-        right: element.x + (Number(element.width) || width) / 2,
-        top: element.y - (Number(element.height) || (element.type === "text" ? 12 : 10)) / 2,
-        bottom: element.y + (Number(element.height) || (element.type === "text" ? 12 : 10)) / 2,
-      }));
-
-    for (const y of ySlots) {
-      const candidate = {
-        left: panel * panelWidth + (panelWidth - width) / 2,
-        right: panel * panelWidth + (panelWidth + width) / 2,
-        top: y - height / 2,
-        bottom: y + height / 2,
-      };
-      if (candidate.top < 2 || candidate.bottom > 98) continue;
-      if (!occupied.some((box) =>
-        candidate.left < box.right && candidate.right > box.left &&
-        candidate.top < box.bottom + 2 && candidate.bottom > box.top - 2
-      )) {
-        return { panel, y, height };
-      }
-    }
-  }
-
-  return { panel: panelCount - 1, y: 88, height };
-};
-
-const makeBrochureTemplate = (templateName, brochureSize = "A4 Tri-fold") => {
-  const panelCount = getBrochurePanelCount(brochureSize);
-  const panelWidth = 100 / panelCount;
-  const centers = Array.from(
-    { length: panelCount },
-    (_, panel) => panelWidth * (panel + 0.5)
-  );
-  const colors = {
-    Corporate: { ink: "#153553", accent: "#19857b", pale: "#eaf2f1" },
-    "Product Catalogue": { ink: "#24364b", accent: "#d68a32", pale: "#f7efe3" },
-    Marketing: { ink: "#173b3a", accent: "#d45f45", pale: "#f8eee8" },
-    Services: { ink: "#243a31", accent: "#477b5e", pale: "#edf3ee" },
-  }[templateName] || { ink: "#153553", accent: "#19857b", pale: "#eaf2f1" };
-  const elements = { front: [], back: [] };
-  const shape = (sideKey, panel, y, height, color, label) => {
-    elements[sideKey].push({
-      id: uid(), type: "shape", shape: "rect", label,
-      panel, panelCount, x: centers[panel], y, width: panelWidth - 3,
-      height, color, opacity: 1, rotation: 0, hidden: false,
-    });
-  };
-  const text = (sideKey, panel, y, value, options = {}) => {
-    elements[sideKey].push({
-      id: uid(), type: "text", kind: options.kind || "custom",
-      label: options.label || value.split("\n")[0], text: value,
-      panel, panelCount, x: centers[panel], y,
-      width: panelWidth - 5, height: options.height || 12,
-      fontSize: options.fontSize || 9, fontFamily: "Poppins",
-      color: options.color || colors.ink,
-      bold: options.bold ?? false, italic: false, underline: false,
-      align: options.align || "center", letterSpacing: options.letterSpacing || 0,
-      lineHeight: 1.18, rotation: 0, hidden: false,
-    });
-  };
-  const coverPanel = panelCount - 1;
-  const contactPanel = panelCount === 3 ? 1 : 0;
-  const introPanel = 0;
-
-  if (templateName === "Corporate") {
-    shape("front", coverPanel, 50, 96, colors.ink, "Cover Panel");
-    shape("front", coverPanel, 22, 10, colors.accent, "Brand Accent");
-    text("front", coverPanel, 22, "AT", { color: "#ffffff", fontSize: 14, bold: true, label: "Brand Mark" });
-    text("front", coverPanel, 42, "CORPORATE\nPROFILE", { color: "#ffffff", fontSize: 15, bold: true, height: 24, label: "Cover Title" });
-    text("front", coverPanel, 61, "Ideas made tangible", { color: "#dce8ed", fontSize: 8 });
-    text("front", introPanel, 24, "OUR COMPANY", { fontSize: 10, bold: true, label: "Company Introduction" });
-    text("front", introPanel, 46, "Thoughtful print and packaging solutions for ambitious businesses.", { fontSize: 8, height: 28, color: "#526477" });
-    if (panelCount === 3) {
-      text("front", contactPanel, 26, "GET IN TOUCH", { fontSize: 10, bold: true });
-      text("front", contactPanel, 48, "+91 98765 43210\nhello@ananyatrading.com", { fontSize: 7, height: 22, color: "#526477" });
-      text("front", contactPanel, 72, "ANANYA TRADING COMPANY", { fontSize: 7, bold: true });
-    } else {
-      text("front", introPanel, 82, "GET IN TOUCH  ·  +91 98765 43210", { fontSize: 7, bold: true, height: 14, color: colors.accent });
-    }
-    [0, 1, 2].slice(0, panelCount).forEach((panel) => {
-      const headings = ["ABOUT US", "WHAT WE DO", "OUR PROMISE"];
-      const copy = [
-        "A dependable partner for print, branding and business essentials.",
-        "From identity to packaging, we bring every detail together.",
-        "Clear communication, consistent quality and service you can trust.",
-      ];
-      text("back", panel, 25, headings[panel], { fontSize: 10, bold: true });
-      shape("back", panel, 35, 1, colors.accent, "Section Rule");
-      text("back", panel, 56, copy[panel], { fontSize: 8, height: 30, color: "#526477" });
-    });
-  } else if (templateName === "Product Catalogue") {
-    shape("front", coverPanel, 50, 96, colors.pale, "Catalogue Cover");
-    text("front", coverPanel, 25, "COLLECTION", { fontSize: 8, bold: true, color: colors.accent, letterSpacing: 1.5 });
-    text("front", coverPanel, 45, "PRODUCT\nCATALOGUE", { fontSize: 14, bold: true, height: 24, label: "Catalogue Title" });
-    text("front", coverPanel, 66, "Print. Pack. Present.", { fontSize: 8, color: "#526477" });
-    text("front", introPanel, 25, "MADE FOR\nYOUR BRAND", { fontSize: 11, bold: true, height: 19 });
-    text("front", introPanel, 53, "Explore practical products with a polished finish and dependable quality.", { fontSize: 8, height: 28, color: "#526477" });
-    if (panelCount === 3) {
-      text("front", contactPanel, 29, "2026 COLLECTION", { fontSize: 9, bold: true });
-      text("front", contactPanel, 52, "Business print\nPackaging\nPromotional goods", { fontSize: 8, height: 28, color: "#526477" });
-    } else {
-      text("front", introPanel, 84, "2026 COLLECTION  ·  3 PRODUCT FAMILIES", { fontSize: 7, bold: true, height: 12, color: colors.accent });
-    }
-    centers.forEach((_, panel) => {
-      text("back", panel, 23, ["PRINT", "PACKAGING", "PROMO"][panel] || "PRODUCTS", { fontSize: 9, bold: true });
-      shape("back", panel, 43, 22, colors.pale, "Product Image Placeholder");
-      text("back", panel, 43, "PRODUCT\nIMAGE", { fontSize: 7, color: "#718096", height: 12 });
-      text("back", panel, 67, ["Business essentials", "Made to protect", "Made to be remembered"][panel] || "Made for business", { fontSize: 8, height: 16, color: "#526477" });
-      text("back", panel, 84, "Explore the range  >", { fontSize: 7, bold: true, color: colors.accent });
-    });
-  } else if (templateName === "Marketing") {
-    shape("front", coverPanel, 50, 96, colors.accent, "Campaign Cover");
-    text("front", coverPanel, 28, "MAKE\nAN IMPACT", { fontSize: 16, bold: true, color: "#ffffff", height: 24, label: "Campaign Headline" });
-    text("front", coverPanel, 57, "A clearer story starts here.", { fontSize: 8, color: "#fff4ed", height: 15 });
-    text("front", introPanel, 25, "YOUR NEXT\nBIG IDEA", { fontSize: 12, bold: true, height: 22 });
-    text("front", introPanel, 55, "Bring your launch, offer or event to life with print that gets noticed.", { fontSize: 8, height: 28, color: "#526477" });
-    if (panelCount === 3) {
-      text("front", contactPanel, 28, "CAMPAIGN\nHIGHLIGHTS", { fontSize: 10, bold: true, height: 20 });
-      text("front", contactPanel, 56, "Strong message.\nBeautiful materials.\nMemorable response.", { fontSize: 8, height: 25, color: "#526477" });
-    } else {
-      text("front", introPanel, 84, "LAUNCH  ·  PROMOTE  ·  CONNECT", { fontSize: 7, bold: true, height: 12, color: colors.accent });
-    }
-    centers.forEach((_, panel) => {
-      text("back", panel, 25, ["THE OFFER", "THE STORY", "TAKE ACTION"][panel] || "DETAILS", { fontSize: 9, bold: true });
-      shape("back", panel, 43, 1, colors.accent, "Campaign Rule");
-      text("back", panel, 58, ["A focused message for the people who matter.", "Tell customers what makes this moment special.", "Visit us online or talk with our team today."][panel] || "Share your message with confidence.", { fontSize: 8, height: 28, color: "#526477" });
-    });
-  } else {
-    shape("front", coverPanel, 50, 96, colors.ink, "Services Cover");
-    text("front", coverPanel, 29, "SERVICE\nOVERVIEW", { fontSize: 14, bold: true, height: 23, color: "#ffffff", label: "Services Title" });
-    text("front", coverPanel, 59, "Expert support, from brief to delivery.", { fontSize: 8, height: 15, color: "#dce8ed" });
-    text("front", introPanel, 25, "HERE TO HELP", { fontSize: 10, bold: true });
-    text("front", introPanel, 49, "Practical expertise and responsive service for every stage of your business.", { fontSize: 8, height: 28, color: "#526477" });
-    if (panelCount === 3) {
-      text("front", contactPanel, 26, "LET'S TALK", { fontSize: 10, bold: true });
-      text("front", contactPanel, 48, "+91 98765 43210\nhello@ananyatrading.com", { fontSize: 7, height: 22, color: "#526477" });
-    } else {
-      text("front", introPanel, 82, "LET'S TALK  ·  +91 98765 43210", { fontSize: 7, bold: true, height: 14, color: colors.accent });
-    }
-    centers.forEach((_, panel) => {
-      text("back", panel, 25, ["CONSULTING", "PRODUCTION", "DELIVERY"][panel] || "SUPPORT", { fontSize: 9, bold: true });
-      shape("back", panel, 36, 1, colors.accent, "Service Rule");
-      text("back", panel, 57, ["Clear guidance to choose the right solution.", "Careful production with consistent quality.", "Reliable timelines and support when you need it."][panel] || "Dedicated support for your team.", { fontSize: 8, height: 28, color: "#526477" });
-    });
-  }
-
-  return elements;
-};
-
-const makeBrochureDefaults = (brochureSize) =>
-  makeBrochureTemplate("Corporate", brochureSize);
-
 const makePenDefaults = (penColor) => {
   const ink = printColorFor(penColor);
 
@@ -3261,6 +3119,72 @@ const makePosterDefaults = (brandColor) => {
   };
 };
 
+/* paper bag - logo mark + company name on the face */
+const makePaperBagDefaults = (bagColor) => {
+  const ink = isDarkColor(bagColor)
+    ? "#f5f0e6"
+    : "#3d2b15";
+
+  return {
+    front: [
+      {
+        id: uid(),
+        type: "shape",
+        kind: "shape",
+        label: "Logo Circle",
+        shape: "circle",
+        x: 50,
+        y: 28,
+        width: 30,
+        height: 30,
+        color: ink,
+        opacity: 0.85,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "company",
+        label: "Company Name",
+        text: "COMPANY NAME",
+        x: 50,
+        y: 56,
+        fontSize: 14,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 1.5,
+        rotation: 0,
+        hidden: false,
+      },
+      {
+        id: uid(),
+        type: "text",
+        kind: "custom",
+        label: "Tagline",
+        text: "THANK YOU",
+        x: 50,
+        y: 74,
+        fontSize: 9,
+        fontFamily: "Poppins",
+        color: ink,
+        bold: false,
+        italic: false,
+        underline: false,
+        align: "center",
+        letterSpacing: 3,
+        rotation: 0,
+        hidden: false,
+      },
+    ],
+    back: [],
+  };
+};
+
 const makeDefaultDesigns = (shirtColor) => {
   const ink = printColorFor(shirtColor);
 
@@ -3584,11 +3508,11 @@ function Customizer() {
             : ctype === "poster" ||
               /poster/i.test(product?.name || "")
             ? makePosterDefaults(shirtColor)
-            : ctype === "brochure" ||
-              /brochure/i.test(product?.name || "")
-            ? makeBrochureDefaults(
-                product?.size || product?.sizes?.[0] || "A4 Tri-fold"
+            : ctype === "paper-bag" ||
+              /paper\s?bag|shopping\s?bag/i.test(
+                product?.name || ""
               )
+            ? makePaperBagDefaults(shirtColor)
             : ctype === "flyer" ||
               /flyer/i.test(product?.name || "")
             ? makeFlyerDefaults(
@@ -3969,6 +3893,10 @@ function Customizer() {
     customizationType === "poster" ||
     /poster/i.test(productName);
 
+  const isPaperBag =
+    customizationType === "paper-bag" ||
+    /paper\s?bag|shopping\s?bag/i.test(productName);
+
   /* single printable surface — front/back switch nahi */
   const singleSide =
     isPen ||
@@ -3979,16 +3907,15 @@ function Customizer() {
     isCap ||
     isBox ||
     isLetterhead ||
-    isPoster;
+    isPoster ||
+    isPaperBag;
 
   /* image/pen products ka type-specific print area;
      envelope ke front/back alag zones hain */
   const typeAreaDef =
     !isNotebook &&
     !isApparel &&
-    (isBrochure
-      ? { left: 0, top: 0, width: 100, height: 100 }
-      : isFlyer
+    (isFlyer
       ? { left: 7, top: 8, width: 86, height: 84 }
       : isPen
       ? PRINT_AREAS.pen
@@ -4013,9 +3940,6 @@ function Customizer() {
     : undefined;
 
   const flyerConfig = getFlyerSizeConfig(size);
-  const brochurePanelCount = isBrochure
-    ? getBrochurePanelCount(size)
-    : 0;
 
   /* product sizes — DB/product data se; fallback type-wise */
   const sizeOptions =
@@ -4131,14 +4055,12 @@ function Customizer() {
         e.id === id
           ? {
               ...e,
-              ...(isBrochure
-                ? constrainBrochureElement(e, patch, size)
-                : constrainElementPatch(
-                    isFlyer && e.type === "text"
-                      ? normalizeTextElement(e, size)
-                      : e,
-                    patch
-                  )),
+              ...constrainElementPatch(
+                isFlyer && e.type === "text"
+                  ? normalizeTextElement(e, size)
+                  : e,
+                patch
+              ),
             }
           : e
       ),
@@ -4153,14 +4075,12 @@ function Customizer() {
         e.id === id
           ? {
               ...e,
-              ...(isBrochure
-                ? constrainBrochureElement(e, patch, size)
-                : constrainElementPatch(
-                    isFlyer && e.type === "text"
-                      ? normalizeTextElement(e, size)
-                      : e,
-                    patch
-                  )),
+              ...constrainElementPatch(
+                isFlyer && e.type === "text"
+                  ? normalizeTextElement(e, size)
+                  : e,
+                patch
+              ),
             }
           : e
       ),
@@ -4246,26 +4166,6 @@ function Customizer() {
       custom: { x: 50, y: 86 },
     };
     const flyerBox = textBoxForKind(kind, size === "DL");
-    const brochurePlacement = isBrochure
-      ? findBrochurePlacement(elements, kind, size)
-      : null;
-    const brochurePanel = brochurePlacement?.panel;
-    const brochurePanelWidth = isBrochure
-      ? 100 / brochurePanelCount
-      : 0;
-    const brochurePanelBackground = isBrochure
-      ? elements.find((element) =>
-          element.type === "shape" &&
-          element.panel === brochurePanel &&
-          Number(element.height) >= 80
-        )?.color
-      : null;
-    const brochureBox = isBrochure
-      ? {
-          width: brochurePanelWidth - 5,
-          height: brochurePlacement.height,
-        }
-      : {};
 
     const newEl = {
       id: uid(),
@@ -4273,18 +4173,12 @@ function Customizer() {
       kind,
       label: preset.label,
       text: preset.placeholder,
-      panel: isBrochure ? brochurePanel : undefined,
-      panelCount: isBrochure ? brochurePanelCount : undefined,
-      x: isBrochure
-        ? brochurePanelWidth * (brochurePanel + 0.5)
-        : isEnvelope
+      x: isEnvelope
         ? envPos[kind]?.x ?? 50
         : isFlyer
         ? flyerPos[kind]?.x ?? 50
         : 50,
-      y: isBrochure
-        ? brochurePlacement.y
-        : isEnvelope
+      y: isEnvelope
         ? (envPos[kind]?.y ?? 50) + sameKind * 10
         : isFlyer
         ? Math.min(
@@ -4292,9 +4186,7 @@ function Customizer() {
             (flyerPos[kind]?.y ?? 56) + sameKind * 8
           )
         : Math.min(85, 42 + sameKind * 14),
-      fontSize: isBrochure
-        ? kind === "company" ? 13 : kind === "person" ? 11 : kind === "designation" ? 9 : 10
-        : isEnvelope
+      fontSize: isEnvelope
         ? envFont[kind] || 13
         : isFlyer
         ? flyerFont[kind] || flyerFont.custom
@@ -4310,9 +4202,9 @@ function Customizer() {
         ? 14
         : 20,
       fontFamily: "Poppins",
-      color: isBrochure
-        ? printColorFor(brochurePanelBackground || "#ffffff")
-        : printColorFor(isEnvelope ? envelopePaper : productColor),
+      color: printColorFor(
+        isEnvelope ? envelopePaper : productColor
+      ),
       bold:
         kind === "company" || kind === "person",
       italic: false,
@@ -4325,7 +4217,7 @@ function Customizer() {
       letterSpacing: 1,
       rotation: 0,
       hidden: false,
-      ...(isBrochure ? brochureBox : isFlyer ? flyerBox : {}),
+      ...(isFlyer ? flyerBox : {}),
       ...(isFlyer ? { lineHeight: 1.12 } : {}),
     };
 
@@ -4360,12 +4252,17 @@ function Customizer() {
 
     reader.onload = (e) => {
       saveHistory();
-      const brochurePlacement = isBrochure
-        ? findBrochurePlacement(elements, "custom", size)
-        : null;
-      const brochurePanelWidth = isBrochure
-        ? 100 / brochurePanelCount
-        : 0;
+
+      /* a selected logo slot (the placeholder circle or a
+         previously uploaded logo) gets its image REPLACED
+         instead of stacking a new element on top */
+      const selected = elements.find(
+        (el) => el.id === selectedId
+      );
+      const isLogoSlot =
+        selected &&
+        (selected.kind === "logo" ||
+          /logo/i.test(selected.label || ""));
 
       const newEl = {
         id: uid(),
@@ -4373,24 +4270,45 @@ function Customizer() {
         kind: "logo",
         label: file.name || "Logo",
         src: e.target.result,
-        panel: brochurePlacement?.panel,
-        panelCount: isBrochure ? brochurePanelCount : undefined,
-        x: isBrochure
-          ? brochurePanelWidth * (brochurePlacement.panel + 0.5)
-          : 50,
-        y: isBrochure ? brochurePlacement.y : isFlyer ? 24 : 32,
-        width: isBrochure ? Math.min(20, brochurePanelWidth - 8) : isFlyer ? 20 : 38,
+        x: isFlyer ? 50 : 50,
+        y: isFlyer ? 24 : 32,
+        width: isFlyer ? 24 : 38,
         rotation: 0,
         opacity: 1,
         hidden: false,
       };
 
-      setDesigns((prev) => ({
-        ...prev,
-        [side]: [...prev[side], newEl],
-      }));
+      if (isLogoSlot) {
+        /* replace — keeps the slot's position + size */
+        setDesigns((prev) => ({
+          ...prev,
+          [side]: prev[side].map((el) =>
+            el.id === selected.id
+              ? {
+                  ...el,
+                  type: "image",
+                  kind: "logo",
+                  label: file.name || "Logo",
+                  src: e.target.result,
+                  fileId: undefined,
+                  shape: undefined,
+                  color: undefined,
+                }
+              : el
+          ),
+        }));
+        setSelectedId(selected.id);
+      } else {
+        setDesigns((prev) => ({
+          ...prev,
+          [side]: [...prev[side], newEl],
+        }));
+        setSelectedId(newEl.id);
+      }
 
-      setSelectedId(newEl.id);
+      const targetId = isLogoSlot
+        ? selected.id
+        : newEl.id;
 
       /* logged-in: persist the image server-side so drafts
          hold a stable file reference, not a giant dataURL */
@@ -4405,7 +4323,7 @@ function Customizer() {
               setDesigns((prev) => ({
                 ...prev,
                 [side]: prev[side].map((el) =>
-                  el.id === newEl.id
+                  el.id === targetId
                     ? { ...el, fileId: up.fileId }
                     : el
                 ),
@@ -4592,8 +4510,6 @@ function Customizer() {
         ? makeNotebookDefaults(shirtColor)
         : isEnvelope
         ? makeEnvelopeDefaults(envelopePaper || "#f8f6f1")
-        : isBrochure
-        ? makeBrochureDefaults(selectedProduct?.sizes?.[0] || size)
         : isFlyer
         ? makeFlyerDefaults(shirtColor, size)
         : isSticker
@@ -4608,6 +4524,10 @@ function Customizer() {
         ? makeBoxDefaults(shirtColor)
         : isLetterhead
         ? makeLetterheadDefaults(shirtColor)
+        : isPoster
+        ? makePosterDefaults(shirtColor)
+        : isPaperBag
+        ? makePaperBagDefaults(shirtColor)
         : singleSide
         ? makePenDefaults(shirtColor)
         : makeDefaultDesigns(shirtColor)
@@ -4687,13 +4607,7 @@ function Customizer() {
 
       type:
         selectedProduct?.type ||
-        selectedProduct?.customizationType ||
         "tshirt",
-
-      customizationType:
-        selectedProduct?.customizationType ||
-        selectedProduct?.type ||
-        "",
 
       image:
         productImage,
@@ -4809,13 +4723,9 @@ function Customizer() {
         quantity: customProduct.quantity || 1,
         size: customProduct.size,
         paperType: customProduct.paperType,
-        customizationType: customProduct.customizationType,
         itemType: "custom",
         customization: {
           designs: customProduct.designs,
-          size: customProduct.size,
-          paperType: customProduct.paperType,
-          customizationType: customProduct.customizationType,
           text: customProduct.text,
           color: customProduct.color,
           personName: customProduct.personName,
@@ -4885,13 +4795,9 @@ function Customizer() {
             customProduct.quantity || 1,
           size: customProduct.size,
           paperType: customProduct.paperType,
-          customizationType: customProduct.customizationType,
           itemType: "custom",
           customization: {
             designs: customProduct.designs,
-            size: customProduct.size,
-            paperType: customProduct.paperType,
-            customizationType: customProduct.customizationType,
             text: customProduct.text,
             color: customProduct.color,
             personName: customProduct.personName,
@@ -5007,17 +4913,15 @@ function Customizer() {
   ===================================================== */
 
   const renderCanvas = () => (
-      <div
-        className={`product-canvas${isPen ? " pen-product-canvas" : ""}${isBrochure ? " brochure-product-canvas" : ""}`}
+    <div
+      className={`product-canvas${isPen ? " pen-product-canvas" : ""}`}
       style={{
         transform: `scale(${zoom})`,
       }}
     >
       <div
         className={
-          isBrochure
-            ? "real-product-preview brochure-preview"
-            : isNotebook
+          isNotebook
             ? "real-product-preview notebook-preview"
             : isPen
             ? "real-product-preview pen-preview"
@@ -5041,14 +4945,16 @@ function Customizer() {
             ? "real-product-preview box-preview"
             : isLetterhead
             ? "real-product-preview letterhead-preview"
+            : isPoster
+            ? "real-product-preview poster-preview"
+            : isPaperBag
+            ? "real-product-preview paperbag-preview"
             : !isApparel && productImage
             ? "real-product-preview has-image"
             : "real-product-preview"
         }
         style={
-          isBrochure
-            ? { aspectRatio: "297 / 210" }
-            : isEnvelope
+          isEnvelope
             ? { aspectRatio: `${envelopeAspect}` }
             : isFlyer
             ? { aspectRatio: `${flyerConfig.aspect}` }
@@ -5058,6 +4964,8 @@ function Customizer() {
                   ? "400 / 518" /* US Letter 215.9x279.4 */
                   : "400 / 560", /* A4 210x297 */
               }
+            : isPoster
+            ? { aspectRatio: "400 / 566" } /* ISO A-series */
             : undefined
         }
       >
@@ -5077,10 +4985,6 @@ function Customizer() {
             color={envelopePaper}
             back={side === "back"}
             size={size}
-          />
-        ) : isBrochure ? (
-          <div
-            className={`brochure-sheet brochure-sheet-${brochurePanelCount === 2 ? "bifold" : "trifold"}`}
           />
         ) : isFlyer ? (
           /* plain paper — every visible piece is an editable
@@ -5125,6 +5029,16 @@ function Customizer() {
                 : productColor
             }
           />
+        ) : isPoster ? (
+          <PosterSvg />
+        ) : isPaperBag ? (
+          <PaperBagSvg
+            color={
+              productColor === "#ffffff"
+                ? "#d9b382"
+                : productColor
+            }
+          />
         ) : isApparel ? (
           <GarmentSvg
             color={productColor}
@@ -5151,10 +5065,6 @@ function Customizer() {
           className={`print-area${
             isNotebook
               ? " print-area-notebook"
-              : ""
-          }${
-            isBrochure
-              ? " print-area-brochure"
               : ""
           }${
             isFlyer
@@ -5184,6 +5094,14 @@ function Customizer() {
             isLetterhead
               ? " print-area-letterhead"
               : ""
+          }${
+            isPoster
+              ? " print-area-poster"
+              : ""
+          }${
+            isPaperBag
+              ? " print-area-paperbag"
+              : ""
           } ${
             preview ? "preview-clean" : "editing"
           }`}
@@ -5195,9 +5113,7 @@ function Customizer() {
             .filter((el) => !el.hidden)
             .map((rawEl) => {
               const el =
-                isBrochure
-                  ? normalizeBrochureElement(rawEl, size)
-                  : isFlyer && rawEl.type === "text"
+                isFlyer && rawEl.type === "text"
                   ? normalizeTextElement(rawEl, size)
                   : rawEl;
 
@@ -5432,14 +5348,6 @@ function Customizer() {
             );
             })}
         </div>
-
-        {isBrochure && !preview && (
-          <div className={`brochure-fold-guides brochure-fold-guides-${brochurePanelCount}`} aria-hidden="true">
-            {Array.from({ length: brochurePanelCount - 1 }, (_, index) => (
-              <span key={index} style={{ left: `${((index + 1) / brochurePanelCount) * 100}%` }} />
-            ))}
-          </div>
-        )}
 
         {/* SPIRAL — design ke UPAR (notebook only) */}
         {isNotebook && <SpiralOverlay />}
@@ -5715,7 +5623,7 @@ function Customizer() {
             </span>
           </button>
 
-          {(isNotebook || isBrochure || dbTemplates.length > 0) && (
+          {(isNotebook || dbTemplates.length > 0) && (
             <button
               className={
                 activeTool === "templates"
@@ -6383,6 +6291,22 @@ function Customizer() {
                       />
                     </div>
 
+                    {/* pick a new file — replaces this
+                        element's image in place */}
+                    <button
+                      type="button"
+                      className="replace-logo-btn"
+                      onClick={() =>
+                        fileInputRef.current?.click()
+                      }
+                    >
+                      <UploadCloud size={15} />
+                      Replace{" "}
+                      {selectedElement.kind === "logo"
+                        ? "Logo"
+                        : "Image"}
+                    </button>
+
                     <h4>Size</h4>
 
                     <div className="range-row">
@@ -6687,7 +6611,7 @@ function Customizer() {
             </div>
           )}
 
-          {/* TEMPLATES */}
+          {/* TEMPLATES — notebook only */}
 
           {activeTool === "templates" && (
             <div className="settings-content">
@@ -6704,28 +6628,6 @@ function Customizer() {
               </p>
 
               <div className="template-list">
-                {isBrochure && [
-                  "Corporate",
-                  "Product Catalogue",
-                  "Marketing",
-                  "Services",
-                ].map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className="template-btn"
-                    onClick={() => {
-                      saveHistory();
-                      setDesigns(makeBrochureTemplate(name, size));
-                      setSide("front");
-                      setSelectedId(null);
-                    }}
-                  >
-                    <span className="template-name">{name}</span>
-                    <span className="template-desc">{brochurePanelCount}-panel, front and inside</span>
-                  </button>
-                ))}
-
                 {dbTemplates.length > 0 &&
                   dbTemplates.map((tpl) => (
                     <button
@@ -7567,11 +7469,11 @@ function Customizer() {
           <div>
 
             <strong>
-              Free Shipping
+              Fast Shipping
             </strong>
 
             <span>
-              On all orders above ₹999
+              Charges calculated at checkout
             </span>
 
           </div>
